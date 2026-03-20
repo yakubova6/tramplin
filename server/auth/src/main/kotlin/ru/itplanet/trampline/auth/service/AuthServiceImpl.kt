@@ -5,9 +5,11 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.converter.UserConverter
 import ru.itplanet.trampline.auth.dao.UserDao
+import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.util.PasswordEncoder
+import java.time.Instant
 
 @Primary
 @Service
@@ -36,6 +38,25 @@ class AuthServiceImpl(
 
     @Transactional(readOnly = true)
     override fun login(request: Authorization): AuthResponse {
-        TODO("Not yet implemented")
+        val userDto = userDao.findByUsernameOrEmail(request.login!!, request.email!!)
+            ?: throw RuntimeException("User not found")
+
+        if (!PasswordEncoder.matches(request.password, userDto.password)) {
+            throw RuntimeException("Incorrect password")
+        }
+
+        return AuthResponse(
+            sessionId = sessionService.createSession(userDto.id!!),
+            user = userConverter.fromDtoToUser(userDto)
+        )
+    }
+
+    override fun validateSession(sessionId: String?): TokenPayload {
+        val tokenPayload = sessionService.getSession(sessionId)
+        if (tokenPayload.expires.isBefore(Instant.now())) {
+            sessionService.deleteSession(sessionId)
+            throw RuntimeException("Invalid session")
+        }
+        return sessionService.extendSession(sessionId)
     }
 }

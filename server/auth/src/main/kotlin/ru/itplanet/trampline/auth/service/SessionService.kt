@@ -30,14 +30,18 @@ class SessionService(
     }
 
     fun getSession(sessionId: String?): TokenPayload {
-        return readAsTokenPayload(redisTemplate.opsForValue()[sessionId!!])
+        return readAsTokenPayload(
+            redisTemplate.opsForValue()[sessionId
+                ?: throw RuntimeException("Session id does not exists")]
+        )
     }
 
     fun extendSession(sessionId: String?): TokenPayload {
         val tokenPayload: TokenPayload = getSession(sessionId)
         tokenPayload.expires = Instant.now().plusSeconds(3600)
         deleteSession(sessionId)
-        redisTemplate.opsForValue()[sessionId!!, writeAsString(tokenPayload)] = 3600
+        redisTemplate.opsForValue()[sessionId
+            ?: throw RuntimeException("Session id does not exists"), writeAsString(tokenPayload)] = 3600
         return tokenPayload
     }
 
