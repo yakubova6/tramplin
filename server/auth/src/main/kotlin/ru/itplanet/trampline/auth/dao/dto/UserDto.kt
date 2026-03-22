@@ -4,7 +4,7 @@ import jakarta.persistence.*
 import java.util.*
 
 @Entity
-@Table(name = "opportunity")
+@Table(name = "users")
 open class UserDto {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

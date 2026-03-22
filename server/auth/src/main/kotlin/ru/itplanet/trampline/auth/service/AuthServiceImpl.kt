@@ -26,9 +26,13 @@ class AuthServiceImpl(
         userDao.findByUsernameOrEmail(request.login!!, request.email!!)
             ?.let { throw RuntimeException("User with this username or email exists") }
 
-        request.password = PasswordEncoder.encode(request.password)
+        val authorization = Authorization(
+            email = request.email,
+            login = request.login,
+            password = PasswordEncoder.encode(request.password))
 
-        val newUser = userDao.save(userConverter.toUserDto(request))
+
+        val newUser = userDao.save(userConverter.toUserDto(authorization))
         val sessionId = sessionService.createSession(newUser.id!!)
         return AuthResponse(
             sessionId = sessionId,
@@ -36,7 +40,7 @@ class AuthServiceImpl(
         )
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     override fun login(request: Authorization): AuthResponse {
         val userDto = userDao.findByUsernameOrEmail(request.login!!, request.email!!)
             ?: throw RuntimeException("User not found")

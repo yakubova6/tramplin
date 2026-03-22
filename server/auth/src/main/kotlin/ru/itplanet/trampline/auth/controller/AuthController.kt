@@ -17,14 +17,14 @@ class AuthController(
 
     @PostMapping("/register")
     fun register(
-        @Valid @ModelAttribute request: Authorization
+        @Valid @RequestBody request: Authorization
     ): AuthResponse {
         return authService.register(request)
     }
 
     @GetMapping("/login")
     fun login(
-        @Valid @ModelAttribute request: Authorization
+        @Valid @RequestBody request: Authorization
     ): AuthResponse {
         return authService.login(request)
     }
