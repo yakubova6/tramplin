@@ -5,6 +5,7 @@ import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
+import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.service.AuthService
 
@@ -17,12 +18,12 @@ class AuthController(
 
     @PostMapping("/register")
     fun register(
-        @Valid @RequestBody request: Authorization
+        @Valid @RequestBody request: Registration
     ): AuthResponse {
         return authService.register(request)
     }
 
-    @GetMapping("/login")
+    @PostMapping("/login")
     fun login(
         @Valid @RequestBody request: Authorization
     ): AuthResponse {
