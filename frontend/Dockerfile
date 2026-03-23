@@ -13,11 +13,11 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=builder /client/dist /usr/share/nginx/html
 
-# Копируем конфигурацию Nginx
+# РљРѕРїРёСЂСѓРµРј РєРѕРЅС„РёРіСѓСЂР°С†РёСЋ Nginx
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Порты
+# РџРѕСЂС‚С‹
 EXPOSE 80
 
-# Команда запуска Nginx
+# РљРѕРјР°РЅРґР° Р·Р°РїСѓСЃРєР° Nginx
 CMD ["nginx", "-g", "daemon off;"]
