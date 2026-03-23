@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseCookie
+import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -16,6 +17,7 @@ import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
+import ru.itplanet.trampline.auth.model.response.CsrfResponse
 import ru.itplanet.trampline.auth.service.AuthService
 import java.time.Duration
 
@@ -60,6 +62,14 @@ class AuthController(
         }
 
         return tokenPayload
+    }
+
+    @GetMapping("/csrf")
+    fun csrf(csrfToken: CsrfToken): CsrfResponse {
+        return CsrfResponse(
+            headerName = csrfToken.headerName,
+            token = csrfToken.token
+        )
     }
 
     private fun resolveSessionId(request: HttpServletRequest): String? {

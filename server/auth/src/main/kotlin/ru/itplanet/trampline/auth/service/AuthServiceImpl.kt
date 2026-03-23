@@ -16,6 +16,7 @@ import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
+import ru.itplanet.trampline.auth.util.EmailNormalizer
 import java.time.Instant
 import java.util.Locale
 
@@ -24,7 +25,8 @@ class AuthServiceImpl(
     private val userDao: UserDao,
     private val userConverter: UserConverter,
     private val sessionService: SessionService,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val emailNormalizer: EmailNormalizer,
 ) : AuthService {
 
     @Transactional
@@ -33,7 +35,7 @@ class AuthServiceImpl(
             throw RegistrationRoleNotAllowedException()
         }
 
-        val normalizedEmail = normalizeEmail(request.email)
+        val normalizedEmail = emailNormalizer.normalize(request.email)
 
         if (userDao.findByEmail(normalizedEmail) != null) {
             throw UserAlreadyExistsException()
@@ -68,7 +70,7 @@ class AuthServiceImpl(
 
     @Transactional
     override fun login(request: Authorization): AuthResponse {
-        val normalizedEmail = normalizeEmail(request.email)
+        val normalizedEmail = emailNormalizer.normalize(request.email)
 
         val userDto = userDao.findByEmail(normalizedEmail)
             ?: throw InvalidCredentialsException()
@@ -105,9 +107,5 @@ class AuthServiceImpl(
         }
 
         return sessionService.extendSession(sessionId)
-    }
-
-    private fun normalizeEmail(email: String): String {
-        return email.trim().lowercase(Locale.ROOT)
     }
 }
