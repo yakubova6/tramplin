@@ -25,6 +25,7 @@
     </properties>
 
     <modules>
+        <module>commons</module>
         <module>auth</module>
         <module>profile</module>
         <module>moderation</module>

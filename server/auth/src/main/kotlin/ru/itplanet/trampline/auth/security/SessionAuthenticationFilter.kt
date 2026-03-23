@@ -9,11 +9,11 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import ru.itplanet.trampline.commons.dao.UserDao
 import ru.itplanet.trampline.auth.config.SessionProperties
-import ru.itplanet.trampline.auth.dao.UserDao
 import ru.itplanet.trampline.auth.model.AuthenticatedUser
-import ru.itplanet.trampline.auth.model.Status
 import ru.itplanet.trampline.auth.service.SessionService
+import ru.itplanet.trampline.commons.model.Status
 
 @Component
 class SessionAuthenticationFilter(

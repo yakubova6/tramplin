@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.auth.dao.dto
+package ru.itplanet.trampline.commons.dao.dto
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -8,8 +8,8 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import ru.itplanet.trampline.auth.model.Role
-import ru.itplanet.trampline.auth.model.Status
+import ru.itplanet.trampline.commons.model.Role
+import ru.itplanet.trampline.commons.model.Status
 import java.time.Instant
 
 @Entity
