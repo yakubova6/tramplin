@@ -1,0 +1,268 @@
+# docker compose up -d --build
+services:
+  postgres:
+    container_name: tramplin_db
+    image: postgres
+    environment:
+      POSTGRES_DB: tramplin
+      POSTGRES_USER: tramplin_adm
+      POSTGRES_PASSWORD: tramplin_adm
+
+    volumes:
+      - tramplin_data:/var/lib/postgresql/data/
+
+    networks:
+      - tramplin_net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tramplin_adm -d tramplin"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+    restart: unless-stopped
+
+  redis:
+    container_name: mtp_cache
+    image: redis:8.6.1-alpine
+    command: redis-server --save 20 1 --loglevel warning --requirepass mtp_token
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  auth:
+    container_name: tramplin_auth
+    image: tramplin_auth:latest
+    build: ./server/auth
+    environment:
+      POSTGRES_HOST: postgres
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8081:8081"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      redis:
+        condition: service_healthy
+        restart: true
+
+    restart: unless-stopped
+
+  geo:
+    container_name: tramplin_geo
+    image: tramplin_geo:latest
+    build: ./server/geo
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8082:8082"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+  interaction:
+    container_name: tramplin_interaction
+    image: tramplin_interaction:latest
+    build: ./server/interaction
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8083:8083"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+
+  media:
+    container_name: tramplin_media
+    image: tramplin_media:latest
+    build: ./server/media
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8084:8084"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+
+  moderation:
+    container_name: tramplin_moderation
+    image: tramplin_moderation:latest
+    build: ./server/moderation
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8085:8085"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+
+  notification:
+    container_name: tramplin_notification
+    image: tramplin_notification:latest
+    build: ./server/notification
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8086:8086"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+
+  opportunity:
+    container_name: tramplin_opportunity
+    image: tramplin_opportunity:latest
+    build: ./server/opportunity
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8087:8087"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+
+  profile:
+    container_name: tramplin_profile
+    image: tramplin_profile:latest
+    build: ./server/profile
+    environment:
+      POSTGRES_HOST: postgres
+      AUTH_SERVER_HOST: auth
+
+    networks:
+      - tramplin_net
+
+    ports:
+      - "8088:8088"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      auth:
+        condition: service_started
+        restart: false
+
+    restart: unless-stopped
+
+  frontend:
+    container_name: tramplin_frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: tramplin_frontend:latest
+    ports:
+      - "80:80"
+      - "443:443"  # если будет HTTPS
+    networks:
+      - tramplin_net
+    depends_on:
+      - auth
+      - geo
+      - interaction
+      - media
+      - moderation
+      - notification
+      - opportunity
+      - profile
+    restart: unless-stopped
+
+volumes:
+  tramplin_data:
+
+networks:
+  tramplin_net:
