@@ -50,6 +50,33 @@ class GlobalExceptionHandler {
         )
     }
 
+    @ExceptionHandler(UserNotFoundException::class)
+    fun handleUserNotFound(ex: UserNotFoundException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.NOT_FOUND,
+            code = "user_not_found",
+            message = ex.message ?: "User not found"
+        )
+    }
+
+    @ExceptionHandler(UserStatusChangeNotAllowedException::class)
+    fun handleStatusChangeNotAllowed(ex: UserStatusChangeNotAllowedException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.FORBIDDEN,
+            code = "status_change_not_allowed",
+            message = ex.message ?: "Status change is not allowed"
+        )
+    }
+
+    @ExceptionHandler(UserStatusTransitionNotAllowedException::class)
+    fun handleStatusTransitionNotAllowed(ex: UserStatusTransitionNotAllowedException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.BAD_REQUEST,
+            code = "status_transition_not_allowed",
+            message = ex.message ?: "Status transition is not allowed"
+        )
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleValidation(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
         val message = ex.bindingResult.fieldErrors.firstOrNull()?.defaultMessage ?: "Validation failed"

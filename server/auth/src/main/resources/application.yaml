@@ -27,3 +27,6 @@ auth:
     ttl-seconds: 3600
     secure-cookie: false
     same-site: Lax
+
+internal-api:
+  api-key: moderation-api-key

@@ -11,15 +11,23 @@ import org.springframework.security.config.web.PathPatternRequestMatcherBuilderF
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
+import org.springframework.security.web.authentication.logout.LogoutFilter
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
+import ru.itplanet.trampline.auth.security.InternalApiRequestFilter
 import ru.itplanet.trampline.auth.security.SessionAuthenticationFilter
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(SessionProperties::class)
+@EnableConfigurationProperties(
+    value = [
+        SessionProperties::class,
+        InternalApiProperties::class
+    ]
+)
 class SecurityConfig(
-    private val sessionAuthenticationFilter: SessionAuthenticationFilter
+    private val sessionAuthenticationFilter: SessionAuthenticationFilter,
+    private val internalApiRequestFilter: InternalApiRequestFilter
 ) {
 
     @Bean
@@ -38,7 +46,8 @@ class SecurityConfig(
                     .ignoringRequestMatchers(
                         request.matcher("/api/auth/register"),
                         request.matcher("/api/auth/login"),
-                        request.matcher("/api/auth/validateSession")
+                        request.matcher("/api/auth/validateSession"),
+                        request.matcher("/internal/**")
                     )
             }
             .httpBasic { it.disable() }
@@ -54,12 +63,14 @@ class SecurityConfig(
                         request.matcher("/api/auth/register"),
                         request.matcher("/api/auth/login"),
                         request.matcher("/api/auth/validateSession"),
+                        request.matcher("/internal/**"),
                         request.matcher("/error")
                     )
                     .permitAll()
                     .anyRequest()
                     .authenticated()
             }
+            .addFilterBefore(internalApiRequestFilter, LogoutFilter::class.java)
             .addFilterBefore(sessionAuthenticationFilter, AnonymousAuthenticationFilter::class.java)
             .build()
     }

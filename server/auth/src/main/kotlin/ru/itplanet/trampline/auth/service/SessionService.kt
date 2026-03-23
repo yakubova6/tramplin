@@ -34,6 +34,8 @@ class SessionService(
             Duration.ofSeconds(sessionProperties.ttlSeconds)
         )
 
+        trackSession(userId, sessionId)
+
         return sessionId
     }
 
@@ -72,12 +74,59 @@ class SessionService(
             Duration.ofSeconds(sessionProperties.ttlSeconds)
         )
 
+        trackSession(updatedPayload.userId, id)
+
         return updatedPayload
     }
 
     fun deleteSession(sessionId: String?) {
         val id = sessionId?.takeIf { it.isNotBlank() } ?: return
+        val rawJson = stringRedisTemplate.opsForValue().get(buildKey(id))
+        val userId = rawJson?.let(::readAsTokenPayloadOrNull)?.userId
+
         stringRedisTemplate.delete(buildKey(id))
+
+        if (userId != null) {
+            untrackSession(userId, id)
+        }
+    }
+
+    fun deleteAllSessionsByUserId(userId: Long) {
+        val userSessionsKey = buildUserSessionsKey(userId)
+        val sessionIds = stringRedisTemplate.opsForSet().members(userSessionsKey).orEmpty()
+
+        if (sessionIds.isNotEmpty()) {
+            val sessionKeys = sessionIds.map(::buildKey)
+            stringRedisTemplate.delete(sessionKeys)
+        }
+
+        stringRedisTemplate.delete(userSessionsKey)
+    }
+
+    private fun trackSession(userId: Long, sessionId: String) {
+        val userSessionsKey = buildUserSessionsKey(userId)
+
+        stringRedisTemplate.opsForSet().add(userSessionsKey, sessionId)
+        stringRedisTemplate.expire(
+            userSessionsKey,
+            Duration.ofSeconds(sessionProperties.ttlSeconds)
+        )
+    }
+
+    private fun untrackSession(userId: Long, sessionId: String) {
+        val userSessionsKey = buildUserSessionsKey(userId)
+
+        stringRedisTemplate.opsForSet().remove(userSessionsKey, sessionId)
+
+        val remaining = stringRedisTemplate.opsForSet().size(userSessionsKey)
+        if (remaining == null || remaining == 0L) {
+            stringRedisTemplate.delete(userSessionsKey)
+        } else {
+            stringRedisTemplate.expire(
+                userSessionsKey,
+                Duration.ofSeconds(sessionProperties.ttlSeconds)
+            )
+        }
     }
 
     private fun generateId(): String {
@@ -88,6 +137,10 @@ class SessionService(
 
     private fun buildKey(sessionId: String): String {
         return "session:$sessionId"
+    }
+
+    private fun buildUserSessionsKey(userId: Long): String {
+        return "user-sessions:$userId"
     }
 
     private fun writeAsString(tokenPayload: TokenPayload): String {
