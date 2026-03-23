@@ -9,17 +9,21 @@ import ru.itplanet.trampline.auth.model.request.Registration
 class UserConverter {
     fun toUserDto(source: Registration): UserDto {
         return UserDto(
-            source.login!!,
-            source.email!!,
-            source.password!!
+            source.displayName,
+            source.email,
+            source.password,
+            source.role,
+            source.status
         )
     }
 
     fun fromDtoToUser(source: UserDto): User {
         return User(
             id = source.id!!,
+            displayName = source.displayName,
             email = source.email,
-            username = source.username
+            role = source.role,
+            status = source.status
         )
     }
 }

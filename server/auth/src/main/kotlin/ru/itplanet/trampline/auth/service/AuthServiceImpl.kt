@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.converter.UserConverter
 import ru.itplanet.trampline.auth.dao.UserDao
+import ru.itplanet.trampline.auth.model.Role
+import ru.itplanet.trampline.auth.model.Status
 import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
@@ -21,14 +23,23 @@ class AuthServiceImpl(
 ) : AuthService {
     @Transactional
     override fun register(request: Registration): AuthResponse {
-        userDao.findByUsernameOrEmail(request.login!!, request.email!!)
+        userDao.findByEmail(request.email)
             ?.let { throw RuntimeException("User with this username or email exists") }
 
-        val registration = Registration(
-            email = request.email,
-            login = request.login,
-            password = PasswordEncoder.encode(request.password))
+        if (!(request.role == Role.EMPLOYER || request.role == Role.APPLICANT)) {
+            throw RuntimeException("Only applicant or employer can register")
+        }
 
+        val status =
+            if (request.role == Role.EMPLOYER) Status.PENDING_VERIFICATION else Status.ACTIVE
+
+        val registration = Registration(
+            displayName = request.displayName,
+            email = request.email,
+            password = PasswordEncoder.encode(request.password),
+            role = request.role,
+            status = status
+        )
 
         val newUser = userDao.save(userConverter.toUserDto(registration))
         val sessionId = sessionService.createSession(newUser.id!!)
@@ -40,7 +51,7 @@ class AuthServiceImpl(
 
     @Transactional
     override fun login(request: Authorization): AuthResponse {
-        val userDto = userDao.findByUsernameOrEmail(request.login!!, request.login!!)
+        val userDto = userDao.findByEmail(request.email)
             ?: throw RuntimeException("User not found")
 
         if (!PasswordEncoder.matches(request.password, userDto.password)) {

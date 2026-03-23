@@ -5,7 +5,7 @@ spring:
   application:
     name: auth
   datasource:
-    url: jdbc:postgresql://64.188.97.232:5432/mt_planner
+    url: jdbc:postgresql://64.188.97.232:5432/tramplin
     username: tramplin_adm
     password: tramplin_adm
   data:

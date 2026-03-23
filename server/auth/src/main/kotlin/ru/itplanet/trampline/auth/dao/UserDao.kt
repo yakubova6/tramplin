@@ -8,5 +8,5 @@ import java.util.UUID
 interface UserDao:
     JpaRepository<UserDto, UUID>,
     JpaSpecificationExecutor<UserDto>{
-        fun findByUsernameOrEmail(username: String, email: String): UserDto?
+        fun findByEmail(email: String): UserDto?
     }
