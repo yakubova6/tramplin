@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.converter.UserConverter
 import ru.itplanet.trampline.auth.dao.UserDao
+import ru.itplanet.trampline.auth.dao.dto.UserDto
 import ru.itplanet.trampline.auth.exception.InvalidCredentialsException
 import ru.itplanet.trampline.auth.exception.InvalidSessionException
 import ru.itplanet.trampline.auth.exception.RegistrationRoleNotAllowedException
@@ -16,6 +17,8 @@ import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
+import ru.itplanet.trampline.auth.model.response.CurrentSessionResponse
+import ru.itplanet.trampline.auth.model.response.SessionInfoResponse
 import ru.itplanet.trampline.auth.util.EmailNormalizer
 import java.time.Instant
 
@@ -98,6 +101,26 @@ class AuthServiceImpl(
     }
 
     override fun validateSession(sessionId: String?): TokenPayload {
+        return validateActiveSession(sessionId).tokenPayload
+    }
+
+    override fun getCurrentSession(sessionId: String?): CurrentSessionResponse {
+        val sessionContext = validateActiveSession(sessionId)
+
+        return CurrentSessionResponse(
+            user = userConverter.fromDtoToUser(sessionContext.user),
+            session = SessionInfoResponse(
+                created = sessionContext.tokenPayload.created,
+                expires = sessionContext.tokenPayload.expires
+            )
+        )
+    }
+
+    override fun logout(sessionId: String?) {
+        sessionService.deleteSession(sessionId)
+    }
+
+    private fun validateActiveSession(sessionId: String?): ValidatedSessionContext {
         val tokenPayload = sessionService.getSession(sessionId)
 
         val user = userDao.findById(tokenPayload.userId).orElse(null)
@@ -111,6 +134,16 @@ class AuthServiceImpl(
             throw InvalidSessionException()
         }
 
-        return sessionService.extendSession(sessionId)
+        val extendedPayload = sessionService.extendSession(sessionId)
+
+        return ValidatedSessionContext(
+            user = user,
+            tokenPayload = extendedPayload
+        )
     }
+
+    private data class ValidatedSessionContext(
+        val user: UserDto,
+        val tokenPayload: TokenPayload
+    )
 }

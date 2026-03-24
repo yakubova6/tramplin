@@ -3,30 +3,30 @@ package ru.itplanet.trampline.auth.controller
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
-import org.springframework.http.HttpHeaders
-import org.springframework.http.ResponseCookie
+import org.springframework.http.HttpStatus
 import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import ru.itplanet.trampline.auth.config.SessionProperties
 import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.model.response.CsrfResponse
+import ru.itplanet.trampline.auth.model.response.CurrentSessionResponse
 import ru.itplanet.trampline.auth.service.AuthService
-import java.time.Duration
+import ru.itplanet.trampline.auth.service.SessionCookieService
 
 @Validated
 @RestController
 @RequestMapping("/api/auth")
 class AuthController(
     private val authService: AuthService,
-    private val sessionProperties: SessionProperties
+    private val sessionCookieService: SessionCookieService
 ) {
 
     @PostMapping("/register")
@@ -35,7 +35,7 @@ class AuthController(
         response: HttpServletResponse
     ): AuthResponse {
         val authResponse = authService.register(request)
-        writeSessionCookie(response, authResponse.sessionId)
+        sessionCookieService.writeSessionCookie(response, authResponse.sessionId)
         return authResponse
     }
 
@@ -45,7 +45,7 @@ class AuthController(
         response: HttpServletResponse
     ): AuthResponse {
         val authResponse = authService.login(request)
-        writeSessionCookie(response, authResponse.sessionId)
+        sessionCookieService.writeSessionCookie(response, authResponse.sessionId)
         return authResponse
     }
 
@@ -54,14 +54,40 @@ class AuthController(
         request: HttpServletRequest,
         response: HttpServletResponse
     ): TokenPayload {
-        val sessionId = resolveSessionId(request)
+        val sessionId = sessionCookieService.resolveSessionId(request)
         val tokenPayload = authService.validateSession(sessionId)
 
-        if (!sessionId.isNullOrBlank()) {
-            writeSessionCookie(response, sessionId)
-        }
+        sessionId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { sessionCookieService.writeSessionCookie(response, it) }
 
         return tokenPayload
+    }
+
+    @GetMapping("/me")
+    fun me(
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ): CurrentSessionResponse {
+        val sessionId = sessionCookieService.resolveSessionId(request)
+        val currentSession = authService.getCurrentSession(sessionId)
+
+        sessionId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { sessionCookieService.writeSessionCookie(response, it) }
+
+        return currentSession
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun logout(
+        request: HttpServletRequest,
+        response: HttpServletResponse
+    ) {
+        val sessionId = sessionCookieService.resolveSessionId(request)
+        authService.logout(sessionId)
+        sessionCookieService.clearSessionCookie(response)
     }
 
     @GetMapping("/csrf")
@@ -70,27 +96,5 @@ class AuthController(
             headerName = csrfToken.headerName,
             token = csrfToken.token
         )
-    }
-
-    private fun resolveSessionId(request: HttpServletRequest): String? {
-        return request.cookies
-            ?.firstOrNull { it.name == sessionProperties.cookieName }
-            ?.value
-    }
-
-    private fun writeSessionCookie(
-        response: HttpServletResponse,
-        sessionId: String
-    ) {
-        val cookie = ResponseCookie
-            .from(sessionProperties.cookieName, sessionId)
-            .httpOnly(true)
-            .secure(sessionProperties.secureCookie)
-            .sameSite(sessionProperties.sameSite)
-            .path("/")
-            .maxAge(Duration.ofSeconds(sessionProperties.ttlSeconds))
-            .build()
-
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString())
     }
 }
