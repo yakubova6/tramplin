@@ -1,0 +1,113 @@
+@use '../../styles/helpers' as *;
+
+.login-page {
+  min-height: 100vh;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background:
+          radial-gradient(circle at top left, rgba(31, 182, 170, 0.15), transparent 26%),
+          radial-gradient(circle at bottom right, rgba(53, 203, 191, 0.1), transparent 24%),
+          linear-gradient(180deg, #fbffff 0%, #f4fbfb 100%);
+}
+
+.login-page__logo-link {
+  display: inline-flex;
+  align-items: center;
+  column-gap: 12px;
+  margin-bottom: 24px;
+  color: var(--color-primary);
+  text-decoration: none;
+
+  @include hover {
+    opacity: 0.88;
+    color: var(--color-primary-dark);
+  }
+}
+
+.login-page__logo-image {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.login-page__logo-text {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+.login-page__card {
+  width: 100%;
+  max-width: 460px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+}
+
+.login-form__field {
+  display: flex;
+  flex-direction: column;
+  row-gap: 8px;
+}
+
+.login-form__submit {
+  margin-top: 4px;
+}
+
+.login-form__loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: login-spin 0.8s linear infinite;
+}
+
+.login-page__bottom {
+  margin-top: 22px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.login-page__register-link {
+  font-weight: 700;
+  color: var(--color-primary);
+
+  @include hover {
+    color: var(--color-primary-dark);
+  }
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@include mobile {
+  .login-page {
+    padding-block: 16px;
+  }
+
+  .login-page__logo-link {
+    margin-bottom: 20px;
+  }
+
+  .login-page__logo-text {
+    font-size: 26px;
+  }
+
+  .login-page__logo-image {
+    width: 42px;
+    height: 42px;
+  }
+}

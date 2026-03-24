@@ -1,0 +1,52 @@
+@use './helpers' as *;
+
+:root {
+  --color-white: #ffffff;
+  --color-black: #0f172a;
+
+  --color-primary: #1fb6aa;
+  --color-primary-dark: #159a90;
+  --color-primary-light: #dff8f5;
+  --color-primary-soft: #edfdfa;
+
+  --color-accent: #35cbbf;
+  --color-accent-soft: #f2fffd;
+
+  --color-text: #102a43;
+  --color-text-muted: #6b7c93;
+  --color-text-soft: #9aa8b8;
+
+  --color-background: #f8fbfc;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f2f7f8;
+
+  --color-border: #d9e8eb;
+  --color-border-strong: #bdd5d9;
+
+  --color-danger: #e85d75;
+  --color-success: #1faa80;
+
+  --border-width-s: 1px;
+  --border-width-m: 2px;
+
+  --border-radius-l: 24px;
+  --border-radius-m: 18px;
+  --border-radius-s: 14px;
+  --border-radius-xs: 10px;
+
+  --font-family-base: 'Manrope', sans-serif;
+
+  --container-width: #{fluid-to-laptop(
+    $container-desktop-width,
+    $container-laptop-width
+  )};
+  --container-padding-x: 16px;
+
+  --section-padding-y: #{fluid(72, 40)};
+
+  --shadow-card: 0 20px 60px rgba(16, 42, 67, 0.08);
+  --shadow-soft: 0 10px 30px rgba(16, 42, 67, 0.05);
+
+  --transition-duration: 0.2s;
+  --transition-duration-longer: 0.35s;
+}

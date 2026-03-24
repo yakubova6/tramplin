@@ -1,0 +1,71 @@
+@use '../../styles/helpers' as *;
+
+.auth-layout {
+  position: relative;
+  min-height: 100vh;
+  padding: 20px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  background:
+          radial-gradient(circle at top left, rgba(31, 182, 170, 0.15), transparent 26%),
+          radial-gradient(circle at bottom right, rgba(53, 203, 191, 0.1), transparent 24%),
+          linear-gradient(180deg, #fbffff 0%, #f4fbfb 100%);
+}
+
+.auth-layout__background {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+          radial-gradient(circle at 15% 20%, rgba(31, 182, 170, 0.08), transparent 18%),
+          radial-gradient(circle at 85% 75%, rgba(53, 203, 191, 0.08), transparent 18%);
+}
+
+.auth-layout__inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-layout__logo-link {
+  display: inline-flex;
+  align-items: center;
+  column-gap: 12px;
+  margin-bottom: 24px;
+  text-decoration: none;
+
+  @include hover {
+    opacity: 0.88;
+  }
+}
+
+.auth-layout__logo-image {
+  width: 46px;
+  height: 46px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.auth-layout__logo-text {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+@include mobile {
+  .auth-layout__logo-text {
+    font-size: 26px;
+  }
+
+  .auth-layout__logo-image {
+    width: 42px;
+    height: 42px;
+  }
+}

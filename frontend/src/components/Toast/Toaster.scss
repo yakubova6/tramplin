@@ -1,0 +1,95 @@
+@use '../../styles/helpers' as *;
+
+.toaster {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  width: min(380px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  row-gap: 12px;
+}
+
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  column-gap: 12px;
+  padding: 16px 18px;
+  background-color: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(10px);
+  color: var(--color-text);
+}
+
+.toast--destructive {
+  border-left-color: var(--color-danger);
+}
+
+.toast--visible {
+  animation: toast-in 0.25s ease;
+}
+
+.toast--hidden {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.toast__content {
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+  min-width: 0;
+}
+
+.toast__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.toast__description {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.toast__close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--color-text-soft);
+  cursor: pointer;
+
+  @include hover {
+    color: var(--color-text);
+    background-color: var(--color-surface-alt);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) translateX(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
+@include mobile {
+  .toaster {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}

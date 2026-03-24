@@ -1,0 +1,192 @@
+@use '../../styles/helpers' as *;
+
+.register-page {
+  min-height: 100vh;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background:
+          radial-gradient(circle at top left, rgba(31, 182, 170, 0.15), transparent 26%),
+          radial-gradient(circle at bottom right, rgba(53, 203, 191, 0.1), transparent 24%),
+          linear-gradient(180deg, #fbffff 0%, #f4fbfb 100%);
+}
+
+.register-page__logo-link {
+  display: inline-flex;
+  align-items: center;
+  column-gap: 12px;
+  margin-bottom: 24px;
+  text-decoration: none;
+
+  @include hover {
+    opacity: 0.88;
+  }
+}
+
+.register-page__logo-image {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.register-page__logo-text {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+.register-page__card {
+  width: 100%;
+  max-width: 520px;
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+}
+
+.register-form__roles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.register-form__role-card {
+  min-height: 142px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  row-gap: 12px;
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: 20px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  @include hover {
+    border-color: rgba(31, 182, 170, 0.45);
+    background-color: var(--color-primary-soft);
+  }
+
+  &.is-active {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-dark);
+    box-shadow: 0 10px 24px rgba(31, 182, 170, 0.08);
+  }
+}
+
+.register-form__role-icon {
+  width: 56px;
+  height: 56px;
+  display: block;
+  object-fit: contain;
+}
+
+.register-form__role-title {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.register-form__role-note {
+  padding: 14px 16px;
+  background-color: var(--color-primary-soft);
+  border: 1px solid rgba(31, 182, 170, 0.18);
+  border-radius: 16px;
+}
+
+.register-form__role-note-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.register-form__role-note-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.register-form__field {
+  display: flex;
+  flex-direction: column;
+  row-gap: 8px;
+}
+
+.register-form__submit {
+  margin-top: 4px;
+}
+
+.register-form__loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: var(--color-white);
+  border-radius: 50%;
+  animation: register-spin 0.8s linear infinite;
+}
+
+.register-page__bottom {
+  margin-top: 22px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.register-page__login-link {
+  font-weight: 700;
+  color: var(--color-primary);
+
+  @include hover {
+    color: var(--color-primary-dark);
+  }
+}
+
+@keyframes register-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@include mobile {
+  .register-page {
+    padding-block: 16px;
+  }
+
+  .register-page__logo-text {
+    font-size: 26px;
+  }
+
+  .register-page__logo-image {
+    width: 42px;
+    height: 42px;
+  }
+
+  .register-page__card {
+    max-width: 100%;
+  }
+
+  .register-form__roles {
+    grid-template-columns: 1fr;
+  }
+
+  .register-form__role-card {
+    min-height: 116px;
+  }
+
+  .register-form__role-icon {
+    width: 50px;
+    height: 50px;
+  }
+}

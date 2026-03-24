@@ -1,0 +1,159 @@
+@use './helpers' as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  &.is-lock {
+    overflow: hidden;
+  }
+}
+
+body {
+  @include fluid-text(16, 14);
+
+  margin: 0;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-base);
+  color: var(--color-text-muted);
+  background:
+          radial-gradient(circle at top left, rgba(31, 182, 170, 0.09), transparent 30%),
+          linear-gradient(180deg, #fbfefe 0%, #f6fbfc 100%);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex-grow: 1;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+svg {
+  display: block;
+}
+
+h1,
+.h1,
+h2,
+.h2,
+h3,
+.h3,
+h4,
+.h4,
+h5,
+.h5,
+h6,
+.h6 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+p,
+ul,
+ol,
+dl,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding-left: 0;
+  list-style: none;
+}
+
+h1,
+.h1 {
+  @include fluid-text(42, 28);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+h2,
+.h2 {
+  @include fluid-text(32, 22);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+h3,
+.h3 {
+  @include fluid-text(26, 20);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+h4,
+.h4 {
+  @include fluid-text(20, 18);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h5,
+.h5 {
+  @include fluid-text(18, 16);
+  font-weight: 600;
+}
+
+h6,
+.h6 {
+  @include fluid-text(16, 15);
+  font-weight: 600;
+}
+
+a,
+button,
+label,
+input,
+textarea,
+select,
+svg * {
+  transition-duration: var(--transition-duration);
+}
+
+a {
+  color: inherit;
+
+  @include hover {
+    color: var(--color-primary-dark);
+  }
+
+  &[class] {
+    text-decoration: none;
+  }
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+input {
+  outline: none;
+}
+
+:focus-visible {
+  @include focus-visible;
+}
