@@ -3,10 +3,10 @@ package ru.itplanet.trampline.auth.service
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import ru.itplanet.trampline.auth.dao.ApplicantProfileDao
-import ru.itplanet.trampline.auth.dao.EmployerProfileDao
-import ru.itplanet.trampline.auth.dao.dto.ApplicantProfileDto
-import ru.itplanet.trampline.auth.dao.dto.EmployerProfileDto
+import ru.itplanet.trampline.commons.dao.ApplicantProfileDao
+import ru.itplanet.trampline.commons.dao.EmployerProfileDao
+import ru.itplanet.trampline.commons.dao.dto.ApplicantProfileDto
+import ru.itplanet.trampline.commons.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.commons.model.Role
 
 @Service

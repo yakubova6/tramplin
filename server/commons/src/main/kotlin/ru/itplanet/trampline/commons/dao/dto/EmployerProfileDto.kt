@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.auth.dao.dto
+package ru.itplanet.trampline.commons.dao.dto
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
