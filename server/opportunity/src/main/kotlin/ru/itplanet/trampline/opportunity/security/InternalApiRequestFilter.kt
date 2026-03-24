@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.auth.security
+package ru.itplanet.trampline.opportunity.security
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -9,7 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import ru.itplanet.trampline.auth.config.InternalApiProperties
+import ru.itplanet.trampline.opportunity.config.InternalApiProperties
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 
