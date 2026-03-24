@@ -5,12 +5,11 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.converter.UserConverter
-import ru.itplanet.trampline.auth.dao.UserDao
 import ru.itplanet.trampline.auth.exception.UserAlreadyExistsException
 import ru.itplanet.trampline.auth.model.User
 import ru.itplanet.trampline.auth.model.request.CreateCuratorRequest
 import ru.itplanet.trampline.auth.util.EmailNormalizer
-import java.util.Locale
+import ru.itplanet.trampline.commons.dao.UserDao
 
 @Service
 class AdminServiceImpl(

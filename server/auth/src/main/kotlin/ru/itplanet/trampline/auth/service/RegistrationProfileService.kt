@@ -5,9 +5,9 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.dao.ApplicantProfileDao
 import ru.itplanet.trampline.auth.dao.EmployerProfileDao
-import ru.itplanet.trampline.auth.dao.dto.ApplicantProfileDto
-import ru.itplanet.trampline.auth.dao.dto.EmployerProfileDto
-import ru.itplanet.trampline.auth.model.Role
+import ru.itplanet.trampline.auth.dao.dto.EmptyApplicantProfileDto
+import ru.itplanet.trampline.auth.dao.dto.EmptyEmployerProfileDto
+import ru.itplanet.trampline.commons.model.Role
 
 @Service
 class RegistrationProfileService(
@@ -30,7 +30,7 @@ class RegistrationProfileService(
         }
 
         applicantProfileDao.saveAndFlush(
-            ApplicantProfileDto(userId = userId)
+            EmptyApplicantProfileDto(userId = userId)
         )
     }
 
@@ -40,7 +40,7 @@ class RegistrationProfileService(
         }
 
         employerProfileDao.saveAndFlush(
-            EmployerProfileDto(userId = userId)
+            EmptyEmployerProfileDto(userId = userId)
         )
     }
 }

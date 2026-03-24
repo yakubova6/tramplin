@@ -3,12 +3,12 @@ package ru.itplanet.trampline.auth.service
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.auth.converter.UserConverter
-import ru.itplanet.trampline.auth.dao.UserDao
 import ru.itplanet.trampline.auth.exception.UserNotFoundException
-import ru.itplanet.trampline.auth.model.Status
 import ru.itplanet.trampline.auth.model.User
 import ru.itplanet.trampline.auth.model.request.InternalUpdateUserStatusRequest
 import ru.itplanet.trampline.auth.util.UserStatusRules
+import ru.itplanet.trampline.commons.dao.UserDao
+import ru.itplanet.trampline.commons.model.Status
 
 @Service
 class UserStatusServiceImpl(

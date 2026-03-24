@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.auth.model
+package ru.itplanet.trampline.commons.model
 
 import java.time.Instant
 

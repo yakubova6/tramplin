@@ -7,7 +7,7 @@ import jakarta.persistence.Table
 
 @Entity
 @Table(name = "applicant_profile")
-open class ApplicantProfileDto {
+open class EmptyApplicantProfileDto {
 
     @Id
     @Column(name = "user_id", nullable = false, updatable = false)

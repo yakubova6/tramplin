@@ -3,7 +3,7 @@ package ru.itplanet.trampline.auth.model.request
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import ru.itplanet.trampline.auth.model.Role
+import ru.itplanet.trampline.commons.model.Role
 
 data class Registration(
     @field:NotBlank(message = "Display name must not be empty")

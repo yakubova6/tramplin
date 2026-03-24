@@ -1,11 +1,11 @@
 package ru.itplanet.trampline.auth.util
 
 import org.springframework.stereotype.Component
-import ru.itplanet.trampline.auth.dao.dto.UserDto
 import ru.itplanet.trampline.auth.exception.UserStatusChangeNotAllowedException
 import ru.itplanet.trampline.auth.exception.UserStatusTransitionNotAllowedException
-import ru.itplanet.trampline.auth.model.Role
-import ru.itplanet.trampline.auth.model.Status
+import ru.itplanet.trampline.commons.dao.dto.UserDto
+import ru.itplanet.trampline.commons.model.Role
+import ru.itplanet.trampline.commons.model.Status
 
 @Component
 class UserStatusRules {

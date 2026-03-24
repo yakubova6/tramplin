@@ -6,7 +6,7 @@ import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
 import ru.itplanet.trampline.auth.config.SessionProperties
 import ru.itplanet.trampline.auth.exception.InvalidSessionException
-import ru.itplanet.trampline.auth.model.TokenPayload
+import ru.itplanet.trampline.commons.model.TokenPayload
 import java.security.SecureRandom
 import java.time.Duration
 import java.time.Instant

@@ -1,3 +1,17 @@
 spring:
   application:
     name: profile
+  datasource:
+    url: jdbc:postgresql://64.188.97.232:5432/tramplin
+    username: tramplin_adm
+    password: tramplin_adm
+
+#auth:
+#  service:
+#    url: ${AUTH_SERVER_HOST:http://auth:8081}
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
