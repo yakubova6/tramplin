@@ -18,7 +18,6 @@ import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.util.EmailNormalizer
 import java.time.Instant
-import java.util.Locale
 
 @Service
 class AuthServiceImpl(
@@ -27,6 +26,7 @@ class AuthServiceImpl(
     private val sessionService: SessionService,
     private val passwordEncoder: PasswordEncoder,
     private val emailNormalizer: EmailNormalizer,
+    private val registrationProfileService: RegistrationProfileService,
 ) : AuthService {
 
     @Transactional
@@ -55,10 +55,15 @@ class AuthServiceImpl(
         )
 
         val savedUser = try {
-            userDao.save(userToSave)
+            userDao.saveAndFlush(userToSave)
         } catch (_: DataIntegrityViolationException) {
             throw UserAlreadyExistsException()
         }
+
+        registrationProfileService.createInitialProfile(
+            userId = savedUser.id,
+            role = savedUser.role
+        )
 
         val sessionId = sessionService.createSession(savedUser.id)
 
