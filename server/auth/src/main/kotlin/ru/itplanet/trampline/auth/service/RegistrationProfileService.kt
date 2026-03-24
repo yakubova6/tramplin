@@ -7,7 +7,7 @@ import ru.itplanet.trampline.auth.dao.ApplicantProfileDao
 import ru.itplanet.trampline.auth.dao.EmployerProfileDao
 import ru.itplanet.trampline.auth.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.auth.dao.dto.EmployerProfileDto
-import ru.itplanet.trampline.auth.model.Role
+import ru.itplanet.trampline.commons.model.Role
 
 @Service
 class RegistrationProfileService(

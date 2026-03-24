@@ -4,7 +4,6 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import ru.itplanet.trampline.commons.dao.UserDao
 import ru.itplanet.trampline.auth.converter.UserConverter
 import ru.itplanet.trampline.auth.exception.InvalidCredentialsException
 import ru.itplanet.trampline.auth.exception.InvalidSessionException
@@ -14,13 +13,14 @@ import ru.itplanet.trampline.auth.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
-import ru.itplanet.trampline.commons.model.Role
-import ru.itplanet.trampline.commons.model.Status
 import ru.itplanet.trampline.auth.model.response.CurrentSessionResponse
 import ru.itplanet.trampline.auth.model.response.SessionInfoResponse
 import ru.itplanet.trampline.auth.util.EmailNormalizer
+import ru.itplanet.trampline.commons.dao.UserDao
+import ru.itplanet.trampline.commons.dao.dto.UserDto
+import ru.itplanet.trampline.commons.model.Role
+import ru.itplanet.trampline.commons.model.Status
 import java.time.Instant
-import java.util.*
 
 @Service
 class AuthServiceImpl(

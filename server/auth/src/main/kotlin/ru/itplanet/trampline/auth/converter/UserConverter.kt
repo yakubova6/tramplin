@@ -6,6 +6,7 @@ import ru.itplanet.trampline.commons.model.Status
 import ru.itplanet.trampline.auth.model.User
 import ru.itplanet.trampline.auth.model.request.CreateCuratorRequest
 import ru.itplanet.trampline.auth.model.request.Registration
+import ru.itplanet.trampline.commons.model.Role
 
 @Component
 class UserConverter {
