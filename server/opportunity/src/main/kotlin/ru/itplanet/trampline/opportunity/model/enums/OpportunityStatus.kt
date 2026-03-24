@@ -5,6 +5,7 @@ enum class OpportunityStatus {
     PENDING_MODERATION,
     PUBLISHED,
     REJECTED,
+    CLOSED,
     ARCHIVED,
-    CLOSED
+    PLANNED
 }

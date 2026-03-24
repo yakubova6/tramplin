@@ -11,6 +11,7 @@ data class OpportunityCard(
     val id: Long,
     val title: String,
     val shortDescription: String,
+    val fullDescription: String?,
     val requirements: String?,
     val companyName: String,
     val type: OpportunityType,
@@ -19,12 +20,14 @@ data class OpportunityCard(
     val grade: Grade?,
     val salaryFrom: Int?,
     val salaryTo: Int?,
-    val publishedAt: OffsetDateTime,
+    val salaryCurrency: String,
+    val publishedAt: OffsetDateTime?,
     val expiresAt: OffsetDateTime?,
     val eventDate: LocalDate?,
-    val cityId: Long?,
-    val locationId: Long?,
-    val contactInfo: String?,
-    val resourceLinks: List<String>,
-    val tags: List<Tag>
+    val city: CitySummary?,
+    val location: LocationPreview?,
+    val contactInfo: OpportunityContactInfo,
+    val resourceLinks: List<OpportunityResourceLink>,
+    val tags: List<Tag>,
+    val mediaLinks: List<String>
 )

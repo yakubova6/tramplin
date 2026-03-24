@@ -6,19 +6,6 @@ spring:
     name: opportunity
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/opportunity_db
-    username: postgres
-    password: 12345
-
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
-
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
+    url: jdbc:postgresql://64.188.97.232:5432/tramplin
+    username: tramplin_adm
+    password: tramplin_adm

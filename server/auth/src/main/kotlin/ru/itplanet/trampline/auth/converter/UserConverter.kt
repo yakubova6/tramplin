@@ -42,7 +42,7 @@ class UserConverter {
 
     fun fromDtoToUser(source: UserDto): User {
         return User(
-            id = source.id,
+            id = source.id!!,
             displayName = source.displayName,
             email = source.email,
             role = source.role,

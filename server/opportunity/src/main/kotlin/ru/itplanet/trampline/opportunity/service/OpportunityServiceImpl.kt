@@ -10,6 +10,7 @@ import ru.itplanet.trampline.opportunity.dao.specification.OpportunitySpecificat
 import ru.itplanet.trampline.opportunity.exception.OpportunityNotFoundException
 import ru.itplanet.trampline.opportunity.model.OpportunityCard
 import ru.itplanet.trampline.opportunity.model.OpportunityListItem
+import ru.itplanet.trampline.opportunity.model.OpportunityMapPoint
 import ru.itplanet.trampline.opportunity.model.OpportunityPage
 import ru.itplanet.trampline.opportunity.model.request.GetOpportunityListRequest
 import ru.itplanet.trampline.opportunity.util.OffsetBasedPageRequest
@@ -39,6 +40,28 @@ class OpportunityServiceImpl(
 
         return OpportunityPage(
             items = page.content.map(opportunityConverter::toListItem),
+            limit = request.limit,
+            offset = request.offset,
+            total = page.totalElements
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getPublicMap(request: GetOpportunityListRequest): OpportunityPage<OpportunityMapPoint> {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        val pageable = OffsetBasedPageRequest(
+            limit = request.limit,
+            offset = request.offset,
+            sort = Sort.by(request.sortDirection.toSpring(), request.sortBy.property)
+        )
+
+        val page = opportunityDao.findAll(
+            OpportunitySpecification.build(request, now),
+            pageable
+        )
+
+        return OpportunityPage(
+            items = page.content.map(opportunityConverter::toMapPoint),
             limit = request.limit,
             offset = request.offset,
             total = page.totalElements

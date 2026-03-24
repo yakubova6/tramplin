@@ -4,32 +4,33 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 import ru.itplanet.trampline.opportunity.model.enums.CreatedByType
 import ru.itplanet.trampline.opportunity.model.enums.TagCategory
+import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 
 @Entity
 @Table(name = "tag")
-open class TagDto {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    open var id: Long? = null
+open class TagDto : BaseLongIdEntity() {
 
     @Column(name = "name", nullable = false, length = 100)
-    open var name: String = ""
+    var name: String = ""
 
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 32)
-    open var category: TagCategory = TagCategory.TECH
+    var category: TagCategory = TagCategory.TECH
 
     @Enumerated(EnumType.STRING)
     @Column(name = "created_by_type", nullable = false, length = 32)
-    open var createdByType: CreatedByType = CreatedByType.SYSTEM
+    var createdByType: CreatedByType = CreatedByType.SYSTEM
+
+    @Column(name = "created_by_user_id")
+    var createdByUserId: Long? = null
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "moderation_status", nullable = false, length = 32)
+    var moderationStatus: TagModerationStatus = TagModerationStatus.APPROVED
 
     @Column(name = "is_active", nullable = false)
-    open var isActive: Boolean = true
+    var isActive: Boolean = true
 }

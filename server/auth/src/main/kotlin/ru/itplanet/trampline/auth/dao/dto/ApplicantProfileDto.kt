@@ -11,7 +11,7 @@ open class ApplicantProfileDto {
 
     @Id
     @Column(name = "user_id", nullable = false, updatable = false)
-    var userId: Long = 0
+    var userId: Long? = null
 
     constructor()
 

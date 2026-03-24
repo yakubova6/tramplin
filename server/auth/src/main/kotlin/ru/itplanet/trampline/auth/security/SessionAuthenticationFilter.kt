@@ -40,7 +40,7 @@ class SessionAuthenticationFilter(
                     sessionService.deleteSession(sessionId)
                 } else {
                     val principal = AuthenticatedUser(
-                        userId = user.id,
+                        userId = user.id!!,
                         email = user.email,
                         role = user.role,
                         status = user.status

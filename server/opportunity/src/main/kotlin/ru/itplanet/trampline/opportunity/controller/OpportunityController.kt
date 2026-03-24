@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ru.itplanet.trampline.opportunity.model.OpportunityCard
 import ru.itplanet.trampline.opportunity.model.OpportunityListItem
+import ru.itplanet.trampline.opportunity.model.OpportunityMapPoint
 import ru.itplanet.trampline.opportunity.model.OpportunityPage
 import ru.itplanet.trampline.opportunity.model.request.GetOpportunityListRequest
 import ru.itplanet.trampline.opportunity.service.OpportunityService
@@ -26,6 +27,13 @@ class OpportunityController(
         @Valid @ModelAttribute request: GetOpportunityListRequest
     ): OpportunityPage<OpportunityListItem> {
         return opportunityService.getPublicCatalog(request)
+    }
+
+    @GetMapping("/map")
+    fun getPublicMap(
+        @Valid @ModelAttribute request: GetOpportunityListRequest
+    ): OpportunityPage<OpportunityMapPoint> {
+        return opportunityService.getPublicMap(request)
     }
 
     @GetMapping("/{id}")

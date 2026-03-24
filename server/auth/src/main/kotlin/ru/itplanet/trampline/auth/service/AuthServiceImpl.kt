@@ -64,11 +64,11 @@ class AuthServiceImpl(
         }
 
         registrationProfileService.createInitialProfile(
-            userId = savedUser.id,
+            userId = savedUser.id!!,
             role = savedUser.role
         )
 
-        val sessionId = sessionService.createSession(savedUser.id)
+        val sessionId = sessionService.createSession(savedUser.id!!)
 
         return AuthResponse(
             sessionId = sessionId,
@@ -95,7 +95,7 @@ class AuthServiceImpl(
         val savedUser = userDao.save(userDto)
 
         return AuthResponse(
-            sessionId = sessionService.createSession(savedUser.id),
+            sessionId = sessionService.createSession(savedUser.id!!),
             user = userConverter.fromDtoToUser(savedUser)
         )
     }

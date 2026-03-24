@@ -6,6 +6,7 @@ import ru.itplanet.trampline.opportunity.converter.TagConverter
 import ru.itplanet.trampline.opportunity.dao.TagDao
 import ru.itplanet.trampline.opportunity.model.Tag
 import ru.itplanet.trampline.opportunity.model.enums.TagCategory
+import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 
 @Primary
 @Service
@@ -15,10 +16,15 @@ class TagServiceImpl(
 ) : TagService {
 
     override fun getActiveTags(category: TagCategory?): List<Tag> {
+        val moderationStatus = TagModerationStatus.APPROVED
+
         val tags = if (category == null) {
-            tagDao.findAllByIsActiveTrueOrderByCategoryAscNameAsc()
+            tagDao.findAllByIsActiveTrueAndModerationStatusOrderByCategoryAscNameAsc(moderationStatus)
         } else {
-            tagDao.findAllByIsActiveTrueAndCategoryOrderByNameAsc(category)
+            tagDao.findAllByIsActiveTrueAndModerationStatusAndCategoryOrderByNameAsc(
+                moderationStatus = moderationStatus,
+                category = category
+            )
         }
 
         return tags.map(tagConverter::toModel)

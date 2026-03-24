@@ -33,7 +33,7 @@ class UserStatusServiceImpl(
 
         if (target.status == request.status) {
             if (request.status == Status.BLOCKED || request.status == Status.DELETED) {
-                sessionService.deleteAllSessionsByUserId(target.id)
+                sessionService.deleteAllSessionsByUserId(target.id!!)
             }
             return userConverter.fromDtoToUser(target)
         }
@@ -44,7 +44,7 @@ class UserStatusServiceImpl(
         val savedUser = userDao.save(target)
 
         if (savedUser.status == Status.BLOCKED || savedUser.status == Status.DELETED) {
-            sessionService.deleteAllSessionsByUserId(savedUser.id)
+            sessionService.deleteAllSessionsByUserId(savedUser.id!!)
         }
 
         return userConverter.fromDtoToUser(savedUser)

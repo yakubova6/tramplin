@@ -1,22 +1,22 @@
 package ru.itplanet.trampline.opportunity.dao.dto
 
-import jakarta.persistence.CollectionTable
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
-import jakarta.persistence.ElementCollection
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.JoinTable
 import jakarta.persistence.ManyToMany
-import jakarta.persistence.OrderColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
+import ru.itplanet.trampline.opportunity.model.OpportunityContactInfo
 import ru.itplanet.trampline.opportunity.model.enums.EmploymentType
 import ru.itplanet.trampline.opportunity.model.enums.Grade
 import ru.itplanet.trampline.opportunity.model.enums.OpportunityStatus
@@ -27,76 +27,92 @@ import java.time.OffsetDateTime
 
 @Entity
 @Table(name = "opportunity")
-open class OpportunityDto {
+open class OpportunityDto : BaseLongIdEntity() {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    open var id: Long? = null
+    @Column(name = "employer_user_id", nullable = false)
+    var employerUserId: Long? = null
 
     @Column(name = "title", nullable = false, length = 200)
-    open var title: String = ""
+    var title: String = ""
 
     @Column(name = "short_description", nullable = false, length = 1000)
-    open var shortDescription: String = ""
+    var shortDescription: String = ""
+
+    @Column(name = "full_description")
+    var fullDescription: String? = null
 
     @Column(name = "requirements")
-    open var requirements: String? = null
+    var requirements: String? = null
 
     @Column(name = "company_name", nullable = false, length = 200)
-    open var companyName: String = ""
+    var companyName: String = ""
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 20)
-    open var type: OpportunityType = OpportunityType.VACANCY
+    @Column(name = "type", nullable = false, length = 32)
+    var type: OpportunityType = OpportunityType.VACANCY
 
     @Enumerated(EnumType.STRING)
     @Column(name = "work_format", nullable = false, length = 20)
-    open var workFormat: WorkFormat = WorkFormat.OFFICE
+    var workFormat: WorkFormat = WorkFormat.OFFICE
 
     @Enumerated(EnumType.STRING)
     @Column(name = "employment_type", length = 20)
-    open var employmentType: EmploymentType? = null
+    var employmentType: EmploymentType? = null
 
     @Enumerated(EnumType.STRING)
     @Column(name = "grade", length = 20)
-    open var grade: Grade? = null
+    var grade: Grade? = null
 
     @Column(name = "salary_from")
-    open var salaryFrom: Int? = null
+    var salaryFrom: Int? = null
 
     @Column(name = "salary_to")
-    open var salaryTo: Int? = null
+    var salaryTo: Int? = null
 
-    @Column(name = "published_at", nullable = false)
-    open var publishedAt: OffsetDateTime = OffsetDateTime.now()
+    @Column(name = "salary_currency", nullable = false, length = 3)
+    var salaryCurrency: String = "RUB"
+
+    @Column(name = "published_at")
+    var publishedAt: OffsetDateTime? = null
 
     @Column(name = "expires_at")
-    open var expiresAt: OffsetDateTime? = null
+    var expiresAt: OffsetDateTime? = null
 
     @Column(name = "event_date")
-    open var eventDate: LocalDate? = null
+    var eventDate: LocalDate? = null
 
     @Column(name = "city_id")
-    open var cityId: Long? = null
+    var cityId: Long? = null
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "city_id", insertable = false, updatable = false)
+    var city: CityDto? = null
 
     @Column(name = "location_id")
-    open var locationId: Long? = null
+    var locationId: Long? = null
 
-    @Column(name = "contact_info")
-    open var contactInfo: String? = null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", insertable = false, updatable = false)
+    var location: LocationDto? = null
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "contact_info", nullable = false, columnDefinition = "jsonb")
+    var contactInfo: OpportunityContactInfo = OpportunityContactInfo()
+
+    @Column(name = "moderation_comment")
+    var moderationComment: String? = null
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
-    open var status: OpportunityStatus = OpportunityStatus.DRAFT
+    var status: OpportunityStatus = OpportunityStatus.DRAFT
 
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-        name = "opportunity_resource_link",
-        joinColumns = [JoinColumn(name = "opportunity_id")]
+    @OneToMany(
+        mappedBy = "opportunity",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true
     )
-    @OrderColumn(name = "sort_order")
-    @Column(name = "url", nullable = false)
-    open var resourceLinks: MutableList<String> = mutableListOf()
+    var resourceLinks: MutableList<OpportunityResourceLinkDto> = mutableListOf()
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -104,13 +120,13 @@ open class OpportunityDto {
         joinColumns = [JoinColumn(name = "opportunity_id")],
         inverseJoinColumns = [JoinColumn(name = "tag_id")]
     )
-    open var tags: MutableSet<TagDto> = linkedSetOf()
+    var tags: MutableSet<TagDto> = linkedSetOf()
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    open var createdAt: OffsetDateTime? = null
+    var createdAt: OffsetDateTime? = null
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-    open var updatedAt: OffsetDateTime? = null
+    var updatedAt: OffsetDateTime? = null
 }

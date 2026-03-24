@@ -22,7 +22,12 @@ data class GetOpportunityListRequest(
     val workFormat: WorkFormat? = null,
     val cityId: Long? = null,
     val tagIds: List<Long> = emptyList(),
+
+    @field:Min(0)
     val salaryFrom: Int? = null,
+
+    @field:Min(0)
     val salaryTo: Int? = null,
+
     val search: String? = null
 )

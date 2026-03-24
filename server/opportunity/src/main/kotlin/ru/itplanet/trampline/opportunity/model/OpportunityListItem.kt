@@ -18,10 +18,11 @@ data class OpportunityListItem(
     val grade: Grade?,
     val salaryFrom: Int?,
     val salaryTo: Int?,
-    val publishedAt: OffsetDateTime,
+    val salaryCurrency: String,
+    val publishedAt: OffsetDateTime?,
     val expiresAt: OffsetDateTime?,
     val eventDate: LocalDate?,
-    val cityId: Long?,
-    val locationId: Long?,
+    val city: CitySummary?,
+    val locationPreview: LocationPreview?,
     val tags: List<Tag>
 )
