@@ -67,4 +67,20 @@ class EmployerOpportunityController(
     ): EmployerOpportunityEditPayload {
         return employerOpportunityService.returnToDraft(currentUserId, id)
     }
+
+    @PostMapping("/{id}/close")
+    fun close(
+        @PathVariable @Positive id: Long,
+        @CurrentUser currentUserId: Long
+    ): EmployerOpportunityEditPayload {
+        return employerOpportunityService.close(currentUserId, id)
+    }
+
+    @PostMapping("/{id}/archive")
+    fun archive(
+        @PathVariable @Positive id: Long,
+        @CurrentUser currentUserId: Long
+    ): EmployerOpportunityEditPayload {
+        return employerOpportunityService.archive(currentUserId, id)
+    }
 }
