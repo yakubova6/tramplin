@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.opportunity.controller
+package ru.itplanet.trampline.commons.exception
 
 import jakarta.validation.ConstraintViolationException
 import org.springframework.core.convert.ConversionFailedException
@@ -9,11 +9,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
-import ru.itplanet.trampline.opportunity.exception.ApiError
-import ru.itplanet.trampline.opportunity.exception.OpportunityNotFoundException
 
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class CommonGlobalExceptionHandler {
 
     @ExceptionHandler(OpportunityNotFoundException::class)
     fun handleNotFound(ex: OpportunityNotFoundException): ResponseEntity<ApiError> {

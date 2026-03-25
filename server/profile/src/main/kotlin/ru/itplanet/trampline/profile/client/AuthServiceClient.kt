@@ -1,9 +1,8 @@
 package ru.itplanet.trampline.profile.client
 
 import org.springframework.cloud.openfeign.FeignClient
-import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
-import ru.itplanet.trampline.commons.model.TokenPayload
+import ru.itplanet.trampline.commons.model.auth.AuthCurrentSessionResponse
 
 
 @FeignClient(
@@ -14,7 +13,5 @@ import ru.itplanet.trampline.commons.model.TokenPayload
 interface AuthServiceClient {
 
     @GetMapping("/api/auth/me")
-    fun validateSession(
-        @CookieValue("sessionId") sessionId: String
-    ): TokenPayload
+    fun me(): AuthCurrentSessionResponse
 }

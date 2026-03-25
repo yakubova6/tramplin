@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.opportunity.converter.OpportunityConverter
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
 import ru.itplanet.trampline.opportunity.dao.specification.OpportunitySpecification
-import ru.itplanet.trampline.opportunity.exception.OpportunityNotFoundException
+import ru.itplanet.trampline.commons.exception.OpportunityNotFoundException
 import ru.itplanet.trampline.opportunity.model.OpportunityCard
 import ru.itplanet.trampline.opportunity.model.OpportunityListItem
 import ru.itplanet.trampline.opportunity.model.OpportunityMapPoint
