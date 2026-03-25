@@ -60,7 +60,7 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers(HttpMethod.GET, "/api/profile/**").permitAll()
+                    .requestMatchers(HttpMethod.PATCH, "/api/profile/**").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/api/employer/**")).hasRole("EMPLOYER")
                     .requestMatchers(request.matcher("/error")).permitAll()
