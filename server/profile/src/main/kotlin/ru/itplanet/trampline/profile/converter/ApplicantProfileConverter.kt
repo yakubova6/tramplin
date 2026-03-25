@@ -1,11 +1,14 @@
 package ru.itplanet.trampline.profile.converter
 
 import org.springframework.stereotype.Component
+import ru.itplanet.trampline.commons.converter.CityConverter
 import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 
 @Component
-class ApplicantProfileConverter {
+class ApplicantProfileConverter(
+    private val cityConverter: CityConverter
+) {
 
     fun toDto(source: ApplicantProfile): ApplicantProfileDto {
         return ApplicantProfileDto(
@@ -18,7 +21,7 @@ class ApplicantProfileConverter {
             studyProgram = source.studyProgram,
             course = source.course,
             graduationYear = source.graduationYear,
-            cityId = source.cityId,
+            city = source.city?.let {cityConverter.toDto(it)},
             about = source.about,
             resumeText = source.resumeText,
             portfolioLinks = source.portfolioLinks,
@@ -43,7 +46,7 @@ class ApplicantProfileConverter {
             studyProgram = source.studyProgram,
             course = source.course,
             graduationYear = source.graduationYear,
-            cityId = source.cityId,
+            city = source.city?.let { cityConverter.fromDto(it) },
             about = source.about,
             resumeText = source.resumeText,
             portfolioLinks = source.portfolioLinks,

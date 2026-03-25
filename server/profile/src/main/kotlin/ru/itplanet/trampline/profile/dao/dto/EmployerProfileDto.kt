@@ -5,6 +5,8 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
+import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.dao.dto.LocationDto
 import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 import java.time.OffsetDateTime
 
@@ -49,11 +51,14 @@ open class EmployerProfileDto {
     open var foundedYear: Short? = null
 
 
-    @Column(name = "city_id")
-    open var cityId: Long? = null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "city_id")
+    open var city: CityDto? = null
 
-    @Column(name = "location_id")
-    open var locationId: Long? = null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    open var location: LocationDto? = null
+
 
     @Column(name = "verification_status", length = 32, nullable = false)
     @Enumerated(EnumType.STRING)
@@ -85,8 +90,8 @@ open class EmployerProfileDto {
         publicContacts: Map<String, String> = emptyMap(),
         companySize: String? = null,
         foundedYear: Short? = null,
-        cityId: Long? = null,
-        locationId: Long? = null,
+        city: CityDto? = null,
+        location: LocationDto? = null,
         verificationStatus: VerificationStatus = VerificationStatus.PENDING,
         createdAt: OffsetDateTime? = null,
         updatedAt: OffsetDateTime? = null
@@ -102,8 +107,8 @@ open class EmployerProfileDto {
         this.publicContacts = publicContacts
         this.companySize = companySize
         this.foundedYear = foundedYear
-        this.cityId = cityId
-        this.locationId = locationId
+        this.city = city
+        this.location = location
         this.verificationStatus = verificationStatus
         this.createdAt = createdAt
         this.updatedAt = updatedAt

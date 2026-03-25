@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.profile.model
 
+import ru.itplanet.trampline.commons.model.City
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
@@ -15,7 +16,7 @@ data class ApplicantProfile (
     val studyProgram: String?,
     val course: Short?,
     val graduationYear: Short?,
-    val cityId: Long?,
+    val city: City?,
     val about: String?,
     val resumeText: String?,
     val portfolioLinks: List<String>, // TODO: переделать в List моделей

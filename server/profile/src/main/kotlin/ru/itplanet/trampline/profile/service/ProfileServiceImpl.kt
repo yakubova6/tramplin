@@ -4,6 +4,8 @@ import jakarta.persistence.EntityNotFoundException
 import org.springframework.context.annotation.Primary
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
+import ru.itplanet.trampline.commons.dao.CityDao
+import ru.itplanet.trampline.commons.dao.LocationDao
 import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
 import ru.itplanet.trampline.profile.converter.EmployerProfileConverter
 import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
@@ -20,7 +22,9 @@ class ProfileServiceImpl(
     private val applicantProfileDao: ApplicantProfileDao,
     private val employerProfileDao: EmployerProfileDao,
     private val applicantProfileConverter: ApplicantProfileConverter,
-    private val employerProfileConverter: EmployerProfileConverter
+    private val employerProfileConverter: EmployerProfileConverter,
+    private val cityDao: CityDao,
+    private val locationDao: LocationDao
 ) : ProfileService {
     override fun patchApplicantProfile(
         userId: Long,
@@ -37,7 +41,7 @@ class ProfileServiceImpl(
         request.studyProgram?.let { profile.studyProgram = it }
         request.course?.let { profile.course = it }
         request.graduationYear?.let { profile.graduationYear = it }
-        request.cityId?.let { profile.cityId = it }
+        request.cityId?.let { profile.city = cityDao.findById(it).orElseThrow {EntityNotFoundException("Unknown city")} }
         request.about?.let { profile.about = it }
         request.resumeText?.let { profile.resumeText = it }
         request.portfolioLinks?.let { profile.portfolioLinks = it }
@@ -69,8 +73,8 @@ class ProfileServiceImpl(
         request.publicContacts?.let { profile.publicContacts = it }
         request.companySize?.let { profile.companySize = it }
         request.foundedYear?.let { profile.foundedYear = it }
-        request.cityId?.let { profile.cityId = it }
-        request.locationId?.let { profile.locationId = it }
+        request.cityId?.let { profile.city = cityDao.findById(it).orElseThrow {EntityNotFoundException("Unknown city")} }
+        request.cityId?.let { profile.location = locationDao.findById(it).orElseThrow {EntityNotFoundException("Unknown location")} }
 
         return employerProfileConverter.fromDto(employerProfileDao.save(profile))
     }

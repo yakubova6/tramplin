@@ -1,11 +1,16 @@
 package ru.itplanet.trampline.profile.converter
 
 import org.springframework.stereotype.Component
+import ru.itplanet.trampline.commons.converter.CityConverter
+import ru.itplanet.trampline.commons.converter.LocationConverter
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.model.EmployerProfile
 
 @Component
-class EmployerProfileConverter {
+class EmployerProfileConverter(
+    private val cityConverter: CityConverter,
+    private val locationConverter: LocationConverter
+) {
 
     fun toDto(source: EmployerProfile): EmployerProfileDto {
         return EmployerProfileDto(
@@ -20,8 +25,8 @@ class EmployerProfileConverter {
             publicContacts = source.publicContacts,
             companySize = source.companySize,
             foundedYear = source.foundedYear,
-            cityId = source.cityId,
-            locationId = source.locationId,
+            city = source.city?.let {cityConverter.toDto(it)},
+            location = source.location?.let {locationConverter.toDto(it)},
             verificationStatus = source.verificationStatus,
         )
     }
@@ -39,8 +44,8 @@ class EmployerProfileConverter {
             publicContacts = source.publicContacts,
             companySize = source.companySize,
             foundedYear = source.foundedYear,
-            cityId = source.cityId,
-            locationId = source.locationId,
+            city = source.city?.let {cityConverter.fromDto(it)},
+            location = source.location?.let {locationConverter.fromDto(it)},
             verificationStatus = source.verificationStatus,
         )
     }

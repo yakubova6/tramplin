@@ -5,6 +5,7 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
+import ru.itplanet.trampline.commons.dao.dto.CityDto
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
@@ -43,8 +44,9 @@ open class ApplicantProfileDto {
     @Column(name = "graduation_year")
     open var graduationYear: Short? = null
 
-    @Column(name = "city_id")
-    open var cityId: Long? = null
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "city_id")
+    open var city: CityDto? = null
 
     @Column(name = "about")
     open var about: String? = null
@@ -106,7 +108,7 @@ open class ApplicantProfileDto {
         studyProgram: String? = null,
         course: Short? = null,
         graduationYear: Short? = null,
-        cityId: Long? = null,
+        city: CityDto? = null,
         about: String? = null,
         resumeText: String? = null,
         portfolioLinks: List<String> = emptyList(),
@@ -129,7 +131,7 @@ open class ApplicantProfileDto {
         this.studyProgram = studyProgram
         this.course = course
         this.graduationYear = graduationYear
-        this.cityId = cityId
+        this.city = city
         this.about = about
         this.resumeText = resumeText
         this.portfolioLinks = portfolioLinks
