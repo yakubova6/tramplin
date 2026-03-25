@@ -2,7 +2,6 @@ package ru.itplanet.trampline.profile.model.request
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import jakarta.validation.constraints.Size
-import ru.itplanet.trampline.profile.model.VerificationStatus
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class EmployerProfilePatchRequest(
@@ -19,5 +18,4 @@ data class EmployerProfilePatchRequest(
     val foundedYear: Short? = null,
     val cityId: Long? = null,
     val locationId: Long? = null,
-    val verificationStatus: VerificationStatus? = null
 )

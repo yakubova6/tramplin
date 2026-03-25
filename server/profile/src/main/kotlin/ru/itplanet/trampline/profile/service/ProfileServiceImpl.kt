@@ -63,7 +63,6 @@ class ProfileServiceImpl(
         request.foundedYear?.let { profile.foundedYear = it }
         request.cityId?.let { profile.cityId = it }
         request.locationId?.let { profile.locationId = it }
-        request.verificationStatus?.let { profile.verificationStatus = it }
 
         return employerProfileConverter.fromDto(employerProfileDao.save(profile))
     }
