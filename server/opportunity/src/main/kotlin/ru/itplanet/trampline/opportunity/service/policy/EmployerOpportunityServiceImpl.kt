@@ -157,6 +157,36 @@ class EmployerOpportunityServiceImpl(
         return employerOpportunityConverter.toEditPayload(saved)
     }
 
+    @Transactional
+    override fun close(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload {
+        val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
+
+        validateCloseAllowed(opportunity.status)
+
+        opportunity.status = OpportunityStatus.CLOSED
+
+        val saved = opportunityDao.saveAndFlush(opportunity)
+        return employerOpportunityConverter.toEditPayload(saved)
+    }
+
+    @Transactional
+    override fun archive(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload {
+        val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
+
+        validateArchiveAllowed(opportunity.status)
+
+        opportunity.status = OpportunityStatus.ARCHIVED
+
+        val saved = opportunityDao.saveAndFlush(opportunity)
+        return employerOpportunityConverter.toEditPayload(saved)
+    }
+
     private fun getOwnedOpportunity(
         opportunityId: Long,
         currentUserId: Long
@@ -195,6 +225,55 @@ class EmployerOpportunityServiceImpl(
             OpportunityStatus.PUBLISHED -> throw OpportunityValidationException(
                 message = "PUBLISHED opportunity cannot be returned to DRAFT by this action",
                 details = mapOf("status" to status.name)
+            )
+        }
+    }
+
+    private fun validateCloseAllowed(status: OpportunityStatus) {
+        when (status) {
+            OpportunityStatus.PUBLISHED -> return
+
+            OpportunityStatus.CLOSED -> throw OpportunityValidationException(
+                message = "Opportunity is already CLOSED",
+                details = mapOf("status" to status.name)
+            )
+
+            OpportunityStatus.ARCHIVED -> throw OpportunityValidationException(
+                message = "ARCHIVED opportunity cannot be closed",
+                details = mapOf("status" to status.name)
+            )
+
+            else -> throw OpportunityValidationException(
+                message = "Opportunity cannot be closed in current status",
+                details = mapOf(
+                    "status" to status.name,
+                    "allowedStatuses" to "PUBLISHED"
+                )
+            )
+        }
+    }
+
+    private fun validateArchiveAllowed(status: OpportunityStatus) {
+        when (status) {
+            OpportunityStatus.CLOSED,
+            OpportunityStatus.REJECTED -> return
+
+            OpportunityStatus.ARCHIVED -> throw OpportunityValidationException(
+                message = "Opportunity is already ARCHIVED",
+                details = mapOf("status" to status.name)
+            )
+
+            OpportunityStatus.PUBLISHED -> throw OpportunityValidationException(
+                message = "PUBLISHED opportunity must be closed before archiving",
+                details = mapOf("status" to status.name)
+            )
+
+            else -> throw OpportunityValidationException(
+                message = "Opportunity cannot be archived in current status",
+                details = mapOf(
+                    "status" to status.name,
+                    "allowedStatuses" to "CLOSED,REJECTED"
+                )
             )
         }
     }
@@ -385,7 +464,6 @@ class EmployerOpportunityServiceImpl(
         return when (request.workFormat) {
             WorkFormat.OFFICE,
             WorkFormat.HYBRID -> resolveOfficeOrHybridPlace(request)
-
             WorkFormat.REMOTE,
             WorkFormat.ONLINE -> resolveRemoteOrOnlinePlace(request)
         }

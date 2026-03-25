@@ -34,4 +34,14 @@ interface EmployerOpportunityService {
         currentUserId: Long,
         opportunityId: Long
     ): EmployerOpportunityEditPayload
+
+    fun close(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload
+
+    fun archive(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload
 }
