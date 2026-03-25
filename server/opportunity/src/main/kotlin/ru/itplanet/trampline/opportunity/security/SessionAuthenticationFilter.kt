@@ -94,8 +94,10 @@ class SessionAuthenticationFilter(
                 return
             }
 
+            println(ex)
             writeAuthServiceUnavailable(response)
         } catch (ex: Exception) {
+            println(ex)
             SecurityContextHolder.clearContext()
             writeAuthServiceUnavailable(response)
         }
