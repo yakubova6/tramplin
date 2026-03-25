@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
-import Button from '../../components/Button'
-import Input from '../../components/Input'
+import Button from '../../../components/Button'
+import Input from '../../../components/Input'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '../../components/Card'
-import Label from '../../components/Label'
-import PasswordField from '../../components/auth/PasswordField/PasswordField'
-import AuthLayout from '../../layouts/AuthLayout/AuthLayout'
-import { useToast } from '../../hooks/use-toast'
-import { loginUser, validateSession } from '../../utils/authApi'
+} from '../../../components/Card'
+import Label from '../../../components/Label'
+import PasswordField from '../../../components/auth/PasswordField'
+import AuthLayout from '../../../layouts/AuthLayout'
+import { useToast } from '../../../hooks/use-toast'
+import { loginUser, validateSession } from '../../../utils/authApi'
 import './Login.scss'
 
 function Login() {
@@ -39,22 +39,17 @@ function Login() {
         try {
             setIsPending(true)
 
+            // Логин через API (кука sessionId установится автоматически)
             await loginUser({
-                email,
+                email: email.trim(),
                 password,
             })
 
-            let sessionData = null
+            // Получаем данные пользователя через validateSession
+            const sessionData = await validateSession()
 
-            try {
-                sessionData = await validateSession()
-            } catch {
-                sessionData = null
-            }
-
-            if (sessionData) {
-                localStorage.setItem('career_user', JSON.stringify(sessionData))
-            }
+            // Сохраняем в localStorage для быстрого доступа
+            localStorage.setItem('tramplin_current_user', JSON.stringify(sessionData))
 
             const role = sessionData?.role
 
@@ -63,6 +58,7 @@ function Login() {
                 description: 'Вы успешно вошли в систему',
             })
 
+            // Редирект в зависимости от роли
             if (role === 'EMPLOYER') {
                 setLocation('/employer')
             } else if (role === 'CURATOR' || role === 'ADMIN') {

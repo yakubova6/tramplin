@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 3500
+const TOAST_LIMIT = 3 // Увеличил до 3, чтобы несколько уведомлений могли показываться
+const TOAST_AUTO_CLOSE_DELAY = 5000 // 5 секунд до автоматического закрытия
+const TOAST_REMOVE_DELAY = 300 // Задержка перед удалением после закрытия (для анимации)
 
 const actionTypes = {
     ADD_TOAST: 'ADD_TOAST',
@@ -18,6 +19,7 @@ function genId() {
 }
 
 const toastTimeouts = new Map()
+const autoCloseTimeouts = new Map()
 
 function addToRemoveQueue(toastId) {
     if (toastTimeouts.has(toastId)) return
@@ -31,6 +33,27 @@ function addToRemoveQueue(toastId) {
     }, TOAST_REMOVE_DELAY)
 
     toastTimeouts.set(toastId, timeout)
+}
+
+function clearAutoClose(toastId) {
+    if (autoCloseTimeouts.has(toastId)) {
+        clearTimeout(autoCloseTimeouts.get(toastId))
+        autoCloseTimeouts.delete(toastId)
+    }
+}
+
+function scheduleAutoClose(toastId, duration) {
+    clearAutoClose(toastId)
+
+    const timeout = setTimeout(() => {
+        autoCloseTimeouts.delete(toastId)
+        dispatch({
+            type: actionTypes.DISMISS_TOAST,
+            toastId,
+        })
+    }, duration)
+
+    autoCloseTimeouts.set(toastId, timeout)
 }
 
 function reducer(state, action) {
@@ -52,10 +75,15 @@ function reducer(state, action) {
         case actionTypes.DISMISS_TOAST: {
             const { toastId } = action
 
+            // Очищаем авто-закрытие для этого тоста
             if (toastId) {
+                clearAutoClose(toastId)
                 addToRemoveQueue(toastId)
             } else {
-                state.toasts.forEach((toast) => addToRemoveQueue(toast.id))
+                state.toasts.forEach((toast) => {
+                    clearAutoClose(toast.id)
+                    addToRemoveQueue(toast.id)
+                })
             }
 
             return {
@@ -76,6 +104,9 @@ function reducer(state, action) {
                 }
             }
 
+            // Очищаем таймауты при удалении
+            clearAutoClose(action.toastId)
+
             return {
                 ...state,
                 toasts: state.toasts.filter((toast) => toast.id !== action.toastId),
@@ -94,8 +125,17 @@ function dispatch(action) {
     listeners.forEach((listener) => listener(memoryState))
 }
 
+/**
+ * Показать уведомление
+ * @param {Object} props - параметры уведомления
+ * @param {string} props.title - заголовок
+ * @param {string} props.description - описание
+ * @param {string} props.variant - тип: 'default' или 'destructive'
+ * @param {number} props.duration - время показа в мс (по умолчанию 5000)
+ */
 function toast(props) {
     const id = genId()
+    const duration = props.duration ?? TOAST_AUTO_CLOSE_DELAY
 
     const dismiss = () =>
         dispatch({
@@ -117,12 +157,18 @@ function toast(props) {
         toast: {
             ...props,
             id,
+            duration,
             open: true,
             onOpenChange: (open) => {
                 if (!open) dismiss()
             },
         },
     })
+
+    // Запускаем автоматическое закрытие
+    if (duration > 0) {
+        scheduleAutoClose(id, duration)
+    }
 
     return {
         id,

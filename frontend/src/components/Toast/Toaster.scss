@@ -9,6 +9,11 @@
   display: flex;
   flex-direction: column;
   row-gap: 12px;
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
 }
 
 .toast {
@@ -25,19 +30,19 @@
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(10px);
   color: var(--color-text);
+  will-change: transform, opacity;
 }
 
 .toast--destructive {
-  border-left-color: var(--color-danger);
+  border-left-color: #e85d75;
 }
 
-.toast--visible {
-  animation: toast-in 0.25s ease;
+.toast--entered {
+  animation: slideInRight 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
 }
 
-.toast--hidden {
-  opacity: 0;
-  transform: translateX(20px);
+.toast--exiting {
+  animation: slideOutRight 0.3s ease-in forwards;
 }
 
 .toast__content {
@@ -45,6 +50,7 @@
   flex-direction: column;
   row-gap: 4px;
   min-width: 0;
+  flex: 1;
 }
 
 .toast__title {
@@ -64,24 +70,41 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  color: var(--color-text-soft);
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  color: var(--color-text-soft);
+  transition: all 0.2s ease;
 
-  @include hover {
+  &:hover {
     color: var(--color-text);
     background-color: var(--color-surface-alt);
   }
 }
 
-@keyframes toast-in {
+@keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateY(-10px) translateX(8px);
+    transform: translateX(100%);
   }
-
   to {
     opacity: 1;
-    transform: translateY(0) translateX(0);
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
   }
 }
 
@@ -91,5 +114,27 @@
     right: 16px;
     left: 16px;
     width: auto;
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideOutRight {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
   }
 }

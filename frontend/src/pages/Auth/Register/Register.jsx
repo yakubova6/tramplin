@@ -1,21 +1,21 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
-import seekerIcon from '../../assets/icons/role-seeker.svg'
-import employerIcon from '../../assets/icons/role-employer.svg'
-import Button from '../../components/Button'
-import Input from '../../components/Input'
+import seekerIcon from '../../../assets/icons/role-seeker.svg'
+import employerIcon from '../../../assets/icons/role-employer.svg'
+import Button from '../../../components/Button'
+import Input from '../../../components/Input'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '../../components/Card'
-import Label from '../../components/Label'
-import PasswordField from '../../components/auth/PasswordField/PasswordField'
-import AuthLayout from '../../layouts/AuthLayout/AuthLayout'
-import { useToast } from '../../hooks/use-toast'
-import { registerUser } from '../../utils/authApi'
+} from '../../../components/Card'
+import Label from '../../../components/Label'
+import PasswordField from '../../../components/auth/PasswordField'
+import AuthLayout from '../../../layouts/AuthLayout'
+import { useToast } from '../../../hooks/use-toast'
+import { registerUser, validateSession } from '../../../utils/authApi'
 import './Register.scss'
 
 function Register() {
@@ -45,13 +45,37 @@ function Register() {
         try {
             setIsPending(true)
 
+            // Регистрация через API
             await registerUser({
-                displayName,
-                email,
+                displayName: displayName.trim(),
+                email: email.trim(),
                 password,
                 role,
                 status: 'ACTIVE',
             })
+
+            // После регистрации проверяем сессию (кука должна установиться автоматически)
+            let sessionData = null
+            try {
+                sessionData = await validateSession()
+            } catch (err) {
+                console.warn('Session validation after registration failed:', err)
+            }
+
+            // Сохраняем данные пользователя в localStorage для быстрого доступа
+            if (sessionData) {
+                localStorage.setItem('tramplin_current_user', JSON.stringify(sessionData))
+            } else {
+                // Если validateSession не сработал, сохраняем хотя бы то, что знаем
+                localStorage.setItem(
+                    'tramplin_current_user',
+                    JSON.stringify({
+                        displayName: displayName.trim(),
+                        email: email.trim(),
+                        role,
+                    })
+                )
+            }
 
             toast({
                 title: 'Аккаунт создан!',
@@ -62,7 +86,7 @@ function Register() {
         } catch (error) {
             toast({
                 title: 'Ошибка регистрации',
-                description: error.message || 'Произошла ошибка',
+                description: error?.message || 'Произошла ошибка',
                 variant: 'destructive',
             })
         } finally {
@@ -116,17 +140,6 @@ function Register() {
                             </button>
                         </div>
 
-                        <div className="register-form__role-note">
-                            <h3 className="register-form__role-note-title">
-                                {isEmployer ? 'Аккаунт работодателя' : 'Аккаунт соискателя'}
-                            </h3>
-                            <p className="register-form__role-note-text">
-                                {isEmployer
-                                    ? 'Подходит для компаний и ИП, которые публикуют вакансии, стажировки и карьерные мероприятия.'
-                                    : 'Подходит для студентов и выпускников, которые ищут вакансии, стажировки и возможности профессионального роста.'}
-                            </p>
-                        </div>
-
                         <div className="register-form__field">
                             <Label htmlFor="displayName">
                                 {isEmployer ? 'Название компании' : 'Отображаемое имя'}
@@ -148,7 +161,7 @@ function Register() {
                                 id="email"
                                 name="email"
                                 type="email"
-                                placeholder="name@example.com"
+                                placeholder={isEmployer ? 'company@example.com' : 'name@example.com'}
                                 value={email}
                                 onChange={(event) => setEmail(event.target.value)}
                                 required
@@ -171,9 +184,9 @@ function Register() {
                             {isPending ? (
                                 <span className="register-form__loader" />
                             ) : isEmployer ? (
-                                'Создать аккаунт'
+                                'Создать аккаунт работодателя'
                             ) : (
-                                'Создать аккаунт'
+                                'Создать аккаунт соискателя'
                             )}
                         </Button>
                     </form>

@@ -1,0 +1,59 @@
+@use '../../styles/helpers' as *;
+
+.dashboard-page {
+  min-height: 100vh;
+  padding: 20px 16px;
+  background:
+          radial-gradient(circle at top left, rgba(31, 182, 170, 0.15), transparent 26%),
+          radial-gradient(circle at bottom right, rgba(53, 203, 191, 0.1), transparent 24%),
+          linear-gradient(180deg, #fbffff 0%, #f4fbfb 100%);
+}
+
+.dashboard-page__container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.dashboard-page__header {
+  margin-bottom: 18px;
+}
+
+.dashboard-page__title {
+  font-size: 30px;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+
+.dashboard-page__subtitle {
+  color: var(--color-text-muted);
+}
+
+.dashboard-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(217, 232, 235, 0.9);
+  border-radius: 20px;
+  box-shadow: var(--shadow-soft);
+  padding: 18px;
+}
+
+.dashboard-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.dashboard-tabs__btn {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-text);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.dashboard-tabs__btn.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+}

@@ -1,0 +1,22 @@
+.dashboard-layout {
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.dashboard-layout__main {
+  padding-block: 32px;
+}
+
+.dashboard-layout__header {
+  margin-bottom: 24px;
+}
+
+.dashboard-layout__title {
+  font-size: 32px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.dashboard-layout__subtitle {
+  color: var(--color-text-muted);
+}

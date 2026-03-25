@@ -1,0 +1,22 @@
+.textarea {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  background: #fff;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(31, 182, 170, 0.12);
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+    font-size: 13px;
+  }
+}
