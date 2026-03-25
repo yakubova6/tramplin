@@ -8,6 +8,7 @@ import ru.itplanet.trampline.opportunity.dao.dto.OpportunityResourceLinkDto
 import ru.itplanet.trampline.opportunity.dao.dto.TagDto
 import ru.itplanet.trampline.opportunity.model.CitySummary
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityCard
+import ru.itplanet.trampline.opportunity.model.EmployerOpportunityEditPayload
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityListItem
 import ru.itplanet.trampline.opportunity.model.LocationPreview
 import ru.itplanet.trampline.opportunity.model.OpportunityResourceLink
@@ -78,6 +79,40 @@ class EmployerOpportunityConverter(
             tags = source.tags
                 .approvedActiveTags()
                 .map(tagConverter::toModel),
+            moderationComment = source.moderationComment,
+            createdAt = source.createdAt,
+            updatedAt = source.updatedAt
+        )
+    }
+
+    fun toEditPayload(source: OpportunityDto): EmployerOpportunityEditPayload {
+        return EmployerOpportunityEditPayload(
+            id = requireNotNull(source.id),
+            title = source.title,
+            shortDescription = source.shortDescription,
+            fullDescription = source.fullDescription,
+            requirements = source.requirements,
+            companyName = source.companyName,
+            type = source.type,
+            workFormat = source.workFormat,
+            employmentType = source.employmentType,
+            grade = source.grade,
+            salaryFrom = source.salaryFrom,
+            salaryTo = source.salaryTo,
+            salaryCurrency = source.salaryCurrency,
+            status = source.status,
+            publishedAt = source.publishedAt,
+            expiresAt = source.expiresAt,
+            eventDate = source.eventDate,
+            cityId = source.cityId ?: source.location?.cityId,
+            locationId = source.locationId,
+            contactInfo = source.contactInfo,
+            resourceLinks = source.resourceLinks
+                .sortedBy { it.id.sortOrder }
+                .map(::toResourceLink),
+            tagIds = source.tags
+                .map { requireNotNull(it.id) }
+                .sorted(),
             moderationComment = source.moderationComment,
             createdAt = source.createdAt,
             updatedAt = source.updatedAt

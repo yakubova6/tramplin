@@ -3,6 +3,7 @@ package ru.itplanet.trampline.opportunity.service
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import ru.itplanet.trampline.commons.exception.OpportunityNotFoundException
 import ru.itplanet.trampline.commons.exception.OpportunityValidationException
 import ru.itplanet.trampline.opportunity.converter.EmployerOpportunityConverter
 import ru.itplanet.trampline.opportunity.dao.CityDao
@@ -17,6 +18,7 @@ import ru.itplanet.trampline.opportunity.dao.dto.OpportunityResourceLinkId
 import ru.itplanet.trampline.opportunity.dao.dto.TagDto
 import ru.itplanet.trampline.opportunity.dao.specification.EmployerOpportunitySpecification
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityCard
+import ru.itplanet.trampline.opportunity.model.EmployerOpportunityEditPayload
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityListItem
 import ru.itplanet.trampline.opportunity.model.OpportunityContactInfo
 import ru.itplanet.trampline.opportunity.model.OpportunityPage
@@ -26,6 +28,7 @@ import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 import ru.itplanet.trampline.opportunity.model.enums.WorkFormat
 import ru.itplanet.trampline.opportunity.model.request.CreateEmployerOpportunityContactInfoRequest
 import ru.itplanet.trampline.opportunity.model.request.CreateEmployerOpportunityRequest
+import ru.itplanet.trampline.opportunity.model.request.CreateEmployerOpportunityResourceLinkRequest
 import ru.itplanet.trampline.opportunity.model.request.GetEmployerOpportunityListRequest
 import ru.itplanet.trampline.opportunity.service.policy.EmployerOpportunityCreatePolicy
 import ru.itplanet.trampline.opportunity.util.OffsetBasedPageRequest
@@ -58,32 +61,17 @@ class EmployerOpportunityServiceImpl(
 
         val opportunity = OpportunityDto().apply {
             employerUserId = currentUserId
-            title = request.title.trim()
-            shortDescription = request.shortDescription.trim()
-            fullDescription = request.fullDescription.normalizeNullableText()
-            requirements = request.requirements.normalizeNullableText()
-            companyName = request.companyName.trim()
-            type = request.type
-            workFormat = request.workFormat
-            employmentType = request.employmentType
-            grade = request.grade
-            salaryFrom = request.salaryFrom
-            salaryTo = request.salaryTo
-            salaryCurrency = request.salaryCurrency.trim().uppercase(Locale.ROOT)
-            publishedAt = null
-            expiresAt = request.expiresAt
-            eventDate = request.eventDate
-            cityId = requireNotNull(resolvedPlace.city.id)
-            city = resolvedPlace.city
-            locationId = resolvedPlace.location?.id
-            location = resolvedPlace.location
-            contactInfo = request.contactInfo.toModel()
-            moderationComment = null
             status = OpportunityStatus.DRAFT
-            this.tags = resolvedTags.toMutableSet()
+            publishedAt = null
+            moderationComment = null
         }
 
-        opportunity.resourceLinks = buildResourceLinks(opportunity, request)
+        applyEditableFieldsOnCreate(
+            opportunity = opportunity,
+            request = request,
+            resolvedTags = resolvedTags,
+            resolvedPlace = resolvedPlace
+        )
 
         val saved = opportunityDao.saveAndFlush(opportunity)
         return employerOpportunityConverter.toCard(saved)
@@ -111,6 +99,199 @@ class EmployerOpportunityServiceImpl(
             offset = request.offset,
             total = page.totalElements
         )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getMyOpportunity(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload {
+        val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
+        return employerOpportunityConverter.toEditPayload(opportunity)
+    }
+
+    @Transactional
+    override fun update(
+        currentUserId: Long,
+        opportunityId: Long,
+        request: CreateEmployerOpportunityRequest
+    ): EmployerOpportunityEditPayload {
+        val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
+
+        validateEditableStatus(opportunity.status)
+        validateSalary(request)
+        validateTemporalFields(request)
+
+        val resolvedTags = resolveTags(request.tagIds.distinct())
+        val resolvedPlace = resolvePlace(request)
+
+        applyEditableFieldsOnUpdate(
+            opportunity = opportunity,
+            request = request,
+            resolvedTags = resolvedTags,
+            resolvedPlace = resolvedPlace
+        )
+
+        opportunity.status = OpportunityStatus.DRAFT
+        opportunity.publishedAt = null
+        opportunity.moderationComment = null
+
+        val saved = opportunityDao.saveAndFlush(opportunity)
+        return employerOpportunityConverter.toEditPayload(saved)
+    }
+
+    @Transactional
+    override fun returnToDraft(
+        currentUserId: Long,
+        opportunityId: Long
+    ): EmployerOpportunityEditPayload {
+        val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
+
+        validateReturnToDraftAllowed(opportunity.status)
+
+        opportunity.status = OpportunityStatus.DRAFT
+        opportunity.publishedAt = null
+        opportunity.moderationComment = null
+
+        val saved = opportunityDao.saveAndFlush(opportunity)
+        return employerOpportunityConverter.toEditPayload(saved)
+    }
+
+    private fun getOwnedOpportunity(
+        opportunityId: Long,
+        currentUserId: Long
+    ): OpportunityDto {
+        return opportunityDao.findByIdAndEmployerUserId(opportunityId, currentUserId)
+            .orElseThrow { OpportunityNotFoundException(opportunityId) }
+    }
+
+    private fun validateEditableStatus(status: OpportunityStatus) {
+        if (status == OpportunityStatus.DRAFT || status == OpportunityStatus.REJECTED) {
+            return
+        }
+
+        throw OpportunityValidationException(
+            message = "Opportunity cannot be edited in current status",
+            details = mapOf(
+                "status" to status.name,
+                "allowedStatuses" to "DRAFT,REJECTED"
+            )
+        )
+    }
+
+    private fun validateReturnToDraftAllowed(status: OpportunityStatus) {
+        when (status) {
+            OpportunityStatus.REJECTED,
+            OpportunityStatus.PENDING_MODERATION,
+            OpportunityStatus.PLANNED,
+            OpportunityStatus.CLOSED,
+            OpportunityStatus.ARCHIVED -> return
+
+            OpportunityStatus.DRAFT -> throw OpportunityValidationException(
+                message = "Opportunity is already in DRAFT status",
+                details = mapOf("status" to status.name)
+            )
+
+            OpportunityStatus.PUBLISHED -> throw OpportunityValidationException(
+                message = "PUBLISHED opportunity cannot be returned to DRAFT by this action",
+                details = mapOf("status" to status.name)
+            )
+        }
+    }
+
+    private fun applyEditableFieldsOnCreate(
+        opportunity: OpportunityDto,
+        request: CreateEmployerOpportunityRequest,
+        resolvedTags: List<TagDto>,
+        resolvedPlace: ResolvedPlace
+    ) {
+        applyBaseEditableFields(
+            opportunity = opportunity,
+            request = request,
+            resolvedTags = resolvedTags,
+            resolvedPlace = resolvedPlace
+        )
+
+        opportunity.resourceLinks = buildResourceLinks(opportunity, request)
+    }
+
+    private fun applyEditableFieldsOnUpdate(
+        opportunity: OpportunityDto,
+        request: CreateEmployerOpportunityRequest,
+        resolvedTags: List<TagDto>,
+        resolvedPlace: ResolvedPlace
+    ) {
+        applyBaseEditableFields(
+            opportunity = opportunity,
+            request = request,
+            resolvedTags = resolvedTags,
+            resolvedPlace = resolvedPlace
+        )
+
+        syncResourceLinks(opportunity, request.resourceLinks)
+    }
+
+    private fun applyBaseEditableFields(
+        opportunity: OpportunityDto,
+        request: CreateEmployerOpportunityRequest,
+        resolvedTags: List<TagDto>,
+        resolvedPlace: ResolvedPlace
+    ) {
+        opportunity.title = request.title.trim()
+        opportunity.shortDescription = request.shortDescription.trim()
+        opportunity.fullDescription = request.fullDescription.normalizeNullableText()
+        opportunity.requirements = request.requirements.normalizeNullableText()
+        opportunity.companyName = request.companyName.trim()
+        opportunity.type = request.type
+        opportunity.workFormat = request.workFormat
+        opportunity.employmentType = request.employmentType
+        opportunity.grade = request.grade
+        opportunity.salaryFrom = request.salaryFrom
+        opportunity.salaryTo = request.salaryTo
+        opportunity.salaryCurrency = request.salaryCurrency.trim().uppercase(Locale.ROOT)
+        opportunity.expiresAt = request.expiresAt
+        opportunity.eventDate = request.eventDate
+        opportunity.cityId = requireNotNull(resolvedPlace.city.id)
+        opportunity.city = resolvedPlace.city
+        opportunity.locationId = resolvedPlace.location?.id
+        opportunity.location = resolvedPlace.location
+        opportunity.contactInfo = request.contactInfo.toModel()
+
+        opportunity.tags.clear()
+        opportunity.tags.addAll(resolvedTags)
+    }
+
+    private fun syncResourceLinks(
+        opportunity: OpportunityDto,
+        requestedLinks: List<CreateEmployerOpportunityResourceLinkRequest>
+    ) {
+        val existingLinks = opportunity.resourceLinks
+            .sortedBy { it.id.sortOrder }
+            .toMutableList()
+
+        requestedLinks.forEachIndexed { index, requestLink ->
+            val existing = existingLinks.getOrNull(index)
+
+            if (existing != null) {
+                existing.label = requestLink.label.trim()
+                existing.linkType = requestLink.linkType
+                existing.url = requestLink.url.trim()
+            } else {
+                opportunity.resourceLinks.add(
+                    OpportunityResourceLinkDto().apply {
+                        id = OpportunityResourceLinkId(sortOrder = index)
+                        this.opportunity = opportunity
+                        label = requestLink.label.trim()
+                        linkType = requestLink.linkType
+                        url = requestLink.url.trim()
+                    }
+                )
+            }
+        }
+
+        while (opportunity.resourceLinks.size > requestedLinks.size) {
+            opportunity.resourceLinks.removeAt(opportunity.resourceLinks.lastIndex)
+        }
     }
 
     private fun validateSalary(request: CreateEmployerOpportunityRequest) {
