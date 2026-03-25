@@ -1,9 +1,7 @@
 package ru.itplanet.trampline.profile.converter
 
 import org.springframework.stereotype.Component
-import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
-import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.EmployerProfile
 
 @Component

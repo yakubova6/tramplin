@@ -12,7 +12,7 @@ data class EmployerProfilePatchRequest(
     val description: String? = null,
     val industry: String? = null,
     val websiteUrl: String? = null,
-    val socialLinks: Map<String, String>? = null,
+    val socialLinks: List<String>? = null,
     val publicContacts: Map<String, String>? = null,
     val companySize: String? = null,
     val foundedYear: Short? = null,

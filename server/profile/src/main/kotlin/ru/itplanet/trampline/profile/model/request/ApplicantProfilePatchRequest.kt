@@ -1,9 +1,9 @@
 package ru.itplanet.trampline.profile.model.request
 
-import ru.itplanet.trampline.profile.model.ApplicationsVisibility
-import ru.itplanet.trampline.profile.model.ContactsVisibility
-import ru.itplanet.trampline.profile.model.ProfileVisibility
-import ru.itplanet.trampline.profile.model.ResumeVisibility
+import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
+import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
+import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
+import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 
 data class ApplicantProfilePatchRequest(
     val firstName: String? = null,

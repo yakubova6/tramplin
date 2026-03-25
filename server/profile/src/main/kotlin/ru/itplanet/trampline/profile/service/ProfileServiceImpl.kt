@@ -2,6 +2,7 @@ package ru.itplanet.trampline.profile.service
 
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.context.annotation.Primary
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
 import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
 import ru.itplanet.trampline.profile.converter.EmployerProfileConverter
@@ -9,6 +10,7 @@ import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.EmployerProfile
+import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
 
@@ -19,8 +21,11 @@ class ProfileServiceImpl(
     private val employerProfileDao: EmployerProfileDao,
     private val applicantProfileConverter: ApplicantProfileConverter,
     private val employerProfileConverter: EmployerProfileConverter
-): ProfileService {
-    override fun patchApplicantProfile(userId:Long, request: ApplicantProfilePatchRequest): ApplicantProfile {
+) : ProfileService {
+    override fun patchApplicantProfile(
+        userId: Long,
+        request: ApplicantProfilePatchRequest
+    ): ApplicantProfile {
         val profile = applicantProfileDao.findById(userId)
             .orElseThrow { EntityNotFoundException("Applicant profile for user $userId not found") }
 
@@ -47,7 +52,10 @@ class ProfileServiceImpl(
         return applicantProfileConverter.fromDto(applicantProfileDao.save(profile))
     }
 
-    override fun patchEmployerProfile(userId: Long, request: EmployerProfilePatchRequest): EmployerProfile {
+    override fun patchEmployerProfile(
+        userId: Long,
+        request: EmployerProfilePatchRequest
+    ): EmployerProfile {
         val profile = employerProfileDao.findById(userId)
             .orElseThrow { EntityNotFoundException("Profile for user $userId not found") }
 
@@ -67,4 +75,32 @@ class ProfileServiceImpl(
         return employerProfileConverter.fromDto(employerProfileDao.save(profile))
     }
 
+    override fun getApplicantProfile(currentUserId: Long, targetUserId: Long): ApplicantProfile {
+        val profileDto = applicantProfileDao.findById(targetUserId)
+            .orElseThrow { EntityNotFoundException("Applicant profile for user $targetUserId not found") }
+
+        if (targetUserId == currentUserId) {
+            return applicantProfileConverter.fromDto(profileDto)
+        }
+
+        when (profileDto.profileVisibility) {
+            ProfileVisibility.PUBLIC -> return applicantProfileConverter.fromDto(profileDto)
+            ProfileVisibility.AUTHENTICATED -> {
+                return applicantProfileConverter.fromDto(profileDto)
+            }
+
+            ProfileVisibility.PRIVATE -> throw AccessDeniedException("This profile is private")
+        }
+    }
+
+    override fun getEmployerProfile(currentUserId: Long, targetUserId: Long): EmployerProfile {
+        val profileDto = employerProfileDao.findById(targetUserId)
+            .orElseThrow { EntityNotFoundException("Employer profile for user $targetUserId not found") }
+
+        if (targetUserId == currentUserId) {
+            return employerProfileConverter.fromDto(profileDto)
+        }
+
+        return employerProfileConverter.fromDto(profileDto)
+    }
 }

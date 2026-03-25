@@ -5,11 +5,10 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
-import ru.itplanet.trampline.commons.dao.dto.UserDto
-import ru.itplanet.trampline.profile.model.ApplicationsVisibility
-import ru.itplanet.trampline.profile.model.ContactsVisibility
-import ru.itplanet.trampline.profile.model.ProfileVisibility
-import ru.itplanet.trampline.profile.model.ResumeVisibility
+import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
+import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
+import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
+import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 import java.time.OffsetDateTime
 
 @Entity

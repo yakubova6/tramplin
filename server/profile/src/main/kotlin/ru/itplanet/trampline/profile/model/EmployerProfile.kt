@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.profile.model
 
+import ru.itplanet.trampline.profile.model.enums.VerificationStatus
+
 data class EmployerProfile (
     val userId: Long,
     val companyName: String,
@@ -12,7 +14,7 @@ data class EmployerProfile (
     val locationId: Long?,
     val companySize: String?,
     val foundedYear: Short?,
-    val socialLinks: Map<String, String>, // TODO: переделать в List моделей
+    val socialLinks: List<String>, // TODO: переделать в List моделей
     val publicContacts: Map<String, String>, // TODO: переделать в List моделей
     val verificationStatus: VerificationStatus,
 )

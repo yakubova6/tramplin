@@ -1,5 +1,10 @@
 package ru.itplanet.trampline.profile.model
 
+import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
+import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
+import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
+import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
+
 data class ApplicantProfile (
     val userId: Long,
     val firstName: String,

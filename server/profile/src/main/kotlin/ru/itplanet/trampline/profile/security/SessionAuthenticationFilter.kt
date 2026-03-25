@@ -33,10 +33,8 @@ class SessionAuthenticationFilter(
             return true
         }
 
-        if (request.method == HttpMethod.GET.name()) {
-            if (path.startsWith("/api/profile")) {
-                return true
-            }
+        if (request.method == HttpMethod.OPTIONS.name()) {
+            return true
         }
 
         return false
@@ -86,7 +84,9 @@ class SessionAuthenticationFilter(
         } catch (ex: FeignException) {
             SecurityContextHolder.clearContext()
 
-            if (ex.status() == HttpServletResponse.SC_UNAUTHORIZED || ex.status() == HttpServletResponse.SC_FORBIDDEN) {
+            if (ex.status() == HttpServletResponse.SC_UNAUTHORIZED ||
+                ex.status() == HttpServletResponse.SC_FORBIDDEN
+            ) {
                 filterChain.doFilter(request, response)
                 return
             }

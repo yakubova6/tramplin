@@ -43,13 +43,14 @@ class SecurityConfig(
         val request = PathPatternRequestMatcher.withDefaults()
 
         return http
-            .csrf { csrf ->
-                csrf
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                    .ignoringRequestMatchers(
-                        request.matcher("/internal/**")
-                    )
-            }
+//            .csrf { csrf ->
+//                csrf
+//                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+//                    .ignoringRequestMatchers(
+//                        request.matcher("/internal/**")
+//                    )
+//            }
+            .csrf { it.disable() } // TODO: потом вернуть
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
             .logout { it.disable() }
@@ -60,7 +61,9 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers(HttpMethod.PATCH, "/api/profile/**").permitAll()
+                    .requestMatchers(HttpMethod.PATCH, "/api/profile/employer").hasRole("EMPLOYER")
+                    .requestMatchers(HttpMethod.PATCH, "/api/profile/applicant").hasRole("APPLICANT")
+                    .requestMatchers(HttpMethod.GET, "/api/profile/**").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/api/employer/**")).hasRole("EMPLOYER")
                     .requestMatchers(request.matcher("/error")).permitAll()

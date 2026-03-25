@@ -5,8 +5,7 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
-import ru.itplanet.trampline.commons.dao.dto.UserDto
-import ru.itplanet.trampline.profile.model.VerificationStatus
+import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 import java.time.OffsetDateTime
 
 @Entity
@@ -37,7 +36,7 @@ open class EmployerProfileDto {
 
     @Column(name = "social_links", columnDefinition = "jsonb", nullable = false)
     @JdbcTypeCode(SqlTypes.JSON)
-    open var socialLinks: Map<String, String> = emptyMap()
+    open var socialLinks: List<String> = emptyList()
 
     @Column(name = "public_contacts", columnDefinition = "jsonb", nullable = false)
     @JdbcTypeCode(SqlTypes.JSON)
@@ -82,7 +81,7 @@ open class EmployerProfileDto {
         description: String? = null,
         industry: String? = null,
         websiteUrl: String? = null,
-        socialLinks: Map<String, String> = emptyMap(),
+        socialLinks: List<String> = emptyList(),
         publicContacts: Map<String, String> = emptyMap(),
         companySize: String? = null,
         foundedYear: Short? = null,
