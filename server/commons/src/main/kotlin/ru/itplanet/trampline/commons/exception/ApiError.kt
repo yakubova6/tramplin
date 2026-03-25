@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.opportunity.exception
+package ru.itplanet.trampline.commons.exception
 
 import java.time.OffsetDateTime
 import java.time.ZoneOffset

@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.opportunity.security
+package ru.itplanet.trampline.profile.security
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest

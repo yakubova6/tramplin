@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.opportunity.model.auth
+package ru.itplanet.trampline.commons.model.auth
 
 import ru.itplanet.trampline.commons.model.Role
 import ru.itplanet.trampline.commons.model.Status

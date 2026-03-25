@@ -1,11 +1,12 @@
-package ru.itplanet.trampline.opportunity.client
+package ru.itplanet.trampline.profile.client
 
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.web.bind.annotation.GetMapping
 import ru.itplanet.trampline.commons.model.auth.AuthCurrentSessionResponse
 
+
 @FeignClient(
-    name = "opportunity-auth-service-client",
+    name = "profile-auth-service-client",
     url = "\${auth.service.url}",
     configuration = [AuthServiceFeignConfig::class]
 )

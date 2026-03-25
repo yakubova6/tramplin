@@ -2,16 +2,19 @@ spring:
   application:
     name: profile
   datasource:
-    url: jdbc:postgresql://64.188.97.232:5432/tramplin
-    username: tramplin_adm
-    password: tramplin_adm
+    url: ${PROFILE_DB_URL:jdbc:postgresql://64.188.97.232:5432/tramplin}
+    username: ${PROFILE_DB_USERNAME:tramplin_adm}
+    password: ${PROFILE_DB_PASSWORD:tramplin_adm}
 
-#auth:
-#  service:
-#    url: ${AUTH_SERVER_HOST:http://auth:8081}
+auth:
+  service:
+    url: ${AUTH_SERVER_HOST:http://localhost:9999}
 feign:
   client:
     config:
       default:
         connectTimeout: 5000
         readTimeout: 5000
+
+internal-api:
+  api-key: moderation-api-key
