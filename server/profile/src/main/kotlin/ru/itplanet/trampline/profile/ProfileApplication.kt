@@ -1,10 +1,16 @@
 package ru.itplanet.trampline.profile
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.autoconfigure.domain.EntityScan
 import org.springframework.boot.runApplication
 import org.springframework.cloud.openfeign.EnableFeignClients
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 
 @EnableFeignClients
+@EnableJpaRepositories(basePackages = ["ru.itplanet.trampline.profile", "ru.itplanet.trampline.commons"])
+@ComponentScan(basePackages = ["ru.itplanet.trampline.profile", "ru.itplanet.trampline.commons"])
+@EntityScan(basePackages = ["ru.itplanet.trampline.profile", "ru.itplanet.trampline.commons"])
 @SpringBootApplication
 class ProfileApplication
 

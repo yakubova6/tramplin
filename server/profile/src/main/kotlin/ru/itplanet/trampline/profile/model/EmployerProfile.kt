@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.profile.model
 
+import ru.itplanet.trampline.commons.model.City
+import ru.itplanet.trampline.commons.model.Location
 import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 
 data class EmployerProfile (
@@ -10,8 +12,8 @@ data class EmployerProfile (
     val description: String?,
     val industry: String?,
     val websiteUrl: String?,
-    val cityId: Long?,
-    val locationId: Long?,
+    val city: City?,
+    val location: Location?,
     val companySize: String?,
     val foundedYear: Short?,
     val socialLinks: List<String>, // TODO: переделать в List моделей
