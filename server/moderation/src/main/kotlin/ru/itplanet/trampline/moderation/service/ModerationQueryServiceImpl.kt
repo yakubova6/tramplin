@@ -1,0 +1,322 @@
+package ru.itplanet.trampline.moderation.service
+
+import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
+import ru.itplanet.trampline.moderation.model.response.*
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.JsonNodeFactory
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import ru.itplanet.trampline.moderation.dao.ModerationLogDao
+import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
+import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
+import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
+import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
+import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
+import ru.itplanet.trampline.moderation.model.ModerationEntityType
+import ru.itplanet.trampline.moderation.model.ModerationLogAction
+import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
+import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
+import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
+import ru.itplanet.trampline.moderation.security.AuthenticatedUser
+
+@Service
+class ModerationQueryServiceImpl(
+    private val moderationTaskDao: ModerationTaskDao,
+    private val moderationLogDao: ModerationLogDao,
+    private val moderationReadModelDao: ModerationReadModelDao,
+) : ModerationQueryService {
+
+    @Transactional(readOnly = true)
+    override fun getDashboard(currentUser: AuthenticatedUser): ModerationDashboardResponse {
+        val activeStatuses = listOf(
+            ModerationTaskStatus.OPEN,
+            ModerationTaskStatus.IN_PROGRESS
+        )
+
+        val countsByEntityType = LinkedHashMap<ModerationEntityType, Long>()
+        ModerationEntityType.entries.forEach { countsByEntityType[it] = 0L }
+        moderationTaskDao.countActiveByEntityType(activeStatuses).forEach { projection ->
+            countsByEntityType[projection.getEntityType()] = projection.getCount()
+        }
+
+        val countsByPriority = LinkedHashMap<ModerationTaskPriority, Long>()
+        ModerationTaskPriority.entries.forEach { countsByPriority[it] = 0L }
+        moderationTaskDao.countActiveByPriority(activeStatuses).forEach { projection ->
+            countsByPriority[projection.getPriority()] = projection.getCount()
+        }
+
+        return ModerationDashboardResponse(
+            openCount = moderationTaskDao.countByStatus(ModerationTaskStatus.OPEN),
+            inProgressCount = moderationTaskDao.countByStatus(ModerationTaskStatus.IN_PROGRESS),
+            myInProgressCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.IN_PROGRESS,
+                currentUser.userId
+            ),
+            countsByEntityType = countsByEntityType,
+            countsByPriority = countsByPriority
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getTasks(
+        currentUser: AuthenticatedUser,
+        request: GetModerationTasksRequest
+    ): ModerationTaskPageResponse {
+        val pageable = PageRequest.of(
+            request.page,
+            request.size,
+            parseSort(request.sort)
+        )
+
+        val specification = ModerationTaskSpecifications.build(request, currentUser.userId)
+        val page = moderationTaskDao.findAll(specification, pageable)
+
+        val taskIds = page.content.mapNotNull { it.id }
+        val createdLogs = if (taskIds.isEmpty()) {
+            emptyList()
+        } else {
+            moderationLogDao.findByTaskIdInAndActionOrderByTaskIdAscCreatedAtAscIdAsc(
+                taskIds,
+                ModerationLogAction.CREATED
+            )
+        }
+
+        val createdSnapshotsByTaskId = LinkedHashMap<Long, JsonNode>()
+        for (log in createdLogs) {
+            val taskId = log.taskId ?: continue
+            createdSnapshotsByTaskId.putIfAbsent(taskId, log.payload.deepCopy())
+        }
+
+        val items = page.content.map { task ->
+            val taskId = task.id ?: error("Task id must not be null")
+            toListItem(
+                task = task,
+                createdSnapshot = createdSnapshotsByTaskId[taskId]
+            )
+        }
+
+        return ModerationTaskPageResponse(
+            items = items,
+            page = request.page,
+            size = request.size,
+            totalItems = page.totalElements,
+            totalPages = page.totalPages
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getTask(
+        taskId: Long,
+        currentUser: AuthenticatedUser
+    ): ModerationTaskDetailResponse {
+        val task = moderationTaskDao.findById(taskId)
+            .orElseThrow { ModerationTaskNotFoundException(taskId) }
+
+        val history = moderationLogDao.findByTaskIdOrderByCreatedAtAscIdAsc(taskId)
+        val createdSnapshot = history
+            .firstOrNull { it.action == ModerationLogAction.CREATED }
+            ?.payload
+            ?.deepCopy()
+            ?: JsonNodeFactory.instance.objectNode()
+
+        val currentEntityState = moderationReadModelDao.findCurrentEntityState(
+            task.entityType,
+            task.entityId
+        )
+
+        val attachments = moderationReadModelDao.findTaskAttachments(taskId)
+
+        return ModerationTaskDetailResponse(
+            id = task.id ?: error("Task id must not be null"),
+            entityType = task.entityType,
+            entityId = task.entityId,
+            taskType = task.taskType,
+            status = task.status,
+            priority = task.priority,
+            assignee = task.assigneeUser?.toResponse(),
+            createdBy = task.createdByUser?.toResponse(),
+            resolutionComment = task.resolutionComment,
+            createdAt = task.createdAt ?: error("Task createdAt must not be null"),
+            updatedAt = task.updatedAt ?: error("Task updatedAt must not be null"),
+            resolvedAt = task.resolvedAt,
+            createdSnapshot = createdSnapshot,
+            currentEntityState = currentEntityState,
+            history = history.map { it.toHistoryResponse() },
+            attachments = attachments,
+            availableActions = resolveAvailableActions(task, currentUser)
+        )
+    }
+
+    private fun toListItem(
+        task: ModerationTaskDto,
+        createdSnapshot: JsonNode?
+    ): ModerationTaskListItemResponse {
+        return ModerationTaskListItemResponse(
+            id = task.id ?: error("Task id must not be null"),
+            entityType = task.entityType,
+            entityId = task.entityId,
+            taskType = task.taskType,
+            status = task.status,
+            priority = task.priority,
+            assignee = task.assigneeUser?.toResponse(),
+            createdAt = task.createdAt ?: error("Task createdAt must not be null"),
+            updatedAt = task.updatedAt ?: error("Task updatedAt must not be null"),
+            snapshotSummary = buildSnapshotSummary(task.entityType, createdSnapshot)
+        )
+    }
+
+    private fun ModerationLogDto.toHistoryResponse(): ModerationTaskHistoryItemResponse {
+        return ModerationTaskHistoryItemResponse(
+            id = id ?: error("Log id must not be null"),
+            action = action,
+            actor = actorUser?.toResponse(),
+            payload = payload.deepCopy(),
+            createdAt = createdAt ?: error("Log createdAt must not be null")
+        )
+    }
+
+    private fun ModerationUserRefDto.toResponse(): ModerationUserShortResponse {
+        return ModerationUserShortResponse(
+            id = id ?: error("User id must not be null"),
+            displayName = displayName,
+            email = email,
+            role = role,
+            status = status
+        )
+    }
+
+    private fun resolveAvailableActions(
+        task: ModerationTaskDto,
+        currentUser: AuthenticatedUser
+    ): List<String> {
+        val assigneeId = task.assigneeUser?.id
+
+        return when (task.status) {
+            ModerationTaskStatus.OPEN -> listOf(
+                "ASSIGN",
+                "APPROVE",
+                "REJECT",
+                "COMMENT",
+                "CANCEL"
+            )
+
+            ModerationTaskStatus.IN_PROGRESS -> {
+                if (assigneeId == null ||
+                    assigneeId == currentUser.userId ||
+                    currentUser.role.name == "ADMIN"
+                ) {
+                    listOf("APPROVE", "REJECT", "COMMENT", "CANCEL")
+                } else {
+                    listOf("COMMENT")
+                }
+            }
+
+            ModerationTaskStatus.APPROVED,
+            ModerationTaskStatus.REJECTED,
+            ModerationTaskStatus.CANCELLED -> emptyList()
+        }
+    }
+
+    private fun buildSnapshotSummary(
+        entityType: ModerationEntityType,
+        payload: JsonNode?
+    ): String? {
+        if (payload == null || (payload.isObject && payload.size() == 0)) {
+            return null
+        }
+
+        textValue(payload, "snapshotSummary")?.let { return it }
+        textValue(payload, "summary")?.let { return it }
+
+        val summary = when (entityType) {
+            ModerationEntityType.USER -> {
+                val displayName = textValue(payload, "displayName")
+                val email = textValue(payload, "email")
+                listOfNotNull(displayName, email).joinToString(" • ")
+            }
+
+            ModerationEntityType.APPLICANT_PROFILE -> {
+                val firstName = textValue(payload, "firstName")
+                val lastName = textValue(payload, "lastName")
+                val universityName = textValue(payload, "universityName")
+                listOfNotNull(
+                    listOfNotNull(firstName, lastName).joinToString(" ").takeIf { it.isNotBlank() },
+                    universityName
+                ).joinToString(" • ")
+            }
+
+            ModerationEntityType.EMPLOYER_PROFILE -> {
+                val companyName = textValue(payload, "companyName")
+                val inn = textValue(payload, "inn")
+                listOfNotNull(companyName, inn?.let { "ИНН $it" }).joinToString(" • ")
+            }
+
+            ModerationEntityType.EMPLOYER_VERIFICATION -> {
+                val method = textValue(payload, "verificationMethod")
+                val corporateEmail = textValue(payload, "corporateEmail")
+                val inn = textValue(payload, "inn")
+                listOfNotNull(method, corporateEmail, inn?.let { "ИНН $it" }).joinToString(" • ")
+            }
+
+            ModerationEntityType.OPPORTUNITY -> {
+                val title = textValue(payload, "title")
+                val companyName = textValue(payload, "companyName")
+                val type = textValue(payload, "type")
+                listOfNotNull(title, companyName, type).joinToString(" • ")
+            }
+
+            ModerationEntityType.TAG -> {
+                val name = textValue(payload, "name")
+                val category = textValue(payload, "category")
+                listOfNotNull(name, category).joinToString(" • ")
+            }
+        }.trim()
+
+        if (summary.isNotBlank()) {
+            return summary.take(300)
+        }
+
+        return payload.toString().take(300)
+    }
+
+    private fun textValue(payload: JsonNode, field: String): String? {
+        if (!payload.hasNonNull(field)) {
+            return null
+        }
+
+        return payload.get(field)
+            ?.asText()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun parseSort(sort: String?): Sort {
+        if (sort.isNullOrBlank()) {
+            return Sort.by(Sort.Order.desc("createdAt"))
+        }
+
+        val parts = sort.split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        val property = when (parts.firstOrNull()) {
+            "createdAt" -> "createdAt"
+            "updatedAt" -> "updatedAt"
+            "priority" -> "priority"
+            "status" -> "status"
+            "entityType" -> "entityType"
+            "taskType" -> "taskType"
+            else -> "createdAt"
+        }
+
+        val direction = when (parts.getOrNull(1)?.uppercase()) {
+            "ASC" -> Sort.Direction.ASC
+            else -> Sort.Direction.DESC
+        }
+
+        return Sort.by(Sort.Order(direction, property))
+    }
+}
+
