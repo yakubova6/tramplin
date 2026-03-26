@@ -1,3 +1,25 @@
+server:
+  port: 8082
+
 spring:
   application:
     name: moderation
+
+  datasource:
+    url: jdbc:postgresql://64.188.97.232:5432/tramplin
+    username: tramplin_adm
+    password: tramplin_adm
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://localhost:9999}
+
+internal-api:
+  api-key: some-key

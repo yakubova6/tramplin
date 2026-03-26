@@ -4,11 +4,13 @@ import jakarta.validation.ConstraintViolationException
 import org.springframework.core.convert.ConversionFailedException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.validation.BindException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.server.ResponseStatusException
 
 @RestControllerAdvice
 class CommonGlobalExceptionHandler {
@@ -90,12 +92,17 @@ class CommonGlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException::class)
     fun handleConstraintViolation(ex: ConstraintViolationException): ResponseEntity<ApiError> {
+        val details = ex.constraintViolations.associate { violation ->
+            violation.propertyPath.toString() to violation.message
+        }
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(
                 ApiError(
                     status = HttpStatus.BAD_REQUEST.value(),
                     error = HttpStatus.BAD_REQUEST.reasonPhrase,
-                    message = ex.message ?: "Constraint violation"
+                    message = "Validation failed",
+                    details = details
                 )
             )
     }
@@ -113,6 +120,32 @@ class CommonGlobalExceptionHandler {
                     error = HttpStatus.BAD_REQUEST.reasonPhrase,
                     message = "Request body validation failed",
                     details = details
+                )
+            )
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleHttpMessageNotReadable(ex: HttpMessageNotReadableException): ResponseEntity<ApiError> {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(
+                ApiError(
+                    status = HttpStatus.BAD_REQUEST.value(),
+                    error = HttpStatus.BAD_REQUEST.reasonPhrase,
+                    message = "Request body is invalid"
+                )
+            )
+    }
+
+    @ExceptionHandler(ResponseStatusException::class)
+    fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ApiError> {
+        val status = HttpStatus.valueOf(ex.statusCode.value())
+
+        return ResponseEntity.status(status)
+            .body(
+                ApiError(
+                    status = status.value(),
+                    error = status.reasonPhrase,
+                    message = ex.reason ?: status.reasonPhrase
                 )
             )
     }
