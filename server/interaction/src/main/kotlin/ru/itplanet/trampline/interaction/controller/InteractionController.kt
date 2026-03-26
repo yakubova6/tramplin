@@ -19,23 +19,23 @@ class InteractionController(
 ) {
 
     // Отклики
-    @PostMapping("/applications")
-    fun apply(@CurrentUser userId: Long, @Valid @RequestBody request: OpportunityResponseRequest): OpportunityResponseResponse =
+    @PostMapping("/responses")
+    fun applyResponse(@CurrentUser userId: Long, @Valid @RequestBody request: OpportunityResponseRequest): OpportunityResponseResponse =
         interactionService.apply(userId, request)
 
-    @PatchMapping("/applications/{id}/status")
-    fun updateApplicationStatus(
+    @PatchMapping("/responses/{id}/status")
+    fun updateResponseStatus(
         @CurrentUser userId: Long,
         @PathVariable id: Long,
         @RequestBody request: OpportunityResponseStatusUpdateRequest
     ): OpportunityResponseResponse = interactionService.updateApplicationStatus(id, userId, request)
 
-    @GetMapping("/applications/my")
-    fun getMyApplications(@CurrentUser userId: Long): List<OpportunityResponseResponse> =
+    @GetMapping("/responses/my")
+    fun getMyResponses(@CurrentUser userId: Long): List<OpportunityResponseResponse> =
         interactionService.getUserApplications(userId)
 
-    @GetMapping("/opportunities/{opportunityId}/applications")
-    fun getOpportunityApplications(@PathVariable opportunityId: Long, @CurrentUser userId: Long): List<OpportunityResponseResponse> =
+    @GetMapping("/opportunities/{opportunityId}/responses")
+    fun getOpportunityResponses(@PathVariable opportunityId: Long, @CurrentUser userId: Long): List<OpportunityResponseResponse> =
         interactionService.getOpportunityApplications(opportunityId, userId)
 
     // Избранное
