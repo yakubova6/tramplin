@@ -348,13 +348,15 @@ function ProfileEdit() {
                     locationId: cityIdEmployer ? Number(cityIdEmployer) : null,
                     companySize: companySize || null,
                     foundedYear: foundedYear ? toShort(foundedYear) : null,
-                    socialLinks: cleanLinks(socialRows),
-                    publicContacts: cleanLinks(publicContactRows),
+                    socialLinks: [],  // пустой массив, как ожидает бэкенд
+                    publicContacts: [], // пустой массив
+                    verificationStatus: 'PENDING',
                 }
 
                 console.log('[ProfileEdit] Сохранение профиля работодателя:', employerProfileData)
                 await updateEmployerProfile(employerProfileData)
 
+                // Сохраняем в localStorage для быстрого доступа
                 localStorage.setItem(`employer_profile_${user.email}`, JSON.stringify(employerProfileData))
 
                 toast({
