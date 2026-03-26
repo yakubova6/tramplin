@@ -13,18 +13,24 @@ open class OpportunityResponseDto {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     open var id: Long? = null
 
-    @Column(name = "user_id", nullable = false)
-    open var userId: Long = 0
+    @Column(name = "applicant_user_id", nullable = false)
+    open var applicantUserId: Long = 0
 
     @Column(name = "opportunity_id", nullable = false)
     open var opportunityId: Long = 0
 
+    @Column(name = "cover_letter")
+    open var coverLetter: String? = null
+
     @Column(name = "status", nullable = false, length = 32)
     @Enumerated(EnumType.STRING)
-    open var status: OpportunityResponseStatus = OpportunityResponseStatus.PENDING
+    open var status: OpportunityResponseStatus = OpportunityResponseStatus.IN_REVIEW
 
-    @Column(name = "comment")
-    open var comment: String? = null
+    @Column(name = "employer_comment")
+    open var employerComment: String? = null
+
+    @Column(name = "applicant_comment")
+    open var applicantComment: String? = null
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -34,18 +40,31 @@ open class OpportunityResponseDto {
     @Column(name = "updated_at")
     open var updatedAt: OffsetDateTime? = null
 
+    @Column(name = "responded_at")
+    open var respondedAt: OffsetDateTime? = null
+
     constructor() {}
 
-    constructor(userId: Long, opportunityId: Long, comment: String? = null) {
-        this.userId = userId
+    constructor(
+        applicantUserId: Long,
+        opportunityId: Long,
+        employerComment: String? = null,
+        applicantComment: String? = null,
+        coverLetter: String? = null
+    ) {
+        this.applicantUserId = applicantUserId
         this.opportunityId = opportunityId
-        this.comment = comment
+        employerComment?.let { this.employerComment = it }
+        applicantComment?.let { this.applicantComment = it }
+        coverLetter?.let { this.coverLetter = it }
     }
 }
 
 enum class OpportunityResponseStatus {
-    PENDING,
+    SUBMITTED,
+    IN_REVIEW,
     ACCEPTED,
     REJECTED,
-    RESERVED
+    RESERVE,
+    WITHDRAWN
 }

@@ -20,14 +20,24 @@ open class FavoriteDto {
     @Column(name = "opportunity_id", nullable = false)
     open var opportunityId: Long = 0
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_type", nullable = false)
+    open var targetType: FavoriteTargetType = FavoriteTargetType.OPPORTUNITY
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     open var createdAt: OffsetDateTime? = null
 
     constructor() {}
 
-    constructor(userId: Long, opportunityId: Long) {
+    constructor(userId: Long, opportunityId: Long, targetType: FavoriteTargetType) {
         this.userId = userId
         this.opportunityId = opportunityId
+        this.targetType = targetType
     }
+}
+
+enum class FavoriteTargetType {
+    OPPORTUNITY,
+    EMPLOYER
 }

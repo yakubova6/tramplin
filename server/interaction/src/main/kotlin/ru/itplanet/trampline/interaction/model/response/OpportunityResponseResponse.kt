@@ -6,8 +6,10 @@ import java.time.OffsetDateTime
 data class OpportunityResponseResponse(
     val id: Long,
     val opportunityId: Long,
+    val applicantUserId: Long,
     val opportunityTitle: String?,
     val status: OpportunityResponseStatus,
-    val comment: String?,
+    val employerComment: String?,
+    val applicantComment: String?,
     val createdAt: OffsetDateTime?
 )

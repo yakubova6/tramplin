@@ -38,7 +38,7 @@ class InteractionServiceImpl(
     ): OpportunityResponseResponse {
         val opportunity = opportunityServiceClient.getPublicOpportunity(request.opportunityId)
 
-        if (opportunityResponseDao.existsByUserIdAndOpportunityId(userId, request.opportunityId)) {
+        if (opportunityResponseDao.existsByApplicantUserIdAndOpportunityId(userId, request.opportunityId)) {
             throw RuntimeException("You have already applied to this opportunity")
         }
 
@@ -46,7 +46,7 @@ class InteractionServiceImpl(
             throw BadRequestException("This opportunity is not open for applications")
         }
         val opportunityResponseDto =
-            OpportunityResponseDto(userId, request.opportunityId, request.comment)
+            OpportunityResponseDto(userId, request.opportunityId, request.applicantComment)
         val saved = opportunityResponseDao.save(opportunityResponseDto)
         return toOpportunityResponseResponse(saved, opportunity.title)
     }
@@ -56,22 +56,23 @@ class InteractionServiceImpl(
         currentUserId: Long,
         request: OpportunityResponseStatusUpdateRequest
     ): OpportunityResponseResponse {
-        val application = opportunityResponseDao.findById(applicationId)
-            .orElseThrow { EntityNotFoundException("Application not found") }
+        val opportunityResponseDto = opportunityResponseDao.findById(applicationId)
+            .orElseThrow { EntityNotFoundException("Response not found") }
 
-        val opportunity = opportunityServiceClient.getPublicOpportunity(application.opportunityId)
+        val opportunity = opportunityServiceClient.getPublicOpportunity(opportunityResponseDto.opportunityId)
 
         if (opportunity.employerUserId != currentUserId) {
             throw AccessDeniedException("You are not the owner of this opportunity")
         }
-        application.status = request.status
-        application.comment = request.comment ?: application.comment
-        val saved = opportunityResponseDao.save(application)
+        opportunityResponseDto.status = request.status
+        opportunityResponseDto.employerComment = request.employerComment ?: opportunityResponseDto.employerComment
+        opportunityResponseDto.respondedAt = OffsetDateTime.now()
+        val saved = opportunityResponseDao.save(opportunityResponseDto)
         return toOpportunityResponseResponse(saved, opportunity.title)
     }
 
     override fun getUserApplications(userId: Long): List<OpportunityResponseResponse> {
-        return opportunityResponseDao.findByUserId(userId).map { app ->
+        return opportunityResponseDao.findByApplicantUserId(userId).map { app ->
             val opportunityResponse =
                 opportunityServiceClient.getPublicOpportunity(app.opportunityId)
             toOpportunityResponseResponse(app, opportunityResponse.title)
@@ -94,11 +95,11 @@ class InteractionServiceImpl(
     // ----- Избранное -----
     override fun addToFavorites(userId: Long, opportunityId: Long): FavoriteResponse {
         if (!favoriteDao.existsByUserIdAndOpportunityId(userId, opportunityId)) {
-            val favoriteDto = FavoriteDto(userId, opportunityId)
+            val favoriteDto = FavoriteDto(userId, opportunityId, FavoriteTargetType.OPPORTUNITY)
             favoriteDao.save(favoriteDto)
         }
         val opportunity = opportunityServiceClient.getPublicOpportunity(opportunityId)
-        return FavoriteResponse(opportunityId, opportunity.title, null)
+        return FavoriteResponse(opportunityId, opportunity.title, OffsetDateTime.now())
     }
 
     override fun removeFromFavorites(userId: Long, opportunityId: Long) {
@@ -157,14 +158,16 @@ class InteractionServiceImpl(
             .distinctBy { it.contactUserId }
     }
 
-    private fun toOpportunityResponseResponse(app: OpportunityResponseDto, title: String?) =
+    private fun toOpportunityResponseResponse(oppResp: OpportunityResponseDto, title: String?) =
         OpportunityResponseResponse(
-            id = app.id!!,
-            opportunityId = app.opportunityId,
+            id = oppResp.id!!,
+            opportunityId = oppResp.opportunityId,
+            applicantUserId = oppResp.applicantUserId,
             opportunityTitle = title,
-            status = app.status,
-            comment = app.comment,
-            createdAt = app.createdAt
+            status = oppResp.status,
+            employerComment = oppResp.employerComment,
+            applicantComment = oppResp.applicantComment,
+            createdAt = oppResp.createdAt
         )
 
     private fun toContactResponse(currentUserId: Long, contact: ContactDto): ContactResponse {

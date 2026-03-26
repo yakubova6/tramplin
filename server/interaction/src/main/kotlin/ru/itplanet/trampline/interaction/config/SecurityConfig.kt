@@ -62,7 +62,7 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers(HttpMethod.PATCH, "/api/interaction/applications/**").hasRole("EMPLOYER")
+                    .requestMatchers(HttpMethod.PATCH, "/api/interaction/responses/**").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.PATCH, "/api/interaction/contacts/**").hasRole("APPLICANT")
                     .requestMatchers(HttpMethod.GET, "/api/interaction/opportunities/**").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.POST, "/api/interaction/**").hasRole("APPLICANT")
