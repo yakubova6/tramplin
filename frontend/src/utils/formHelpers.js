@@ -19,8 +19,21 @@ export function createLinkRow() {
 }
 
 /**
- * Очистка ссылок (удаление пустых)
+ * Очистка ссылок — возвращает массив строк (только URL)
  */
+export function cleanLinksToArray(rows) {
+    const urls = []
+    rows.forEach((row) => {
+        const title = row.title.trim()
+        const url = row.url.trim()
+        if (title && url) {
+            urls.push(url)
+        }
+    })
+    return urls
+}
+
+// Старая функция для обратной совместимости (если нужно)
 export function cleanLinks(rows) {
     const map = {}
     rows.forEach((row) => {

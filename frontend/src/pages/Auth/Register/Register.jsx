@@ -36,7 +36,7 @@ function Register() {
         if (!displayName.trim() || !email.trim() || !password.trim()) {
             toast({
                 title: 'Ошибка',
-                description: 'Заполни все поля формы',
+                description: 'Заполните все поля формы',
                 variant: 'destructive',
             })
             return
@@ -45,7 +45,6 @@ function Register() {
         try {
             setIsPending(true)
 
-            // Регистрация через API
             await registerUser({
                 displayName: displayName.trim(),
                 email: email.trim(),
@@ -54,16 +53,13 @@ function Register() {
                 status: 'ACTIVE',
             })
 
-            // Ждём немного, чтобы сессия успела установиться
             await new Promise(resolve => setTimeout(resolve, 500))
 
-            // После регистрации получаем данные пользователя через /me
             let userData = null
             try {
                 const response = await getCurrentUserInfo()
                 console.log('[Register] getCurrentUserInfo response:', response)
 
-                // Обрабатываем разные форматы ответа
                 if (response && response.user) {
                     userData = response.user
                 } else if (response && response.userId) {
@@ -82,7 +78,6 @@ function Register() {
                 console.warn('[Register] Failed to get user info after registration:', err)
             }
 
-            // Формируем данные пользователя для localStorage
             const finalUserData = {
                 userId: userData?.userId || userData?.id,
                 displayName: userData?.displayName || displayName.trim(),

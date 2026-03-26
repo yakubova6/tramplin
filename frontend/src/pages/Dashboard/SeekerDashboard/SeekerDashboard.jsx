@@ -210,6 +210,16 @@ function SeekerDashboard() {
             await updateApplicantProfile(profile)
             setIsEditing(false)
             setErrors({})
+
+            // Диспатчим событие обновления профиля
+            window.dispatchEvent(new CustomEvent('profile-updated', {
+                detail: {
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    role: 'APPLICANT'
+                }
+            }))
+
             toast({
                 title: 'Профиль обновлён',
                 description: 'Ваши данные успешно сохранены',
@@ -269,7 +279,6 @@ function SeekerDashboard() {
     const handleSavePortfolio = async () => {
         setIsLoading(true)
         try {
-            // Преобразуем массив объектов в массив строк (только URL)
             const portfolioLinks = tempPortfolioLinks
                 .filter(link => link.url?.trim())
                 .map(link => link.url.trim())
@@ -297,7 +306,6 @@ function SeekerDashboard() {
     const handleSaveContacts = async () => {
         setIsLoading(true)
         try {
-            // Преобразуем массив объектов в массив строк (только URL)
             const contactLinks = tempContactLinks
                 .filter(link => link.url?.trim())
                 .map(link => link.url.trim())
@@ -349,7 +357,6 @@ function SeekerDashboard() {
     // Открытие редактирования портфолио
     const handleOpenPortfolioEdit = () => {
         if (!isEditingPortfolio) {
-            // Если нет ссылок, добавляем одну пустую
             if (tempPortfolioLinks.length === 0) {
                 setTempPortfolioLinks([{ id: Date.now(), title: '', url: '' }])
             }
@@ -382,12 +389,45 @@ function SeekerDashboard() {
         )
     }
 
+    // ===== ФУНКЦИИ ДЛЯ ОТОБРАЖЕНИЯ ИМЕНИ =====
+
     const getInitials = () => {
-        return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
+        if (profile.firstName || profile.lastName) {
+            return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
+        }
+        if (user?.displayName) {
+            return user.displayName[0].toUpperCase()
+        }
+        return '?'
     }
 
     const getFullName = () => {
-        return `${profile.firstName} ${profile.lastName} ${profile.middleName}`.trim()
+        const parts = []
+        if (profile.firstName) parts.push(profile.firstName)
+        if (profile.lastName) parts.push(profile.lastName)
+        return parts.join(' ')
+    }
+
+    const getFullNameWithPatronymic = () => {
+        const parts = []
+        if (profile.firstName) parts.push(profile.firstName)
+        if (profile.lastName) parts.push(profile.lastName)
+        if (profile.middleName) parts.push(profile.middleName)
+        return parts.join(' ')
+    }
+
+    const getDisplayName = () => {
+        if (profile.firstName || profile.lastName) {
+            return `${profile.firstName} ${profile.lastName}`.trim()
+        }
+        if (user?.displayName) return user.displayName
+        return user?.email?.split('@')[0] || 'Пользователь'
+    }
+
+    const getShortName = () => {
+        if (profile.firstName) return profile.firstName
+        if (user?.displayName) return user.displayName
+        return user?.email?.split('@')[0] || 'Пользователь'
     }
 
     // Функция для отображения ссылок
@@ -399,7 +439,6 @@ function SeekerDashboard() {
                 <h4>{title}</h4>
                 <div className="links-list">
                     {links.map((url, idx) => {
-                        // Извлекаем имя из URL (например, github.com/user)
                         let displayName = url
                         try {
                             const urlObj = new URL(url)
@@ -422,7 +461,7 @@ function SeekerDashboard() {
     return (
         <DashboardLayout
             title="Мой профиль"
-            subtitle={user?.displayName ? `Добро пожаловать, ${user.displayName}!` : 'Управляйте своей карьерой'}
+            subtitle={getDisplayName() ? `Добро пожаловать, ${getDisplayName()}!` : 'Управляйте своей карьерой'}
         >
             <div className="dashboard-tabs">
                 <button className={`dashboard-tabs__btn ${activeTab === 'profile' ? 'is-active' : ''}`} onClick={() => setActiveTab('profile')}>
@@ -462,7 +501,7 @@ function SeekerDashboard() {
                         {/* КАРТОЧКА ПРОФИЛЯ */}
                         <div className="profile-card">
                             <div className="profile-card__avatar-initials">
-                                {getInitials() ? (
+                                {getInitials() !== '?' ? (
                                     getInitials()
                                 ) : (
                                     <img src={userAvatarIcon} alt="Аватар" className="profile-card__avatar-icon"/>
@@ -470,7 +509,7 @@ function SeekerDashboard() {
                             </div>
                             <div className="profile-card__info">
                                 <div className="profile-card__header">
-                                    <h2>{getFullName() || 'Не указано'}</h2>
+                                    <h2>{getFullNameWithPatronymic() || user?.displayName || 'Не указано'}</h2>
                                     <button
                                         className="profile-card__edit-btn"
                                         onClick={() => setIsEditing(true)}

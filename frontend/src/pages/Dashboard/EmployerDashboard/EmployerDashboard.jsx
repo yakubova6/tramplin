@@ -216,6 +216,15 @@ function EmployerDashboard() {
             await updateEmployerProfile(profile)
             setIsEditing(false)
             setErrors({})
+
+            // Диспатчим событие обновления профиля
+            window.dispatchEvent(new CustomEvent('profile-updated', {
+                detail: {
+                    companyName: profile.companyName,
+                    role: 'EMPLOYER'
+                }
+            }))
+
             toast({ title: 'Профиль сохранён', description: 'Информация о компании обновлена' })
         } catch (error) {
             toast({ title: 'Ошибка', description: 'Не удалось сохранить профиль', variant: 'destructive' })

@@ -28,7 +28,7 @@ import LinksEditor from '../../components/LinksEditor'
 import CustomSelect from '../../components/CustomSelect'
 import CustomCheckbox from '../../components/CustomCheckbox'
 import { smartFilter } from '../../utils/searchHelpers'
-import { toShort, cleanLinks, createLinkRow } from '../../utils/formHelpers'
+import { toShort, cleanLinksToArray, createLinkRow } from '../../utils/formHelpers'
 import './ProfileEdit.scss'
 
 const VISIBILITY_OPTIONS = [
@@ -115,7 +115,7 @@ function ProfileEdit() {
     const [socialRows, setSocialRows] = useState([createLinkRow()])
     const [publicContactRows, setPublicContactRows] = useState([createLinkRow()])
 
-    // Загрузка пользователя через API
+    // Загрузка пользователя
     useEffect(() => {
         const loadUser = async () => {
             setIsLoading(true)
@@ -159,6 +159,13 @@ function ProfileEdit() {
 
     const role = user?.role
     const isEmployer = role === 'EMPLOYER'
+
+    // ПОДСТАВЛЯЕМ НАЗВАНИЕ КОМПАНИИ ИЗ РЕГИСТРАЦИИ
+    useEffect(() => {
+        if (user && isEmployer && !companyName) {
+            setCompanyName(user.displayName || '')
+        }
+    }, [user, isEmployer, companyName])
 
     // Подсказки
     const universitySuggestions = useMemo(
@@ -348,15 +355,14 @@ function ProfileEdit() {
                     locationId: cityIdEmployer ? Number(cityIdEmployer) : null,
                     companySize: companySize || null,
                     foundedYear: foundedYear ? toShort(foundedYear) : null,
-                    socialLinks: [],  // пустой массив, как ожидает бэкенд
-                    publicContacts: [], // пустой массив
+                    socialLinks: [],
+                    publicContacts: [],
                     verificationStatus: 'PENDING',
                 }
 
                 console.log('[ProfileEdit] Сохранение профиля работодателя:', employerProfileData)
                 await updateEmployerProfile(employerProfileData)
 
-                // Сохраняем в localStorage для быстрого доступа
                 localStorage.setItem(`employer_profile_${user.email}`, JSON.stringify(employerProfileData))
 
                 toast({
@@ -364,7 +370,6 @@ function ProfileEdit() {
                     description: 'Профиль компании отправлен на проверку. Обычно это занимает до 2 рабочих дней.',
                 })
             } else {
-                // ВРЕМЕННО: используем cityId = 1, если не выбран город
                 const finalCityId = cityId ? Number(cityId) : 1
 
                 const applicantProfileData = {
@@ -379,8 +384,8 @@ function ProfileEdit() {
                     cityId: finalCityId,
                     about: about.trim() || null,
                     resumeText: resumeText.trim() || null,
-                    portfolioLinks: cleanLinks(portfolioRows) || null,
-                    contactLinks: cleanLinks(contactRows) || null,
+                    portfolioLinks: cleanLinksToArray(portfolioRows),
+                    contactLinks: cleanLinksToArray(contactRows),
                     profileVisibility,
                     resumeVisibility,
                     applicationsVisibility,

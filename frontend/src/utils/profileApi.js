@@ -87,6 +87,38 @@ export async function updateApplicantProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
+    // Если приходит массив объектов, преобразуем в массив строк
+    let portfolioLinks = []
+    let contactLinks = []
+
+    if (profile.portfolioLinks) {
+        if (Array.isArray(profile.portfolioLinks)) {
+            // Если это массив строк
+            if (profile.portfolioLinks.length > 0 && typeof profile.portfolioLinks[0] === 'string') {
+                portfolioLinks = profile.portfolioLinks
+            }
+            // Если это массив объектов
+            else if (profile.portfolioLinks.length > 0 && profile.portfolioLinks[0].url) {
+                portfolioLinks = profile.portfolioLinks.map(link => link.url)
+            }
+        } else if (typeof profile.portfolioLinks === 'object') {
+            // Если это объект
+            portfolioLinks = Object.values(profile.portfolioLinks)
+        }
+    }
+
+    if (profile.contactLinks) {
+        if (Array.isArray(profile.contactLinks)) {
+            if (profile.contactLinks.length > 0 && typeof profile.contactLinks[0] === 'string') {
+                contactLinks = profile.contactLinks
+            } else if (profile.contactLinks.length > 0 && profile.contactLinks[0].url) {
+                contactLinks = profile.contactLinks.map(link => link.url)
+            }
+        } else if (typeof profile.contactLinks === 'object') {
+            contactLinks = Object.values(profile.contactLinks)
+        }
+    }
+
     const payload = {
         firstName: profile.firstName || '',
         lastName: profile.lastName || '',
@@ -99,8 +131,8 @@ export async function updateApplicantProfile(profile) {
         cityId: profile.cityId || null,
         about: profile.about || null,
         resumeText: profile.resumeText || null,
-        portfolioLinks: profile.portfolioLinks || [],
-        contactLinks: profile.contactLinks || [],
+        portfolioLinks: portfolioLinks,
+        contactLinks: contactLinks,
         profileVisibility: profile.profileVisibility || 'AUTHENTICATED',
         resumeVisibility: profile.resumeVisibility || 'AUTHENTICATED',
         applicationsVisibility: profile.applicationsVisibility || 'PRIVATE',
@@ -112,13 +144,10 @@ export async function updateApplicantProfile(profile) {
     console.log('[API] Saving applicant profile with PATCH:', payload)
 
     const url = `${API_BASE}/profile/applicant`
-    console.log('[API] PATCH applicant profile:', url)
-
     const data = await apiRequest(url, {
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
-    console.log('[API] Applicant profile saved:', data)
     return data
 }
 
