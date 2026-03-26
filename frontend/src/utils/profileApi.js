@@ -1,3 +1,5 @@
+// utils/profileApi.js
+
 const API_BASE = '/api'
 import { CITIES } from '../constants/cities'
 
@@ -85,15 +87,6 @@ export async function updateApplicantProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
-    // Преобразуем пустые объекты в null
-    const portfolioLinks = profile.portfolioLinks && Object.keys(profile.portfolioLinks).length > 0
-        ? profile.portfolioLinks
-        : null
-
-    const contactLinks = profile.contactLinks && Object.keys(profile.contactLinks).length > 0
-        ? profile.contactLinks
-        : null
-
     const payload = {
         firstName: profile.firstName || '',
         lastName: profile.lastName || '',
@@ -164,16 +157,10 @@ export async function updateEmployerProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
-    // Преобразуем пустые объекты в null
-    const socialLinks = profile.socialLinks && Object.keys(profile.socialLinks).length > 0
-        ? profile.socialLinks
-        : null
-
-    const publicContacts = profile.publicContacts && Object.keys(profile.publicContacts).length > 0
-        ? profile.publicContacts
-        : null
-
     const payload = {
+        companyName: profile.companyName || '',
+        legalName: profile.legalName || null,
+        inn: profile.inn || '',
         description: profile.description || null,
         industry: profile.industry || null,
         websiteUrl: profile.websiteUrl || null,
@@ -181,8 +168,9 @@ export async function updateEmployerProfile(profile) {
         locationId: profile.locationId || null,
         companySize: profile.companySize || null,
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
-        socialLinks: socialLinks,
-        publicContacts: publicContacts,
+        socialLinks: profile.socialLinks || [],
+        publicContacts: profile.publicContacts || [],
+        verificationStatus: profile.verificationStatus || 'PENDING',
     }
 
     console.log('[API] Saving employer profile with PATCH:', payload)
@@ -198,6 +186,10 @@ export async function updateEmployerProfile(profile) {
     return data
 }
 
+/**
+ * Отправка на верификацию
+ * POST /api/employer/verification
+ */
 export async function submitVerification(payload) {
     const user = getCurrentUser()
     if (!user) {
