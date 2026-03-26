@@ -1,0 +1,51 @@
+// components/CustomCheckbox/CustomCheckbox.scss
+
+.custom-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    .custom-checkbox__box {
+      border-color: var(--color-primary);
+    }
+  }
+
+  &.is-checked {
+    .custom-checkbox__box {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+
+    .custom-checkbox__label {
+      color: var(--color-primary-dark);
+    }
+  }
+}
+
+.custom-checkbox__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.custom-checkbox__label {
+  font-size: 14px;
+  color: var(--color-text);
+  transition: color 0.2s;
+}

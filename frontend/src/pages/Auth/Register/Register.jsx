@@ -15,7 +15,7 @@ import Label from '../../../components/Label'
 import PasswordField from '../../../components/auth/PasswordField'
 import AuthLayout from '../../../layouts/AuthLayout'
 import { useToast } from '../../../hooks/use-toast'
-import { registerUser, validateSession } from '../../../utils/authApi'
+import { registerUser, getCurrentUserInfo } from '../../../utils/authApi'
 import './Register.scss'
 
 function Register() {
@@ -54,28 +54,44 @@ function Register() {
                 status: 'ACTIVE',
             })
 
-            // После регистрации проверяем сессию (кука должна установиться автоматически)
-            let sessionData = null
+            // Ждём немного, чтобы сессия успела установиться
+            await new Promise(resolve => setTimeout(resolve, 500))
+
+            // После регистрации получаем данные пользователя через /me
+            let userData = null
             try {
-                sessionData = await validateSession()
+                const response = await getCurrentUserInfo()
+                console.log('[Register] getCurrentUserInfo response:', response)
+
+                // Обрабатываем разные форматы ответа
+                if (response && response.user) {
+                    userData = response.user
+                } else if (response && response.userId) {
+                    userData = response
+                } else if (response && response.id) {
+                    userData = {
+                        userId: response.id,
+                        displayName: response.displayName,
+                        email: response.email,
+                        role: response.role,
+                    }
+                } else {
+                    userData = response
+                }
             } catch (err) {
-                console.warn('Session validation after registration failed:', err)
+                console.warn('[Register] Failed to get user info after registration:', err)
             }
 
-            // Сохраняем данные пользователя в localStorage для быстрого доступа
-            if (sessionData) {
-                localStorage.setItem('tramplin_current_user', JSON.stringify(sessionData))
-            } else {
-                // Если validateSession не сработал, сохраняем хотя бы то, что знаем
-                localStorage.setItem(
-                    'tramplin_current_user',
-                    JSON.stringify({
-                        displayName: displayName.trim(),
-                        email: email.trim(),
-                        role,
-                    })
-                )
+            // Формируем данные пользователя для localStorage
+            const finalUserData = {
+                userId: userData?.userId || userData?.id,
+                displayName: userData?.displayName || displayName.trim(),
+                email: userData?.email || email.trim(),
+                role: userData?.role || role,
             }
+
+            localStorage.setItem('tramplin_current_user', JSON.stringify(finalUserData))
+            console.log('[Register] Saved user to localStorage:', finalUserData)
 
             toast({
                 title: 'Аккаунт создан!',
@@ -84,6 +100,7 @@ function Register() {
 
             setLocation('/profile/edit')
         } catch (error) {
+            console.error('[Register] Registration error:', error)
             toast({
                 title: 'Ошибка регистрации',
                 description: error?.message || 'Произошла ошибка',

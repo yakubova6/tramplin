@@ -7,11 +7,11 @@ import { CITIES } from '../../constants/cities'
 import { FACULTIES } from '../../constants/faculties'
 import { STUDY_PROGRAMS } from '../../constants/studyPrograms'
 import {
-    getCurrentUser,
-    saveProfile,
+    getCurrentUser as getLocalUser,
     setCurrentUser,
-    submitVerificationRequest,
-} from '../../utils/mockModeration'
+} from '../../utils/userHelpers'
+import { getCurrentUserInfo } from '../../utils/authApi'
+import { updateApplicantProfile, updateEmployerProfile } from '../../utils/profileApi'
 import {
     Card,
     CardContent,
@@ -24,14 +24,16 @@ import Input from '../../components/Input'
 import Label from '../../components/Label'
 import Textarea from '../../components/Textarea'
 import Autocomplete from '../../components/Autocomplete'
+import LinksEditor from '../../components/LinksEditor'
 import CustomSelect from '../../components/CustomSelect'
+import CustomCheckbox from '../../components/CustomCheckbox'
 import { smartFilter } from '../../utils/searchHelpers'
 import { toShort, cleanLinks, createLinkRow } from '../../utils/formHelpers'
 import './ProfileEdit.scss'
 
 const VISIBILITY_OPTIONS = [
     { value: 'PUBLIC', label: 'Публично' },
-    { value: 'REGISTERED', label: 'Только зарегистрированным' },
+    { value: 'AUTHENTICATED', label: 'Только зарегистрированным' },
     { value: 'PRIVATE', label: 'Только мне' },
 ]
 
@@ -43,75 +45,12 @@ const COMPANY_SIZE_OPTIONS = [
     { value: 'ENTERPRISE', label: 'Корпорация (1000+)' },
 ]
 
-// Компонент для редактирования ссылок
-function LinksEditor({ label, rows, setRows }) {
-    const updateRow = (id, patch) => {
-        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-    }
-
-    const removeRow = (id) => {
-        setRows((prev) => prev.filter((r) => r.id !== id))
-    }
-
-    const addRow = () => setRows((prev) => [...prev, createLinkRow()])
-
-    return (
-        <div className="profile-edit-form__field">
-            <Label>{label}</Label>
-            <div className="links-editor">
-                {rows.map((row) => (
-                    <div key={row.id} className="links-editor__row">
-                        <Input
-                            placeholder="Название (GitHub, Telegram...)"
-                            value={row.title}
-                            onChange={(e) => updateRow(row.id, { title: e.target.value })}
-                        />
-                        <Input
-                            placeholder="https://..."
-                            value={row.url}
-                            onChange={(e) => updateRow(row.id, { url: e.target.value })}
-                        />
-                        <button
-                            type="button"
-                            className="links-editor__remove"
-                            onClick={() => removeRow(row.id)}
-                            aria-label="Удалить ссылку"
-                        >
-                            ×
-                        </button>
-                    </div>
-                ))}
-                <button type="button" className="links-editor__add" onClick={addRow}>
-                    + Добавить ссылку
-                </button>
-            </div>
-        </div>
-    )
-}
-
-// Компонент чекбокса
-function CustomCheckbox({ checked, onChange, label }) {
-    return (
-        <button
-            type="button"
-            className={`custom-checkbox ${checked ? 'is-checked' : ''}`}
-            onClick={() => onChange(!checked)}
-            aria-pressed={checked}
-        >
-            <span className="custom-checkbox__box">{checked ? '✓' : ''}</span>
-            <span className="custom-checkbox__label">{label}</span>
-        </button>
-    )
-}
-
 function ProfileEdit() {
     const [, setLocation] = useLocation()
     const { toast } = useToast()
 
-    const user = useMemo(() => getCurrentUser(), [])
-    const role = user?.role
-    const isEmployer = role === 'EMPLOYER'
-
+    const [user, setUser] = useState(null)
+    const [isLoading, setIsLoading] = useState(true)
     const [errors, setErrors] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -154,14 +93,14 @@ function ProfileEdit() {
     const [portfolioRows, setPortfolioRows] = useState([createLinkRow()])
     const [contactRows, setContactRows] = useState([createLinkRow()])
     const [profileVisibility, setProfileVisibility] = useState('PUBLIC')
-    const [resumeVisibility, setResumeVisibility] = useState('REGISTERED')
+    const [resumeVisibility, setResumeVisibility] = useState('AUTHENTICATED')
     const [applicationsVisibility, setApplicationsVisibility] = useState('PRIVATE')
-    const [contactsVisibility, setContactsVisibility] = useState('REGISTERED')
+    const [contactsVisibility, setContactsVisibility] = useState('AUTHENTICATED')
     const [openToWork, setOpenToWork] = useState(true)
     const [openToEvents, setOpenToEvents] = useState(true)
 
     // ===== EMPLOYER =====
-    const [companyName, setCompanyName] = useState(user?.displayName || '')
+    const [companyName, setCompanyName] = useState('')
     const [legalName, setLegalName] = useState('')
     const [inn, setInn] = useState('')
     const [description, setDescription] = useState('')
@@ -175,6 +114,51 @@ function ProfileEdit() {
     const [foundedYear, setFoundedYear] = useState('')
     const [socialRows, setSocialRows] = useState([createLinkRow()])
     const [publicContactRows, setPublicContactRows] = useState([createLinkRow()])
+
+    // Загрузка пользователя через API
+    useEffect(() => {
+        const loadUser = async () => {
+            setIsLoading(true)
+            try {
+                let localUser = getLocalUser()
+
+                if (localUser && !localUser.role) {
+                    try {
+                        const apiUser = await getCurrentUserInfo()
+                        if (apiUser) {
+                            localUser = { ...localUser, ...apiUser }
+                            setCurrentUser(localUser)
+                        }
+                    } catch (err) {
+                        console.warn('Failed to get user info from API:', err)
+                    }
+                }
+
+                if (!localUser) {
+                    try {
+                        const apiUser = await getCurrentUserInfo()
+                        if (apiUser) {
+                            localUser = apiUser
+                            setCurrentUser(localUser)
+                        }
+                    } catch (err) {
+                        console.warn('No authenticated user found')
+                    }
+                }
+
+                setUser(localUser)
+            } catch (error) {
+                console.error('Error loading user:', error)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        loadUser()
+    }, [])
+
+    const role = user?.role
+    const isEmployer = role === 'EMPLOYER'
 
     // Подсказки
     const universitySuggestions = useMemo(
@@ -248,7 +232,22 @@ function ProfileEdit() {
         }
     }, [])
 
-    if (!user || !role) {
+    // Показываем загрузку
+    if (isLoading) {
+        return (
+            <div className="profile-edit">
+                <Card className="profile-edit__card">
+                    <CardHeader>
+                        <CardTitle>Загрузка...</CardTitle>
+                        <CardDescription>Пожалуйста, подождите</CardDescription>
+                    </CardHeader>
+                </Card>
+            </div>
+        )
+    }
+
+    // Проверка авторизации
+    if (!user) {
         return (
             <div className="profile-edit">
                 <Card className="profile-edit__card">
@@ -256,6 +255,35 @@ function ProfileEdit() {
                         <CardTitle>Пользователь не найден</CardTitle>
                         <CardDescription>Сначала зарегистрируйтесь.</CardDescription>
                     </CardHeader>
+                    <CardContent>
+                        <Button onClick={() => setLocation('/register')}>
+                            Перейти к регистрации
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // Проверка наличия роли
+    if (!role) {
+        return (
+            <div className="profile-edit">
+                <Card className="profile-edit__card">
+                    <CardHeader>
+                        <CardTitle>Ошибка данных</CardTitle>
+                        <CardDescription>
+                            В данных пользователя отсутствует роль. Попробуйте выйти и зайти снова.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button onClick={() => {
+                            localStorage.removeItem('tramplin_current_user')
+                            setLocation('/login')
+                        }}>
+                            Выйти и войти заново
+                        </Button>
+                    </CardContent>
                 </Card>
             </div>
         )
@@ -290,7 +318,7 @@ function ProfileEdit() {
         return next
     }
 
-    const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
         event.preventDefault()
 
         const validation = isEmployer ? validateEmployer() : validateApplicant()
@@ -307,75 +335,80 @@ function ProfileEdit() {
 
         setIsSubmitting(true)
 
-        const applicantProfile = {
-            user,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            middleName: middleName.trim(),
-            universityName: universityName.trim(),
-            facultyName: facultyName.trim(),
-            studyProgram: studyProgram.trim(),
-            course: toShort(course),
-            graduationYear: toShort(graduationYear),
-            cityId: Number(cityId),
-            about: about.trim(),
-            resumeText: resumeText.trim(),
-            portfolioLinks: cleanLinks(portfolioRows),
-            contactLinks: cleanLinks(contactRows),
-            profileVisibility,
-            resumeVisibility,
-            applicationsVisibility,
-            contactsVisibility,
-            openToWork,
-            openToEvents,
-        }
+        try {
+            if (isEmployer) {
+                const employerProfileData = {
+                    companyName: companyName.trim(),
+                    legalName: legalName.trim() || null,
+                    inn: inn.trim(),
+                    description: description.trim() || null,
+                    industry: industry.trim() || null,
+                    websiteUrl: websiteUrl.trim() || null,
+                    cityId: cityIdEmployer ? Number(cityIdEmployer) : null,
+                    locationId: cityIdEmployer ? Number(cityIdEmployer) : null,
+                    companySize: companySize || null,
+                    foundedYear: foundedYear ? toShort(foundedYear) : null,
+                    socialLinks: cleanLinks(socialRows),
+                    publicContacts: cleanLinks(publicContactRows),
+                }
 
-        const employerProfile = {
-            user,
-            companyName: companyName.trim(),
-            legalName: legalName.trim(),
-            inn: inn.trim(),
-            description: description.trim(),
-            industry: industry.trim(),
-            websiteUrl: websiteUrl.trim(),
-            cityId: Number(cityIdEmployer),
-            addressLine: addressLine.trim(),
-            companySize,
-            foundedYear: foundedYear ? toShort(foundedYear) : null,
-            socialLinks: cleanLinks(socialRows),
-            publicContacts: cleanLinks(publicContactRows),
-            verificationStatus: 'PENDING',
-        }
+                console.log('[ProfileEdit] Сохранение профиля работодателя:', employerProfileData)
+                await updateEmployerProfile(employerProfileData)
 
-        const payload = isEmployer
-            ? { role: 'EMPLOYER', email: user.email, displayName: user.displayName, profile: employerProfile }
-            : { role: 'APPLICANT', email: user.email, displayName: user.displayName, profile: applicantProfile }
+                localStorage.setItem(`employer_profile_${user.email}`, JSON.stringify(employerProfileData))
 
-        saveProfile(payload)
+                toast({
+                    title: 'Заявка отправлена',
+                    description: 'Профиль компании отправлен на проверку. Обычно это занимает до 2 рабочих дней.',
+                })
+            } else {
+                // ВРЕМЕННО: используем cityId = 1, если не выбран город
+                const finalCityId = cityId ? Number(cityId) : 1
 
-        if (isEmployer) {
-            submitVerificationRequest({
-                role,
-                type: 'company_verification',
-                userEmail: user.email,
-                userDisplayName: user.displayName,
-                payload,
-            })
-            setCurrentUser({ ...user, profileStatus: 'PENDING_VERIFICATION' })
+                const applicantProfileData = {
+                    firstName: firstName.trim(),
+                    lastName: lastName.trim(),
+                    middleName: middleName.trim() || null,
+                    universityName: universityName.trim() || null,
+                    facultyName: facultyName.trim() || null,
+                    studyProgram: studyProgram.trim() || null,
+                    course: course ? toShort(course) : null,
+                    graduationYear: graduationYear ? toShort(graduationYear) : null,
+                    cityId: finalCityId,
+                    about: about.trim() || null,
+                    resumeText: resumeText.trim() || null,
+                    portfolioLinks: cleanLinks(portfolioRows) || null,
+                    contactLinks: cleanLinks(contactRows) || null,
+                    profileVisibility,
+                    resumeVisibility,
+                    applicationsVisibility,
+                    contactsVisibility,
+                    openToWork,
+                    openToEvents,
+                }
+
+                console.log('[ProfileEdit] Сохранение профиля соискателя:', applicantProfileData)
+                await updateApplicantProfile(applicantProfileData)
+
+                localStorage.setItem(`applicant_profile_${user.email}`, JSON.stringify(applicantProfileData))
+
+                toast({
+                    title: 'Профиль сохранён',
+                    description: 'Ваши данные успешно обновлены',
+                })
+            }
+
+            setLocation(isEmployer ? '/employer' : '/seeker')
+        } catch (error) {
+            console.error('[ProfileEdit] Ошибка сохранения:', error)
             toast({
-                title: 'Заявка отправлена',
-                description: 'Профиль компании отправлен на проверку. Обычно это занимает до 2 рабочих дней.',
+                title: 'Ошибка',
+                description: error.message || 'Не удалось сохранить профиль',
+                variant: 'destructive',
             })
-        } else {
-            setCurrentUser({ ...user, profileStatus: 'COMPLETED' })
-            toast({
-                title: 'Профиль сохранён',
-                description: 'Ваши данные успешно обновлены',
-            })
+        } finally {
+            setIsSubmitting(false)
         }
-
-        setIsSubmitting(false)
-        setLocation(isEmployer ? '/employer' : '/seeker')
     }
 
     return (

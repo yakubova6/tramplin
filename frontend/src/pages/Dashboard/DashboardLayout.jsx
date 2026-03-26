@@ -1,5 +1,5 @@
 import './DashboardLayout.scss'
-import Navbar from '../../components/layout/Navbar'
+import Navbar from '../../layouts/Navbar'
 
 function DashboardLayout({ title, subtitle, children }) {
     return (

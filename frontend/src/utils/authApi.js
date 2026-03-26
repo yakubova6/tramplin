@@ -1,3 +1,5 @@
+// utils/authApi.js
+
 const API_BASE = '/api/auth'
 
 async function request(url, options = {}) {
@@ -26,10 +28,6 @@ async function request(url, options = {}) {
     return data
 }
 
-/**
- * Регистрация нового пользователя
- * @param {Object} payload - { displayName, email, password, role, status }
- */
 export async function registerUser(payload) {
     return request(`${API_BASE}/register`, {
         method: 'POST',
@@ -37,10 +35,6 @@ export async function registerUser(payload) {
     })
 }
 
-/**
- * Авторизация пользователя
- * @param {Object} payload - { email, password }
- */
 export async function loginUser(payload) {
     return request(`${API_BASE}/login`, {
         method: 'POST',
@@ -48,28 +42,24 @@ export async function loginUser(payload) {
     })
 }
 
-/**
- * Проверка текущей сессии (передаётся sessionId через cookie)
- */
 export async function validateSession() {
     return request(`${API_BASE}/validateSession`, {
         method: 'GET',
     })
 }
 
-/**
- * Выход из системы
- */
+export async function getCurrentUserInfo() {
+    return request(`${API_BASE}/me`, {
+        method: 'GET',
+    })
+}
+
 export async function logoutUser() {
     return request(`${API_BASE}/logout`, {
         method: 'POST',
     })
 }
 
-/**
- * Сброс пароля (запрос)
- * @param {Object} payload - { email }
- */
 export async function requestPasswordReset(payload) {
     return request(`${API_BASE}/forgot-password`, {
         method: 'POST',
@@ -77,10 +67,6 @@ export async function requestPasswordReset(payload) {
     })
 }
 
-/**
- * Подтверждение сброса пароля
- * @param {Object} payload - { token, newPassword }
- */
 export async function confirmPasswordReset(payload) {
     return request(`${API_BASE}/reset-password`, {
         method: 'POST',
@@ -88,10 +74,6 @@ export async function confirmPasswordReset(payload) {
     })
 }
 
-/**
- * Изменение пароля (для авторизованных пользователей)
- * @param {Object} payload - { currentPassword, newPassword }
- */
 export async function changePassword(payload) {
     return request(`${API_BASE}/change-password`, {
         method: 'POST',

@@ -13,7 +13,7 @@ import Label from '../../../components/Label'
 import PasswordField from '../../../components/auth/PasswordField'
 import AuthLayout from '../../../layouts/AuthLayout'
 import { useToast } from '../../../hooks/use-toast'
-import { loginUser, validateSession } from '../../../utils/authApi'
+import { loginUser, getCurrentUserInfo } from '../../../utils/authApi'
 import './Login.scss'
 
 function Login() {
@@ -45,13 +45,41 @@ function Login() {
                 password,
             })
 
-            // Получаем данные пользователя через validateSession
-            const sessionData = await validateSession()
+            // Ждём немного, чтобы сессия успела установиться
+            await new Promise(resolve => setTimeout(resolve, 500))
+
+            // Получаем данные пользователя через /me
+            const response = await getCurrentUserInfo()
+            console.log('[Login] getCurrentUserInfo response:', response)
+
+            // Обрабатываем разные форматы ответа
+            let userData
+            if (response && response.user) {
+                userData = response.user
+            } else if (response && response.userId) {
+                userData = response
+            } else if (response && response.id) {
+                userData = {
+                    userId: response.id,
+                    displayName: response.displayName,
+                    email: response.email,
+                    role: response.role,
+                }
+            } else {
+                userData = response
+            }
 
             // Сохраняем в localStorage для быстрого доступа
-            localStorage.setItem('tramplin_current_user', JSON.stringify(sessionData))
+            const storedUser = {
+                userId: userData?.userId || userData?.id,
+                displayName: userData?.displayName,
+                email: userData?.email,
+                role: userData?.role,
+            }
+            localStorage.setItem('tramplin_current_user', JSON.stringify(storedUser))
+            console.log('[Login] Saved user to localStorage:', storedUser)
 
-            const role = sessionData?.role
+            const role = userData?.role
 
             toast({
                 title: 'Добро пожаловать!',
@@ -67,6 +95,7 @@ function Login() {
                 setLocation('/seeker')
             }
         } catch (error) {
+            console.error('[Login] Login error:', error)
             toast({
                 title: 'Ошибка входа',
                 description: error.message || 'Не удалось выполнить вход',
