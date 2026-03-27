@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ru.itplanet.trampline.commons.annotation.CurrentUser
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest

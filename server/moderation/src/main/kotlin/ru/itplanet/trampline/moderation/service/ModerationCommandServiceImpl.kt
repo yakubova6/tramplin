@@ -10,9 +10,11 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.model.Role
+import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskResponse
 import ru.itplanet.trampline.moderation.client.OpportunityModerationOwnerClient
 import ru.itplanet.trampline.moderation.client.ProfileModerationOwnerClient
 import ru.itplanet.trampline.moderation.dao.ModerationLogDao
@@ -23,7 +25,6 @@ import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
 import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
-import ru.itplanet.trampline.moderation.model.ModerationSeverity
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
@@ -403,16 +404,16 @@ class ModerationCommandServiceImpl(
         request: InternalModerationApproveRequest,
     ): InternalModerationActionResultResponse {
         return when (task.entityType) {
-            ModerationEntityType.EMPLOYER_PROFILE ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.EMPLOYER_PROFILE ->
                 profileModerationOwnerClient.approveEmployerProfile(task.entityId, request)
 
-            ModerationEntityType.EMPLOYER_VERIFICATION ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.EMPLOYER_VERIFICATION ->
                 profileModerationOwnerClient.approveEmployerVerification(task.entityId, request)
 
-            ModerationEntityType.OPPORTUNITY ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.OPPORTUNITY ->
                 opportunityModerationOwnerClient.approveOpportunity(task.entityId, request)
 
-            ModerationEntityType.TAG ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.TAG ->
                 opportunityModerationOwnerClient.approveTag(task.entityId, request)
         }
     }
@@ -422,27 +423,18 @@ class ModerationCommandServiceImpl(
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
         return when (task.entityType) {
-            ModerationEntityType.EMPLOYER_PROFILE ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.EMPLOYER_PROFILE ->
                 profileModerationOwnerClient.rejectEmployerProfile(task.entityId, request)
 
-            ModerationEntityType.EMPLOYER_VERIFICATION ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.EMPLOYER_VERIFICATION ->
                 profileModerationOwnerClient.rejectEmployerVerification(task.entityId, request)
 
-            ModerationEntityType.OPPORTUNITY ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.OPPORTUNITY ->
                 opportunityModerationOwnerClient.rejectOpportunity(task.entityId, request)
 
-            ModerationEntityType.TAG ->
+            ru.itplanet.trampline.commons.model.moderation.ModerationEntityType.TAG ->
                 opportunityModerationOwnerClient.rejectTag(task.entityId, request)
         }
-    }
-
-    private fun shouldBlockRelatedUser(
-        task: ModerationTaskDto,
-        request: RejectModerationTaskRequest,
-        ownerActionResult: InternalModerationActionResultResponse,
-    ): Boolean {
-        return request.severity == ModerationSeverity.CRITICAL &&
-                ownerActionResult.affectedUserId != null
     }
 
     private fun ensureTaskCanBeResolved(
@@ -519,10 +511,6 @@ class ModerationCommandServiceImpl(
     private fun ModerationTaskDto.toInternalResponse(created: Boolean): InternalModerationTaskResponse {
         return InternalModerationTaskResponse(
             taskId = id ?: error("Task id must not be null"),
-            entityType = entityType,
-            entityId = entityId,
-            taskType = taskType,
-            status = status,
             created = created,
         )
     }

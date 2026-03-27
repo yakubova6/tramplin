@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.moderation.service
 
+import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskResponse
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest

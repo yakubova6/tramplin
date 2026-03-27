@@ -6,9 +6,10 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
-import ru.itplanet.trampline.moderation.model.ModerationTaskType
 
 interface ModerationTaskDao : JpaRepository<ModerationTaskDto, Long>, JpaSpecificationExecutor<ModerationTaskDto> {
 
