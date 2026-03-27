@@ -1,6 +1,8 @@
 package ru.itplanet.trampline.moderation.service
 
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
 import ru.itplanet.trampline.moderation.model.response.ModerationDashboardResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationEntityHistoryItemResponse
@@ -26,4 +28,10 @@ interface ModerationQueryService {
         entityType: ModerationEntityType,
         entityId: Long
     ): List<ModerationEntityHistoryItemResponse>
+
+    fun findActiveTaskByEntity(
+        entityType: ModerationEntityType,
+        entityId: Long,
+        taskType: ModerationTaskType,
+    ): InternalModerationTaskLookupResponse
 }
