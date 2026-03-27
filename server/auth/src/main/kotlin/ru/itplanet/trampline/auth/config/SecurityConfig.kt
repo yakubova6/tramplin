@@ -66,6 +66,9 @@ class SecurityConfig(
                         request.matcher("/api/auth/register"),
                         request.matcher("/api/auth/login"),
                         request.matcher("/api/auth/validateSession"),
+                        request.matcher("/v3/api-docs/**"),
+                        request.matcher("/swagger-ui.html"),
+                        request.matcher("/swagger-ui/**"),
                         request.matcher("/error")
                     )
                     .permitAll()

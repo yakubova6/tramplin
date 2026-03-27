@@ -1,3 +1,29 @@
+server:
+  port: 8091
+
 spring:
   application:
     name: media
+
+  datasource:
+    url: jdbc:postgresql://64.188.97.232:5432/tramplin
+    username: tramplin_adm
+    password: tramplin_adm
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+storage:
+  s3:
+    endpoint: ${TWC_S3_ENDPOINT:https://s3.twcstorage.ru}
+    region: ${TWC_S3_REGION:ru-1}
+    bucket: ${TWC_S3_BUCKET:trampline-dev}
+    access-key: ${TWC_S3_ACCESS_KEY:}
+    secret-key: ${TWC_S3_SECRET_KEY:}
+    key-prefix: ${TWC_S3_KEY_PREFIX:trampline}
+    path-style-access-enabled: ${TWC_S3_PATH_STYLE:true}
+    connect-timeout: ${TWC_S3_CONNECT_TIMEOUT:5s}
+    read-timeout: ${TWC_S3_READ_TIMEOUT:30s}
+    presigned-url-ttl: ${TWC_S3_PRESIGNED_URL_TTL:15m}

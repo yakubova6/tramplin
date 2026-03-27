@@ -11,7 +11,6 @@ import org.springframework.security.config.web.PathPatternRequestMatcherBuilderF
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.logout.LogoutFilter
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
 import ru.itplanet.trampline.profile.security.ApiAccessDeniedHandler
 import ru.itplanet.trampline.profile.security.ApiAuthenticationEntryPoint
@@ -61,12 +60,17 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(
+                        request.matcher("/v3/api-docs/**"),
+                        request.matcher("/swagger-ui.html"),
+                        request.matcher("/swagger-ui/**"),
+                        request.matcher("/error")
+                    ).permitAll()
                     .requestMatchers(HttpMethod.PATCH, "/api/profile/employer").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.PATCH, "/api/profile/applicant").hasRole("APPLICANT")
                     .requestMatchers(HttpMethod.GET, "/api/profile/**").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/api/employer/**")).hasRole("EMPLOYER")
-                    .requestMatchers(request.matcher("/error")).permitAll()
                     .anyRequest().authenticated()
             }
             .addFilterBefore(internalApiRequestFilter, LogoutFilter::class.java)
