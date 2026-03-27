@@ -1,8 +1,8 @@
 package ru.itplanet.trampline.opportunity.converter
 
 import org.springframework.stereotype.Component
-import ru.itplanet.trampline.opportunity.dao.dto.CityDto
-import ru.itplanet.trampline.opportunity.dao.dto.LocationDto
+import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.dao.dto.LocationDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityResourceLinkDto
 import ru.itplanet.trampline.opportunity.dao.dto.TagDto
@@ -145,13 +145,14 @@ class EmployerOpportunityConverter(
 
         return Location(
             id = requireNotNull(source.id),
+            cityId = source.cityId,
             city = toCitySummary(source.city),
             title = source.title,
             addressLine = source.addressLine,
             addressLine2 = source.addressLine2,
             postalCode = source.postalCode,
-            latitude = source.latitude?.toDouble(),
-            longitude = source.longitude?.toDouble()
+            latitude = source.latitude,
+            longitude = source.longitude,
         )
     }
 

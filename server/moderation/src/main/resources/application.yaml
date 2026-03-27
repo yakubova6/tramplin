@@ -21,5 +21,13 @@ auth:
   service:
     url: ${AUTH_SERVICE_URL:http://localhost:9999}
 
+profile:
+  service:
+    url: ${PROFILE_SERVICE_URL:http://localhost:8080}
+
+opportunity:
+  service:
+    url: ${OPPORTUNITY_SERVICE_URL:http://localhost:8081}
+
 internal-api:
-  api-key: some-key
+  api-key: moderation-api-key

@@ -2,7 +2,6 @@ package ru.itplanet.trampline.auth.converter
 
 import org.springframework.stereotype.Component
 import ru.itplanet.trampline.commons.dao.dto.UserDto
-import ru.itplanet.trampline.commons.model.Status
 import ru.itplanet.trampline.auth.model.User
 import ru.itplanet.trampline.auth.model.request.CreateCuratorRequest
 import ru.itplanet.trampline.auth.model.request.Registration
@@ -15,14 +14,12 @@ class UserConverter {
         source: Registration,
         normalizedEmail: String,
         passwordHash: String,
-        status: Status
     ): UserDto {
         return UserDto(
             displayName = source.displayName.trim(),
             email = normalizedEmail,
             passwordHash = passwordHash,
             role = source.role,
-            status = status
         )
     }
 
@@ -36,7 +33,6 @@ class UserConverter {
             email = normalizedEmail,
             passwordHash = passwordHash,
             role = Role.CURATOR,
-            status = Status.ACTIVE
         )
     }
 
@@ -46,7 +42,6 @@ class UserConverter {
             displayName = source.displayName,
             email = source.email,
             role = source.role,
-            status = source.status
         )
     }
 }

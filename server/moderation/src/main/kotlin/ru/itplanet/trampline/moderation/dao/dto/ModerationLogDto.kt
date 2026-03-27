@@ -37,7 +37,7 @@ open class ModerationLogDto {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "entity_type", nullable = false)
-    var entityType: ModerationEntityType = ModerationEntityType.USER
+    var entityType: ModerationEntityType = ModerationEntityType.EMPLOYER_PROFILE
 
     @Column(name = "entity_id", nullable = false)
     var entityId: Long = 0

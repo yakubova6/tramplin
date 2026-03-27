@@ -1,10 +1,7 @@
 package ru.itplanet.trampline.commons.dao.dto
 
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.UpdateTimestamp
 import java.math.BigDecimal
-import java.time.OffsetDateTime
 
 @Entity
 @Table(name = "location")
@@ -14,14 +11,17 @@ open class LocationDto {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     open var id: Long? = null
 
+    @Column(name = "city_id", nullable = false)
+    open var cityId: Long? = null
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "city_id", nullable = false)
+    @JoinColumn(name = "city_id", insertable = false, updatable = false)
     open var city: CityDto? = null
 
     @Column(name = "title", length = 255)
     open var title: String? = null
 
-    @Column(name = "address_line", length = 255, nullable = false)
+    @Column(name = "address_line", nullable = false, length = 255)
     open var addressLine: String = ""
 
     @Column(name = "address_line2", length = 255)
@@ -31,33 +31,27 @@ open class LocationDto {
     open var postalCode: String? = null
 
     @Column(name = "latitude")
-    open var latitude: Double? = null
+    open var latitude: BigDecimal? = null
 
     @Column(name = "longitude")
-    open var longitude: Double? = null
+    open var longitude: BigDecimal? = null
 
     @Column(name = "is_active", nullable = false)
     open var isActive: Boolean = true
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false, nullable = false)
-    open var createdAt: OffsetDateTime? = null
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    open var updatedAt: OffsetDateTime? = null
-
     constructor()
 
     constructor(
+        cityId: Long?,
         city: CityDto?,
         addressLine: String,
         title: String? = null,
         addressLine2: String? = null,
         postalCode: String? = null,
-        latitude: Double? = null,
-        longitude: Double? = null
+        latitude: BigDecimal? = null,
+        longitude: BigDecimal? = null
     ) {
+        this.cityId = cityId
         this.city = city
         this.addressLine = addressLine
         this.title = title

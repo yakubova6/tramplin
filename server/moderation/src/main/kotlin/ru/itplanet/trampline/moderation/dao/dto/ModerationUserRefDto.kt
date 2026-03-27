@@ -2,7 +2,6 @@ package ru.itplanet.trampline.moderation.dao.dto
 
 import jakarta.persistence.*
 import ru.itplanet.trampline.commons.model.Role
-import ru.itplanet.trampline.commons.model.Status
 
 @Entity
 @Table(name = "users")
@@ -20,8 +19,4 @@ open class ModerationUserRefDto {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
     var role: Role = Role.APPLICANT
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    var status: Status = Status.ACTIVE
 }

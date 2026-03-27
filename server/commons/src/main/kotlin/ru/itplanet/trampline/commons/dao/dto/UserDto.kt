@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import ru.itplanet.trampline.commons.model.Role
-import ru.itplanet.trampline.commons.model.Status
 import java.time.Instant
 
 @Entity
@@ -33,10 +32,6 @@ open class UserDto {
     @Column(name = "role", nullable = false)
     open var role: Role = Role.APPLICANT
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    open var status: Status = Status.PENDING_VERIFICATION
-
     @Column(name = "email_verified", nullable = false)
     open var emailVerified: Boolean = true
 
@@ -50,12 +45,10 @@ open class UserDto {
         email: String,
         passwordHash: String,
         role: Role,
-        status: Status
     ) {
         this.displayName = displayName
         this.email = email
         this.passwordHash = passwordHash
         this.role = role
-        this.status = status
     }
 }
