@@ -6,6 +6,7 @@ import Input from '../../../components/Input'
 import Label from '../../../components/Label'
 import Textarea from '../../../components/Textarea'
 import CustomSelect from '../../../components/CustomSelect'
+import LinksEditor from '../../../components/LinksEditor'
 import { getCurrentUser } from '../../../utils/userHelpers'
 import {
     getEmployerProfile,
@@ -23,13 +24,7 @@ import './EmployerDashboard.scss'
 
 // Импорт иконок
 import editIcon from '../../../assets/icons/edit.svg'
-import pencilIcon from '../../../assets/icons/pencil.svg'
-import locationIcon from '../../../assets/icons/location.svg'
-import briefcaseIcon from '../../../assets/icons/briefcase.svg'
-import plusIcon from '../../../assets/icons/plus.svg'
-import usersIcon from '../../../assets/icons/users.svg'
-import buildingIcon from '../../../assets/icons/building.svg'
-import alertIcon from '../../../assets/icons/alert.svg'
+import linkIcon from '../../../assets/icons/link.svg'
 
 const OPPORTUNITY_TYPES = [
     { value: 'VACANCY', label: 'Вакансия' },
@@ -90,6 +85,10 @@ function EmployerDashboard() {
     const [cityActiveIndex, setCityActiveIndex] = useState(-1)
     const citySearchRef = useRef(null)
 
+    // Состояния для ссылок - это копии данных из profile для редактирования
+    const [socialRows, setSocialRows] = useState([])
+    const [contactRows, setContactRows] = useState([])
+
     const [verificationData, setVerificationData] = useState({
         method: 'CORPORATE_EMAIL',
         corporateEmail: '',
@@ -110,7 +109,7 @@ function EmployerDashboard() {
         companySize: '',
         foundedYear: null,
         socialLinks: [],
-        publicContacts: [],
+        publicContacts: {},
         verificationStatus: 'PENDING',
     })
 
@@ -154,6 +153,68 @@ function EmployerDashboard() {
         setIsCitySearchOpen(false)
     }
 
+    // Преобразование массива строк (из бэкенда) в массив для LinksEditor
+    const socialLinksToRows = (socialLinks) => {
+        if (!socialLinks || !Array.isArray(socialLinks)) return []
+        return socialLinks
+            .filter(url => url && typeof url === 'string' && url.trim())
+            .map((url, index) => ({
+                id: Date.now() + index,
+                title: `Ссылка ${index + 1}`,
+                url: url.trim()
+            }))
+    }
+
+    // Преобразование объекта (из бэкенда) в массив для LinksEditor
+    const contactsToRows = (contacts) => {
+        if (!contacts || typeof contacts !== 'object') return []
+        return Object.entries(contacts)
+            .filter(([title, url]) => title && url && typeof url === 'string' && url.trim())
+            .map(([title, url], index) => ({
+                id: Date.now() + index,
+                title: title,
+                url: url.trim()
+            }))
+    }
+
+    // Преобразование массива из LinksEditor в массив строк для бэкенда
+    const rowsToSocialLinks = (rows) => {
+        return rows
+            .filter(row => row.url && typeof row.url === 'string' && row.url.trim())
+            .map(row => row.url.trim())
+    }
+
+    // Преобразование массива из LinksEditor в объект для бэкенда
+    const rowsToContacts = (rows) => {
+        const result = {}
+        rows.forEach(row => {
+            const title = row.title && typeof row.title === 'string' ? row.title.trim() : ''
+            const url = row.url && typeof row.url === 'string' ? row.url.trim() : ''
+            if (title && url) {
+                result[title] = url
+            }
+        })
+        return result
+    }
+
+    // Функция для отображения ссылок
+    const renderLink = (url, title) => {
+        let displayName = title || url
+        try {
+            const urlObj = new URL(url)
+            displayName = urlObj.hostname
+        } catch {
+            displayName = title || url
+        }
+        return (
+            <a key={url + title} href={url} target="_blank" rel="noopener noreferrer" className="link-item">
+                <img src={linkIcon} alt="" className="icon-small" />
+                <span>{displayName}</span>
+            </a>
+        )
+    }
+
+    // Загрузка данных с бэкенда
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true)
@@ -176,9 +237,14 @@ function EmployerDashboard() {
                         companySize: profileData.companySize || '',
                         foundedYear: profileData.foundedYear,
                         socialLinks: profileData.socialLinks || [],
-                        publicContacts: profileData.publicContacts || [],
+                        publicContacts: profileData.publicContacts || {},
                         verificationStatus: profileData.verificationStatus || 'PENDING',
                     }))
+
+                    // Инициализируем ссылки для редактора из данных с бэкенда
+                    setSocialRows(socialLinksToRows(profileData.socialLinks || []))
+                    setContactRows(contactsToRows(profileData.publicContacts || {}))
+
                     if (profileData.cityName) {
                         setCitySearchQuery(profileData.cityName)
                     }
@@ -188,13 +254,24 @@ function EmployerDashboard() {
                 const applicantsData = await getEmployerApplications()
                 setApplicants(applicantsData)
             } catch (error) {
+                console.error('Load error:', error)
                 toast({ title: 'Ошибка', description: 'Не удалось загрузить профиль', variant: 'destructive' })
             } finally {
                 setIsLoading(false)
             }
         }
         loadData()
-    }, [toast, user?.displayName])
+    }, [toast])
+
+    // Закрываем редактирование при смене вкладки
+    useEffect(() => {
+        if (isEditing) {
+            setIsEditing(false)
+            // Восстанавливаем данные из profile при закрытии
+            setSocialRows(socialLinksToRows(profile.socialLinks || []))
+            setContactRows(contactsToRows(profile.publicContacts || {}))
+        }
+    }, [activeTab])
 
     const validateProfile = () => {
         const newErrors = {}
@@ -213,21 +290,46 @@ function EmployerDashboard() {
         }
         setIsLoading(true)
         try {
-            await updateEmployerProfile(profile)
+            // Преобразуем данные из редакторов в формат для бэкенда
+            const socialLinksToSave = rowsToSocialLinks(socialRows)
+            const contactsToSave = rowsToContacts(contactRows)
+
+            const updatedProfile = {
+                ...profile,
+                socialLinks: socialLinksToSave,
+                publicContacts: contactsToSave,
+            }
+
+            console.log('[Save] Sending to backend:', {
+                socialLinks: socialLinksToSave,
+                publicContacts: contactsToSave
+            })
+
+            // Отправляем на бэкенд
+            const result = await updateEmployerProfile(updatedProfile)
+            console.log('[Save] Backend response:', result)
+
+            // Обновляем локальный profile
+            setProfile(updatedProfile)
+
+            // Синхронизируем редакторы с сохраненными данными
+            setSocialRows(socialLinksToRows(socialLinksToSave))
+            setContactRows(contactsToRows(contactsToSave))
+
             setIsEditing(false)
             setErrors({})
 
-            // Диспатчим событие обновления профиля
             window.dispatchEvent(new CustomEvent('profile-updated', {
                 detail: {
-                    companyName: profile.companyName,
+                    companyName: updatedProfile.companyName,
                     role: 'EMPLOYER'
                 }
             }))
 
             toast({ title: 'Профиль сохранён', description: 'Информация о компании обновлена' })
         } catch (error) {
-            toast({ title: 'Ошибка', description: 'Не удалось сохранить профиль', variant: 'destructive' })
+            console.error('Save error:', error)
+            toast({ title: 'Ошибка', description: error?.message || 'Не удалось сохранить профиль', variant: 'destructive' })
         } finally {
             setIsLoading(false)
         }
@@ -594,72 +696,107 @@ function EmployerDashboard() {
                                     </button>
                                 </div>
                                 <div className="employer-profile__grid">
-                                    <div className="employer-profile__field"><Label>Название</Label>
-                                        <p>{profile.companyName}</p></div>
-                                    <div className="employer-profile__field"><Label>ИНН</Label><p>{profile.inn}</p>
+                                    <div className="employer-profile__field">
+                                        <Label>Название</Label>
+                                        <div className="field-value">{profile.companyName}</div>
                                     </div>
-                                    <div className="employer-profile__field"><Label>Юр. название</Label>
-                                        <p>{profile.legalName || '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Сфера</Label>
-                                        <p>{profile.industry || '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Сайт</Label><p>{profile.websiteUrl ?
-                                        <a href={profile.websiteUrl} target="_blank"
-                                           rel="noopener noreferrer">{profile.websiteUrl}</a> : '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Город</Label>
-                                        <p>{profile.cityName || '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Размер</Label>
-                                        <p>{COMPANY_SIZE_OPTIONS.find(s => s.value === profile.companySize)?.label || '—'}</p>
+                                    <div className="employer-profile__field">
+                                        <Label>ИНН</Label>
+                                        <div className="field-value">{profile.inn}</div>
                                     </div>
-                                    <div className="employer-profile__field"><Label>Год основания</Label>
-                                        <p>{profile.foundedYear || '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Описание</Label>
-                                        <p>{profile.description || '—'}</p></div>
-                                    <div className="employer-profile__field"><Label>Статус</Label><p
-                                        className={`verification-status status-${profile.verificationStatus.toLowerCase()}`}>
-                                        {profile.verificationStatus === 'APPROVED' ? 'Верифицирован' : profile.verificationStatus === 'PENDING' ? 'На проверке' : 'Не верифицирован'}
-                                    </p></div>
+                                    <div className="employer-profile__field">
+                                        <Label>Юр. название</Label>
+                                        <div className="field-value">{profile.legalName || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Сфера</Label>
+                                        <div className="field-value">{profile.industry || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Сайт</Label>
+                                        <div className="field-value">
+                                            {profile.websiteUrl ? <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer">{profile.websiteUrl}</a> : '—'}
+                                        </div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Город</Label>
+                                        <div className="field-value">{profile.cityName || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Размер</Label>
+                                        <div className="field-value">{COMPANY_SIZE_OPTIONS.find(s => s.value === profile.companySize)?.label || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Год основания</Label>
+                                        <div className="field-value">{profile.foundedYear || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Описание</Label>
+                                        <div className="field-value">{profile.description || '—'}</div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Социальные сети</Label>
+                                        <div className="field-value">
+                                            {profile.socialLinks && profile.socialLinks.length > 0 ? (
+                                                <div className="links-list">
+                                                    {profile.socialLinks.map((url, idx) => renderLink(url, `Ссылка ${idx + 1}`))}
+                                                </div>
+                                            ) : '—'}
+                                        </div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Контакты для связи</Label>
+                                        <div className="field-value">
+                                            {profile.publicContacts && Object.keys(profile.publicContacts).length > 0 ? (
+                                                <div className="links-list">
+                                                    {Object.entries(profile.publicContacts).map(([title, url]) => renderLink(url, title))}
+                                                </div>
+                                            ) : '—'}
+                                        </div>
+                                    </div>
+                                    <div className="employer-profile__field">
+                                        <Label>Статус</Label>
+                                        <div className={`field-value verification-status status-${profile.verificationStatus.toLowerCase()}`}>
+                                            {profile.verificationStatus === 'APPROVED' ? 'Верифицирован' : profile.verificationStatus === 'PENDING' ? 'На проверке' : 'Не верифицирован'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
                             <div className="employer-profile__edit">
                                 <div className="employer-profile__edit-header">
-                                    <h2>Редактирование</h2>
+                                    <h2>Редактирование компании</h2>
                                 </div>
+
                                 <div className="employer-profile__edit-grid">
                                     <div className="employer-profile__edit-field">
-                                        <Label>Название <span className="required-star">*</span></Label>
-                                        <Input value={profile.companyName}
-                                               onChange={e => handleFieldChange('companyName', e.target.value)}
-                                               disabled/>
+                                        <Label>Название компании <span className="required-star">*</span></Label>
+                                        <Input value={profile.companyName} onChange={e => handleFieldChange('companyName', e.target.value)} disabled/>
                                         {errors.companyName && <p className="field-error">{errors.companyName}</p>}
                                     </div>
                                     <div className="employer-profile__edit-field">
                                         <Label>ИНН <span className="required-star">*</span></Label>
-                                        <Input value={profile.inn}
-                                               onChange={e => handleFieldChange('inn', e.target.value)} disabled/>
+                                        <Input value={profile.inn} onChange={e => handleFieldChange('inn', e.target.value)} disabled/>
                                         {errors.inn && <p className="field-error">{errors.inn}</p>}
                                     </div>
                                 </div>
+
                                 <div className="employer-profile__edit-field">
-                                    <Label>Юр. название</Label>
-                                    <Input value={profile.legalName}
-                                           onChange={e => handleFieldChange('legalName', e.target.value)}
-                                           placeholder="Полное наименование"/>
+                                    <Label>Юридическое название</Label>
+                                    <Input value={profile.legalName} onChange={e => handleFieldChange('legalName', e.target.value)} placeholder="Полное наименование"/>
                                 </div>
+
                                 <div className="employer-profile__edit-grid">
                                     <div className="employer-profile__edit-field">
-                                        <Label>Сфера</Label>
-                                        <Input value={profile.industry}
-                                               onChange={e => handleFieldChange('industry', e.target.value)}
-                                               placeholder="IT, Образование..."/>
+                                        <Label>Сфера деятельности</Label>
+                                        <Input value={profile.industry} onChange={e => handleFieldChange('industry', e.target.value)} placeholder="IT, Образование, Финансы..."/>
                                     </div>
                                     <div className="employer-profile__edit-field">
-                                        <Label>Сайт</Label>
-                                        <Input value={profile.websiteUrl}
-                                               onChange={e => handleFieldChange('websiteUrl', e.target.value)}
-                                               placeholder="https://"/>
+                                        <Label>Сайт компании</Label>
+                                        <Input value={profile.websiteUrl} onChange={e => handleFieldChange('websiteUrl', e.target.value)} placeholder="https://example.com"/>
                                     </div>
                                 </div>
+
                                 <div className="employer-profile__edit-grid">
                                     <div className="employer-profile__edit-field" ref={citySearchRef}>
                                         <Label>Город</Label>
@@ -688,27 +825,66 @@ function EmployerDashboard() {
                                             )}
                                         </div>
                                     </div>
-                                    <CustomSelect label="Размер" value={profile.companySize}
-                                                  onChange={val => handleFieldChange('companySize', val)}
-                                                  options={COMPANY_SIZE_OPTIONS} placeholder="Выберите"/>
+                                    <CustomSelect
+                                        label="Размер компании"
+                                        value={profile.companySize}
+                                        onChange={val => handleFieldChange('companySize', val)}
+                                        options={COMPANY_SIZE_OPTIONS}
+                                        placeholder="Выберите размер"
+                                    />
                                 </div>
+
                                 <div className="employer-profile__edit-field">
                                     <Label>Год основания</Label>
-                                    <Input value={profile.foundedYear || ''}
-                                           onChange={e => handleFieldChange('foundedYear', e.target.value)}
-                                           placeholder="2020"/>
+                                    <Input value={profile.foundedYear || ''} onChange={e => handleFieldChange('foundedYear', e.target.value)} placeholder="2020"/>
                                 </div>
+
                                 <div className="employer-profile__edit-field">
-                                    <Label>Описание</Label>
-                                    <Textarea rows={4} value={profile.description}
-                                              onChange={e => handleFieldChange('description', e.target.value)}
-                                              placeholder="О компании..."/>
+                                    <Label>Описание компании</Label>
+                                    <Textarea rows={4} value={profile.description} onChange={e => handleFieldChange('description', e.target.value)} placeholder="Расскажите о миссии, ценностях, продуктах и культуре компании"/>
                                 </div>
+
+                                {/* Редакторы ссылок */}
+                                <div className="info-block">
+                                    <div className="info-block__header">
+                                        <h3>Социальные сети</h3>
+                                    </div>
+                                    <div className="info-block__edit">
+                                        <LinksEditor
+                                            label=""
+                                            rows={socialRows}
+                                            setRows={setSocialRows}
+                                            placeholderTitle="Название (Telegram, LinkedIn, GitHub...)"
+                                            placeholderUrl="https://..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="info-block">
+                                    <div className="info-block__header">
+                                        <h3>Контакты для связи</h3>
+                                    </div>
+                                    <div className="info-block__edit">
+                                        <LinksEditor
+                                            label=""
+                                            rows={contactRows}
+                                            setRows={setContactRows}
+                                            placeholderTitle="Название (Email, Phone, WhatsApp...)"
+                                            placeholderUrl="https:// или mailto:..."
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="employer-profile__edit-actions">
                                     <button className="btn-primary" onClick={handleSaveProfile} disabled={isLoading}>
-                                        {isLoading ? 'Сохранение...' : 'Сохранить'}
+                                        {isLoading ? 'Сохранение...' : 'Сохранить все изменения'}
                                     </button>
-                                    <button className="btn-secondary" onClick={() => setIsEditing(false)}>
+                                    <button className="btn-secondary" onClick={() => {
+                                        setIsEditing(false)
+                                        // Восстанавливаем данные из profile при отмене
+                                        setSocialRows(socialLinksToRows(profile.socialLinks || []))
+                                        setContactRows(contactsToRows(profile.publicContacts || {}))
+                                    }}>
                                         Отменить
                                     </button>
                                 </div>

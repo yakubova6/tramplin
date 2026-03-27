@@ -1,5 +1,3 @@
-// utils/authApi.js
-
 const API_BASE = '/api/auth'
 
 async function request(url, options = {}) {

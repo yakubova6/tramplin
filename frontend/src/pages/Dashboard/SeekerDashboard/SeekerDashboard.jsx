@@ -617,7 +617,7 @@ function SeekerDashboard() {
                                             <Input
                                                 value={profile.facultyName}
                                                 onChange={(e) => handleFieldChange('facultyName', e.target.value)}
-                                                placeholder="Факультет вычислительной математики"
+                                                placeholder="Введите факультет"
                                             />
                                         </div>
                                         <div className="form-group">
@@ -625,7 +625,7 @@ function SeekerDashboard() {
                                             <Input
                                                 value={profile.studyProgram}
                                                 onChange={(e) => handleFieldChange('studyProgram', e.target.value)}
-                                                placeholder="Прикладная математика и информатика"
+                                                placeholder="Введите программу обучения"
                                             />
                                         </div>
                                     </div>
