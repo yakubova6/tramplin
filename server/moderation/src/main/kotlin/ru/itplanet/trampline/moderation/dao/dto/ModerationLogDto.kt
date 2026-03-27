@@ -15,7 +15,7 @@ import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import java.time.OffsetDateTime
 

@@ -1,6 +1,6 @@
 package ru.itplanet.trampline.moderation.dao
 
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 
 interface EntityTypeCountProjection {
     fun getEntityType(): ModerationEntityType

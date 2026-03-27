@@ -19,14 +19,7 @@ class InternalApiRequestFilter(
 ) : OncePerRequestFilter() {
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
-        val path = request.servletPath
-
-        if (path.startsWith("/internal/")) {
-            return false
-        }
-
-        val hasInternalApiKey = !request.getHeader(INTERNAL_API_KEY_HEADER).isNullOrBlank()
-        return !(hasInternalApiKey && EXTERNAL_CANCEL_PATH_REGEX.matches(path))
+        return !request.servletPath.startsWith("/internal/")
     }
 
     override fun doFilterInternal(
@@ -64,6 +57,5 @@ class InternalApiRequestFilter(
 
     companion object {
         private const val INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key"
-        private val EXTERNAL_CANCEL_PATH_REGEX = Regex("^/api/moderation/tasks/\\d+/cancel$")
     }
 }

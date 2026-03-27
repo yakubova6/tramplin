@@ -4,10 +4,10 @@ import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Positive
 import org.springframework.format.annotation.DateTimeFormat
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
-import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
-import ru.itplanet.trampline.moderation.model.ModerationTaskType
 import java.time.OffsetDateTime
 
 data class GetModerationTasksRequest(

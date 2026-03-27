@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.moderation.model
+package ru.itplanet.trampline.commons.model.moderation
 
 enum class ModerationEntityType {
     EMPLOYER_PROFILE,

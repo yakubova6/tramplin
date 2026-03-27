@@ -1,6 +1,6 @@
 package ru.itplanet.trampline.moderation.dao
 
-import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
 
 interface PriorityCountProjection {
     fun getPriority(): ModerationTaskPriority

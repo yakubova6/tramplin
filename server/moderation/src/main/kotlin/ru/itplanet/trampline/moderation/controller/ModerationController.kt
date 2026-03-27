@@ -2,9 +2,6 @@ package ru.itplanet.trampline.moderation.controller
 
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Positive
-import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
-import org.springframework.security.core.Authentication
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
@@ -13,9 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.annotation.CurrentUser
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest
@@ -122,21 +118,9 @@ class ModerationController(
     @PostMapping("/tasks/{taskId}/cancel")
     fun cancelTask(
         @PathVariable @Positive taskId: Long,
-        authentication: Authentication,
-    ): ResponseEntity<*> {
-        return if (authentication.authorities.any { it.authority == INTERNAL_ROLE }) {
-            moderationCommandService.cancelByInternal(taskId)
-            ResponseEntity.noContent().build<Unit>()
-        } else {
-            val currentUser = authentication.principal as? AuthenticatedUser
-                ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized")
-
-            moderationCommandService.cancel(taskId, currentUser)
-            ResponseEntity.ok(moderationQueryService.getTask(taskId, currentUser))
-        }
-    }
-
-    companion object {
-        private const val INTERNAL_ROLE = "ROLE_INTERNAL"
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ModerationTaskDetailResponse {
+        moderationCommandService.cancel(taskId, currentUser)
+        return moderationQueryService.getTask(taskId, currentUser)
     }
 }

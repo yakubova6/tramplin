@@ -2,12 +2,12 @@ package ru.itplanet.trampline.moderation.service
 
 import jakarta.persistence.criteria.JoinType
 import org.springframework.data.jpa.domain.Specification
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
-import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
-import ru.itplanet.trampline.moderation.model.ModerationTaskType
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
 import java.time.OffsetDateTime
 

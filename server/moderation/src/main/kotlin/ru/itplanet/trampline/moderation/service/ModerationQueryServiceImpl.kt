@@ -6,6 +6,8 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
 import ru.itplanet.trampline.moderation.dao.ModerationLogDao
 import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
 import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
@@ -13,9 +15,7 @@ import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
 import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
-import ru.itplanet.trampline.moderation.model.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
-import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
 import ru.itplanet.trampline.moderation.model.response.*

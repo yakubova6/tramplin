@@ -53,8 +53,6 @@ class SecurityConfig(
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
-                    .requestMatchers(request.matcher("/api/moderation/tasks/{taskId}/cancel"))
-                    .hasAnyRole("CURATOR", "ADMIN", "INTERNAL")
                     .requestMatchers(request.matcher("/api/moderation/**")).hasAnyRole("CURATOR", "ADMIN")
                     .requestMatchers(request.matcher("/error")).permitAll()
                     .anyRequest().authenticated()

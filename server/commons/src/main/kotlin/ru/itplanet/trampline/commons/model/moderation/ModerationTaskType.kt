@@ -1,4 +1,4 @@
-package ru.itplanet.trampline.moderation.model
+package ru.itplanet.trampline.commons.model.moderation
 
 enum class ModerationTaskType {
     VERIFICATION_REVIEW,
