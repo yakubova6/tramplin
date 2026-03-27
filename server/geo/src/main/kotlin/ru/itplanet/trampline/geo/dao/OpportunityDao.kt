@@ -1,16 +1,14 @@
 package ru.itplanet.trampline.geo.dao
 
-import org.locationtech.jts.geom.Point
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.query.Param
 import ru.itplanet.trampline.geo.dao.dto.GeoOpportunityDto
 
 
 interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
     @Query(
-        value = """
-            SELECT
+        value = """SELECT
                 o.id,
                 o.title,
                 o.full_description,
@@ -31,18 +29,16 @@ interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
             LEFT JOIN city c ON o.city_id = c.id
             WHERE l.location_point IS NOT NULL
               AND o.status = 'PUBLISHED'
-              AND ST_DWithin(l.location_point, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius * 1000)
-            ORDER BY ST_Distance(l.location_point, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
-            LIMIT :limit OFFSET :offset
+              AND ST_DWithin(l.location_point, ST_SetSRID(ST_MakePoint(?1, ?2), 4326)::geography, ?3 * 1000)
+            ORDER BY ST_Distance(l.location_point, ST_SetSRID(ST_MakePoint(?1, ?2), 4326)::geography)
         """,
         nativeQuery = true
     )
     fun findWithinRadius(
-        @Param("lat") lat: Double?,
-        @Param("lng") lng: Double?,
-        @Param("radius") radiusKm: Double?,
-        @Param("limit") limit: Int?,
-        @Param("offset") offset: Int?
+        lng: Double,
+        lat: Double,
+        radiusKm: Double,
+        pageable: Pageable
     ): List<GeoOpportunityProjection>
 }
 

@@ -21,8 +21,3 @@ feign:
 
 internal-api:
   api-key: moderation-api-key
-
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

@@ -17,7 +17,7 @@ class GeoController(
         @RequestParam lat: Double,
         @RequestParam lng: Double,
         @RequestParam(defaultValue = "150") radius: Double,
-        @RequestParam(defaultValue = "0") offset: Int,
-        @RequestParam(defaultValue = "50") limit: Int
-    ) = geoService.findNearbyOpportunities(lat, lng, radius, offset, limit)
+        @RequestParam(defaultValue = "0") pageNumber: Int,
+        @RequestParam(defaultValue = "50") pageSize: Int
+    ) = geoService.findNearbyOpportunities(lat, lng, radius, pageNumber, pageSize)
 }
