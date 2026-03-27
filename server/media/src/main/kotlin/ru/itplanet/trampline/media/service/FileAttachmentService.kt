@@ -1,13 +1,15 @@
 package ru.itplanet.trampline.media.service
 
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.dao.FileAssetDao
 import ru.itplanet.trampline.commons.dao.FileAttachmentDao
 import ru.itplanet.trampline.commons.dao.dto.FileAttachmentDto
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
-import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
-import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
+import ru.itplanet.trampline.media.model.request.CreateFileAttachmentRequest
 
 @Service
 class FileAttachmentService(
@@ -16,39 +18,55 @@ class FileAttachmentService(
 ) {
 
     @Transactional
-    fun attach(
-        fileId: Long,
-        entityType: FileAttachmentEntityType,
-        entityId: Long,
-        attachmentRole: FileAttachmentRole,
-        sortOrder: Int = 0,
-    ): FileAttachmentDto {
-        val fileAsset = fileAssetDao.findById(fileId)
-            .orElseThrow { NoSuchElementException("File asset $fileId not found") }
+    fun create(request: CreateFileAttachmentRequest): FileAttachmentDto {
+        val fileAsset = fileAssetDao.findById(request.fileId)
+            .orElseThrow { fileNotFound() }
 
-        check(fileAsset.status == FileAssetStatus.READY) {
-            "Only READY files can be attached"
+        if (fileAsset.status == FileAssetStatus.DELETED) {
+            throw fileNotFound()
         }
 
-        val attachment = FileAttachmentDto().apply {
-            this.fileId = fileId
-            this.entityType = entityType
-            this.entityId = entityId
-            this.attachmentRole = attachmentRole
-            this.sortOrder = sortOrder
+        if (fileAsset.status != FileAssetStatus.READY) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "File must be in READY status to be attached. Current status: ${fileAsset.status.name}"
+            )
         }
 
-        return fileAttachmentDao.save(attachment)
+        if (
+            fileAttachmentDao.existsByFileIdAndEntityTypeAndEntityIdAndAttachmentRole(
+                fileId = request.fileId,
+                entityType = request.entityType,
+                entityId = request.entityId,
+                attachmentRole = request.attachmentRole,
+            )
+        ) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "File is already attached to this entity with this role"
+            )
+        }
+
+        return try {
+            fileAttachmentDao.save(
+                FileAttachmentDto().apply {
+                    fileId = request.fileId
+                    entityType = request.entityType
+                    entityId = request.entityId
+                    attachmentRole = request.attachmentRole
+                    sortOrder = request.sortOrder
+                }
+            )
+        } catch (ex: DataIntegrityViolationException) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "File is already attached to this entity with this role",
+                ex
+            )
+        }
     }
 
-    @Transactional(readOnly = true)
-    fun findByEntity(
-        entityType: FileAttachmentEntityType,
-        entityId: Long,
-    ): List<FileAttachmentDto> {
-        return fileAttachmentDao.findAllByEntityTypeAndEntityIdOrderBySortOrderAscIdAsc(
-            entityType = entityType,
-            entityId = entityId,
-        )
+    private fun fileNotFound(): ResponseStatusException {
+        return ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
     }
 }
