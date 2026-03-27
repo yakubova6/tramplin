@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.media.service
 
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -9,6 +10,7 @@ import ru.itplanet.trampline.commons.dao.FileAssetDao
 import ru.itplanet.trampline.commons.dao.FileAttachmentDao
 import ru.itplanet.trampline.commons.dao.dto.FileAttachmentDto
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.media.model.request.CreateFileAttachmentRequest
 
 @Service
@@ -47,7 +49,7 @@ class FileAttachmentService(
             )
         }
 
-        return try {
+        val savedAttachment = try {
             fileAttachmentDao.save(
                 FileAttachmentDto().apply {
                     fileId = request.fileId
@@ -64,9 +66,67 @@ class FileAttachmentService(
                 ex
             )
         }
+
+        return fileAttachmentDao.findOneById(savedAttachment.id!!)
+            ?: throw IllegalStateException("Created attachment ${savedAttachment.id} not found")
+    }
+
+    @Transactional(readOnly = true)
+    fun getByEntity(
+        entityType: FileAttachmentEntityType,
+        entityId: Long,
+    ): List<FileAttachmentDto> {
+        return fileAttachmentDao.findAllByEntityTypeAndEntityIdOrderBySortOrderAscIdAsc(
+            entityType = entityType,
+            entityId = entityId,
+        )
+    }
+
+    @Transactional
+    fun delete(attachmentId: Long) {
+        val attachment = fileAttachmentDao.findById(attachmentId)
+            .orElseThrow { attachmentNotFound() }
+
+        val fileId = attachment.fileId
+
+        fileAttachmentDao.delete(attachment)
+        fileAttachmentDao.flush()
+
+        handleOrphanedFileAfterDetach(fileId)
+    }
+
+    private fun handleOrphanedFileAfterDetach(fileId: Long) {
+        val hasRemainingAttachments = fileAttachmentDao.existsByFileId(fileId)
+        if (hasRemainingAttachments) {
+            return
+        }
+
+        val fileAsset = fileAssetDao.findById(fileId).orElse(null)
+        if (fileAsset == null) {
+            logger.warn("File {} became orphaned after attachment detach, but file asset record was not found", fileId)
+            return
+        }
+
+        if (fileAsset.status == FileAssetStatus.DELETED) {
+            logger.info("File {} has no active attachments and is already marked as DELETED", fileId)
+            return
+        }
+
+        logger.info(
+            "File {} has no active attachments and is now orphaned. For MVP it remains stored as-is and should be processed by a cleanup job later",
+            fileId
+        )
     }
 
     private fun fileNotFound(): ResponseStatusException {
         return ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
+    }
+
+    private fun attachmentNotFound(): ResponseStatusException {
+        return ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found")
+    }
+
+    private companion object {
+        private val logger = LoggerFactory.getLogger(FileAttachmentService::class.java)
     }
 }

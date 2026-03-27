@@ -11,9 +11,13 @@ data class FileAttachmentResponse(
     val entityId: Long,
     val attachmentRole: FileAttachmentRole,
     val sortOrder: Int,
+    val file: FileMetadataResponse,
 ) {
     companion object {
         fun from(attachment: FileAttachmentDto): FileAttachmentResponse {
+            val file = attachment.file
+                ?: throw IllegalStateException("File relation is not loaded for attachment ${attachment.id}")
+
             return FileAttachmentResponse(
                 attachmentId = attachment.id!!,
                 fileId = attachment.fileId,
@@ -21,6 +25,7 @@ data class FileAttachmentResponse(
                 entityId = attachment.entityId,
                 attachmentRole = attachment.attachmentRole,
                 sortOrder = attachment.sortOrder,
+                file = FileMetadataResponse.from(file),
             )
         }
     }

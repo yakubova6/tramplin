@@ -26,14 +26,21 @@ class FileAssetService(
 
     @Transactional(readOnly = true)
     fun getMetadata(fileId: Long): FileAssetDto {
-        val fileAsset = fileAssetDao.findById(fileId)
-            .orElseThrow { fileNotFound() }
+        return findExistingNotDeletedFile(fileId)
+    }
 
-        if (fileAsset.status == FileAssetStatus.DELETED) {
-            throw fileNotFound()
+    @Transactional(readOnly = true)
+    fun getDownloadUrl(fileId: Long): ObjectStorage.PresignedUrl {
+        val fileAsset = findExistingNotDeletedFile(fileId)
+
+        if (fileAsset.status != FileAssetStatus.READY) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "File must be in READY status to generate download url. Current status: ${fileAsset.status.name}"
+            )
         }
 
-        return fileAsset
+        return objectStorage.generateDownloadUrl(fileAsset.storageKey)
     }
 
     fun upload(
@@ -97,6 +104,17 @@ class FileAssetService(
 
             throw IllegalStateException("Failed to upload file to object storage", ex)
         }
+    }
+
+    private fun findExistingNotDeletedFile(fileId: Long): FileAssetDto {
+        val fileAsset = fileAssetDao.findById(fileId)
+            .orElseThrow { fileNotFound() }
+
+        if (fileAsset.status == FileAssetStatus.DELETED) {
+            throw fileNotFound()
+        }
+
+        return fileAsset
     }
 
     private fun buildMetadata(fileAsset: FileAssetDto): Map<String, String> = buildMap {

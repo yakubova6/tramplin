@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.media.model.response.CreatedFileResponse
+import ru.itplanet.trampline.media.model.response.FileDownloadUrlResponse
 import ru.itplanet.trampline.media.model.response.FileMetadataResponse
 import ru.itplanet.trampline.media.service.FileAssetService
 
@@ -47,5 +48,13 @@ class InternalFileController(
     ): FileMetadataResponse {
         val fileAsset = fileAssetService.getMetadata(fileId)
         return FileMetadataResponse.from(fileAsset)
+    }
+
+    @GetMapping("/{fileId}/download-url")
+    fun getDownloadUrl(
+        @PathVariable @Positive fileId: Long,
+    ): FileDownloadUrlResponse {
+        val presignedUrl = fileAssetService.getDownloadUrl(fileId)
+        return FileDownloadUrlResponse.from(presignedUrl)
     }
 }
