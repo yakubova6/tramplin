@@ -1,6 +1,7 @@
 package ru.itplanet.trampline.commons.dao.dto
 
 import jakarta.persistence.*
+import org.locationtech.jts.geom.Point
 import java.math.BigDecimal
 
 @Entity
@@ -38,6 +39,9 @@ open class LocationDto {
 
     @Column(name = "is_active", nullable = false)
     open var isActive: Boolean = true
+
+    @Column(name = "location_point", insertable = false, updatable = false)
+    open var locationPoint: Point? = null
 
     constructor()
 
