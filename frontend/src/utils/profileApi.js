@@ -169,7 +169,30 @@ export async function getEmployerProfile() {
     try {
         const data = await apiRequest(url)
         console.log('[API] Employer profile received:', data)
-        return data
+
+        // Преобразуем socialLinks (массив строк) в формат для LinksEditor
+        const socialLinksArray = data.socialLinks && Array.isArray(data.socialLinks)
+            ? data.socialLinks.map((url, index) => ({
+                id: index,
+                title: `Ссылка ${index + 1}`,
+                url: url
+            }))
+            : []
+
+        // Преобразуем publicContacts (объект) в формат для LinksEditor
+        const publicContactsArray = data.publicContacts && typeof data.publicContacts === 'object'
+            ? Object.entries(data.publicContacts).map(([title, url], index) => ({
+                id: index,
+                title: title,
+                url: url
+            }))
+            : []
+
+        return {
+            ...data,
+            socialLinks: socialLinksArray,
+            publicContacts: publicContactsArray,
+        }
     } catch (error) {
         console.log('[API] Profile not found:', error.message)
         return null
@@ -186,6 +209,54 @@ export async function updateEmployerProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
+    // Преобразуем socialLinks - ожидается массив строк
+    let socialLinks = []
+    if (profile.socialLinks) {
+        if (Array.isArray(profile.socialLinks)) {
+            // Если это массив объектов с title/url
+            if (profile.socialLinks.length > 0 && profile.socialLinks[0].title !== undefined) {
+                socialLinks = profile.socialLinks
+                    .filter(link => link.url?.trim())
+                    .map(link => link.url.trim())
+            }
+            // Если это уже массив строк
+            else if (profile.socialLinks.length > 0 && typeof profile.socialLinks[0] === 'string') {
+                socialLinks = profile.socialLinks.filter(url => url?.trim())
+            }
+        } else if (typeof profile.socialLinks === 'object') {
+            // Если это объект, преобразуем в массив значений
+            socialLinks = Object.values(profile.socialLinks).filter(url => url?.trim())
+        }
+    }
+
+    // Преобразуем publicContacts - ожидается объект Map<String, String>
+    let publicContacts = {}
+    if (profile.publicContacts) {
+        if (Array.isArray(profile.publicContacts)) {
+            // Если это массив объектов с title/url
+            if (profile.publicContacts.length > 0 && profile.publicContacts[0].title !== undefined) {
+                profile.publicContacts.forEach(contact => {
+                    const title = contact.title?.trim()
+                    const url = contact.url?.trim()
+                    if (title && url) {
+                        publicContacts[title] = url
+                    }
+                })
+            }
+            // Если это массив строк
+            else if (profile.publicContacts.length > 0 && typeof profile.publicContacts[0] === 'string') {
+                profile.publicContacts.forEach((url, index) => {
+                    if (url?.trim()) {
+                        publicContacts[`contact_${index + 1}`] = url.trim()
+                    }
+                })
+            }
+        } else if (typeof profile.publicContacts === 'object') {
+            // Если это уже объект
+            publicContacts = profile.publicContacts
+        }
+    }
+
     const payload = {
         companyName: profile.companyName || '',
         legalName: profile.legalName || null,
@@ -197,12 +268,12 @@ export async function updateEmployerProfile(profile) {
         locationId: profile.locationId || null,
         companySize: profile.companySize || null,
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
-        socialLinks: profile.socialLinks || [],
-        publicContacts: profile.publicContacts || [],
+        socialLinks: socialLinks,
+        publicContacts: publicContacts,
         verificationStatus: profile.verificationStatus || 'PENDING',
     }
 
-    console.log('[API] Saving employer profile with PATCH:', payload)
+    console.log('[API] Saving employer profile with PATCH:', JSON.stringify(payload, null, 2))
 
     const url = `${API_BASE}/profile/employer`
     console.log('[API] PATCH employer profile:', url)

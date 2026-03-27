@@ -33,7 +33,23 @@ export function cleanLinksToArray(rows) {
     return urls
 }
 
-// Старая функция для обратной совместимости (если нужно)
+/**
+ * Преобразование массива ссылок в объект (ключ=название, значение=URL)
+ * Используется для employer профиля, где бэкенд ожидает Map<String, String>
+ */
+export function cleanLinksToObject(rows) {
+    const result = {}
+    rows.forEach((row) => {
+        const title = row.title.trim()
+        const url = row.url.trim()
+        if (title && url) {
+            result[title] = url
+        }
+    })
+    return result
+}
+
+// Старая функция для обратной совместимости
 export function cleanLinks(rows) {
     const map = {}
     rows.forEach((row) => {

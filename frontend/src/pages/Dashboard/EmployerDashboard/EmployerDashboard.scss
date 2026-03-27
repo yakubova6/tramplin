@@ -149,13 +149,12 @@ $transition: all 0.2s ease;
     letter-spacing: 0.3px;
   }
 
-  p {
+  .field-value {
     font-size: 14px;
     color: $gray-700;
     background: $gray-50;
     padding: 10px 12px;
     border-radius: 8px;
-    margin: 0;
     word-break: break-word;
 
     a {
