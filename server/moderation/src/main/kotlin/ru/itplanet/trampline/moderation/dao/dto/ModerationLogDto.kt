@@ -19,8 +19,6 @@ import ru.itplanet.trampline.moderation.model.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import java.time.OffsetDateTime
 
-
-
 @Entity
 @Table(name = "moderation_log")
 open class ModerationLogDto {

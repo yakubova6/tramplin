@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.model.Role
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
-import ru.itplanet.trampline.commons.model.moderation.InternalModerationBlockUserRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
 import ru.itplanet.trampline.moderation.client.OpportunityModerationOwnerClient
 import ru.itplanet.trampline.moderation.client.ProfileModerationOwnerClient
@@ -21,6 +20,7 @@ import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
 import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
+import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
 import ru.itplanet.trampline.moderation.model.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
@@ -29,6 +29,7 @@ import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest
+import ru.itplanet.trampline.moderation.model.request.CreateManualModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.RejectModerationTaskRequest
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 import java.time.OffsetDateTime
@@ -37,12 +38,55 @@ import java.time.OffsetDateTime
 class ModerationCommandServiceImpl(
     private val moderationTaskDao: ModerationTaskDao,
     private val moderationLogDao: ModerationLogDao,
+    private val moderationReadModelDao: ModerationReadModelDao,
     private val profileModerationOwnerClient: ProfileModerationOwnerClient,
     private val opportunityModerationOwnerClient: OpportunityModerationOwnerClient,
 ) : ModerationCommandService {
 
     @PersistenceContext
     private lateinit var entityManager: EntityManager
+
+    @Transactional
+    override fun createManualTask(
+        currentUser: AuthenticatedUser,
+        request: CreateManualModerationTaskRequest,
+    ): Long {
+        val snapshot = moderationReadModelDao.findCurrentEntityState(
+            request.entityType,
+            request.entityId
+        )
+
+        if (snapshot.path("notFound").asBoolean(false)) {
+            throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Entity ${request.entityType.name}:${request.entityId} was not found"
+            )
+        }
+
+        val now = OffsetDateTime.now()
+        val task = ModerationTaskDto().apply {
+            entityType = request.entityType
+            entityId = request.entityId
+            taskType = request.taskType
+            status = ModerationTaskStatus.OPEN
+            priority = request.priority
+            createdByUser = userReference(currentUser.userId)
+            createdAt = now
+            updatedAt = now
+        }
+
+        moderationTaskDao.save(task)
+
+        saveLog(
+            task = task,
+            action = ModerationLogAction.CREATED,
+            actorUserId = currentUser.userId,
+            payload = buildManualCreatedPayload(snapshot, request.comment.trim()),
+            createdAt = now,
+        )
+
+        return task.id ?: error("Task id must not be null")
+    }
 
     @Transactional
     override fun assign(
@@ -212,6 +256,90 @@ class ModerationCommandServiceImpl(
         )
     }
 
+    @Transactional
+    override fun cancel(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+    ) {
+        val task = getTaskForUpdate(taskId)
+
+        if (task.status == ModerationTaskStatus.CANCELLED) {
+            return
+        }
+
+        ensureTaskCanBeCancelled(task, currentUser)
+
+        cancelTask(
+            task = task,
+            actorUserId = currentUser.userId,
+            actorType = currentUser.role.name,
+        )
+    }
+
+    @Transactional
+    override fun cancelByInternal(taskId: Long) {
+        val task = getTaskForUpdate(taskId)
+
+        if (task.status == ModerationTaskStatus.CANCELLED) {
+            return
+        }
+
+        if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
+            throw conflict("Resolved moderation task cannot be cancelled")
+        }
+
+        cancelTask(
+            task = task,
+            actorUserId = null,
+            actorType = "INTERNAL",
+        )
+    }
+
+    private fun cancelTask(
+        task: ModerationTaskDto,
+        actorUserId: Long?,
+        actorType: String,
+    ) {
+        val now = OffsetDateTime.now()
+        val previousStatus = task.status
+
+        task.status = ModerationTaskStatus.CANCELLED
+        task.resolvedAt = now
+        task.updatedAt = now
+
+        moderationTaskDao.save(task)
+
+        saveLog(
+            task = task,
+            action = ModerationLogAction.STATUS_CHANGED,
+            actorUserId = actorUserId,
+            payload = JsonNodeFactory.instance.objectNode().apply {
+                put("statusFrom", previousStatus.name)
+                put("statusTo", task.status.name)
+                put("actorType", actorType)
+            },
+            createdAt = now,
+        )
+    }
+
+    private fun buildManualCreatedPayload(
+        snapshot: JsonNode,
+        comment: String,
+    ): JsonNode {
+        val payload = if (snapshot is ObjectNode) {
+            snapshot.deepCopy<ObjectNode>()
+        } else {
+            JsonNodeFactory.instance.objectNode().apply {
+                set<JsonNode>("snapshot", snapshot.deepCopy())
+            }
+        }
+
+        payload.put("createdManually", true)
+        payload.put("manualComment", comment)
+
+        return payload
+    }
+
     private fun dispatchApprove(
         task: ModerationTaskDto,
         request: InternalModerationApproveRequest,
@@ -278,6 +406,29 @@ class ModerationCommandServiceImpl(
         }
     }
 
+    private fun ensureTaskCanBeCancelled(
+        task: ModerationTaskDto,
+        currentUser: AuthenticatedUser,
+    ) {
+        if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
+            throw conflict("Resolved moderation task cannot be cancelled")
+        }
+
+        if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
+            throw conflict("Only OPEN or IN_PROGRESS moderation tasks can be cancelled")
+        }
+
+        val assigneeId = task.assigneeUser?.id
+        if (
+            task.status == ModerationTaskStatus.IN_PROGRESS &&
+            assigneeId != null &&
+            assigneeId != currentUser.userId &&
+            currentUser.role != Role.ADMIN
+        ) {
+            throw forbidden("Task ${task.id} is assigned to another curator")
+        }
+    }
+
     private fun getTaskForUpdate(taskId: Long): ModerationTaskDto {
         return moderationTaskDao.findByIdForUpdate(taskId)
             ?: throw ModerationTaskNotFoundException(taskId)
@@ -286,8 +437,8 @@ class ModerationCommandServiceImpl(
     private fun saveLog(
         task: ModerationTaskDto,
         action: ModerationLogAction,
-        actorUserId: Long,
-        payload: ObjectNode,
+        actorUserId: Long?,
+        payload: JsonNode,
         createdAt: OffsetDateTime,
     ) {
         val log = ModerationLogDto().apply {
@@ -295,7 +446,7 @@ class ModerationCommandServiceImpl(
             this.entityType = task.entityType
             this.entityId = task.entityId
             this.action = action
-            this.actorUser = userReference(actorUserId)
+            this.actorUser = actorUserId?.let { userReference(it) }
             this.payload = payload
             this.createdAt = createdAt
         }

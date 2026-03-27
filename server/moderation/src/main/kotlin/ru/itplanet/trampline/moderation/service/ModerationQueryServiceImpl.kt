@@ -1,7 +1,5 @@
 package ru.itplanet.trampline.moderation.service
 
-import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
-import ru.itplanet.trampline.moderation.model.response.*
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import org.springframework.data.domain.PageRequest
@@ -13,12 +11,14 @@ import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
 import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
+import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
 import ru.itplanet.trampline.moderation.model.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import ru.itplanet.trampline.moderation.model.ModerationTaskPriority
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
+import ru.itplanet.trampline.moderation.model.response.*
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 
 @Service
@@ -149,6 +149,15 @@ class ModerationQueryServiceImpl(
         )
     }
 
+    @Transactional(readOnly = true)
+    override fun getEntityHistory(
+        entityType: ModerationEntityType,
+        entityId: Long
+    ): List<ModerationEntityHistoryItemResponse> {
+        return moderationLogDao.findByEntityTypeAndEntityIdOrderByCreatedAtAscIdAsc(entityType, entityId)
+            .map { it.toEntityHistoryResponse() }
+    }
+
     private fun toListItem(
         task: ModerationTaskDto,
         createdSnapshot: JsonNode?
@@ -170,6 +179,17 @@ class ModerationQueryServiceImpl(
     private fun ModerationLogDto.toHistoryResponse(): ModerationTaskHistoryItemResponse {
         return ModerationTaskHistoryItemResponse(
             id = id ?: error("Log id must not be null"),
+            action = action,
+            actor = actorUser?.toResponse(),
+            payload = payload.deepCopy(),
+            createdAt = createdAt ?: error("Log createdAt must not be null")
+        )
+    }
+
+    private fun ModerationLogDto.toEntityHistoryResponse(): ModerationEntityHistoryItemResponse {
+        return ModerationEntityHistoryItemResponse(
+            id = id ?: error("Log id must not be null"),
+            taskId = taskId,
             action = action,
             actor = actorUser?.toResponse(),
             payload = payload.deepCopy(),
@@ -202,7 +222,8 @@ class ModerationQueryServiceImpl(
             )
 
             ModerationTaskStatus.IN_PROGRESS -> {
-                if (assigneeId == null ||
+                if (
+                    assigneeId == null ||
                     assigneeId == currentUser.userId ||
                     currentUser.role.name == "ADMIN"
                 ) {
@@ -230,7 +251,6 @@ class ModerationQueryServiceImpl(
         textValue(payload, "summary")?.let { return it }
 
         val summary = when (entityType) {
-
             ModerationEntityType.EMPLOYER_PROFILE -> {
                 val companyName = textValue(payload, "companyName")
                 val inn = textValue(payload, "inn")
@@ -261,6 +281,8 @@ class ModerationQueryServiceImpl(
         if (summary.isNotBlank()) {
             return summary.take(300)
         }
+
+        textValue(payload, "manualComment")?.let { return it.take(300) }
 
         return payload.toString().take(300)
     }
@@ -303,4 +325,3 @@ class ModerationQueryServiceImpl(
         return Sort.by(Sort.Order(direction, property))
     }
 }
-
