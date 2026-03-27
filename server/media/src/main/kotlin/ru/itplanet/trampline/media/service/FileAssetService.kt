@@ -1,9 +1,12 @@
 package ru.itplanet.trampline.media.service
 
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.dao.FileAssetDao
 import ru.itplanet.trampline.commons.dao.dto.FileAssetDto
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
@@ -20,6 +23,18 @@ class FileAssetService(
     private val fileValidationService: FileValidationService,
     private val transactionTemplate: TransactionTemplate,
 ) {
+
+    @Transactional(readOnly = true)
+    fun getMetadata(fileId: Long): FileAssetDto {
+        val fileAsset = fileAssetDao.findById(fileId)
+            .orElseThrow { fileNotFound() }
+
+        if (fileAsset.status == FileAssetStatus.DELETED) {
+            throw fileNotFound()
+        }
+
+        return fileAsset
+    }
 
     fun upload(
         file: MultipartFile,
@@ -96,5 +111,9 @@ class FileAssetService(
         return digest.joinToString(separator = "") { byte ->
             "%02x".format(byte)
         }
+    }
+
+    private fun fileNotFound(): ResponseStatusException {
+        return ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
     }
 }
