@@ -6,8 +6,10 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.dao.ModerationLogDao
 import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
 import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
@@ -18,7 +20,13 @@ import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundExceptio
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
-import ru.itplanet.trampline.moderation.model.response.*
+import ru.itplanet.trampline.moderation.model.response.ModerationDashboardResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationEntityHistoryItemResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskDetailResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskHistoryItemResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskListItemResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskPageResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationUserShortResponse
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 
 @Service
@@ -30,10 +38,7 @@ class ModerationQueryServiceImpl(
 
     @Transactional(readOnly = true)
     override fun getDashboard(currentUser: AuthenticatedUser): ModerationDashboardResponse {
-        val activeStatuses = listOf(
-            ModerationTaskStatus.OPEN,
-            ModerationTaskStatus.IN_PROGRESS
-        )
+        val activeStatuses = ACTIVE_TASK_STATUSES
 
         val countsByEntityType = LinkedHashMap<ModerationEntityType, Long>()
         ModerationEntityType.entries.forEach { countsByEntityType[it] = 0L }
@@ -156,6 +161,25 @@ class ModerationQueryServiceImpl(
     ): List<ModerationEntityHistoryItemResponse> {
         return moderationLogDao.findByEntityTypeAndEntityIdOrderByCreatedAtAscIdAsc(entityType, entityId)
             .map { it.toEntityHistoryResponse() }
+    }
+
+    @Transactional(readOnly = true)
+    override fun findActiveTaskByEntity(
+        entityType: ModerationEntityType,
+        entityId: Long,
+        taskType: ModerationTaskType,
+    ): InternalModerationTaskLookupResponse {
+        val task = moderationTaskDao.findActiveByKey(
+            entityType = entityType,
+            entityId = entityId,
+            taskType = taskType,
+            statuses = ACTIVE_TASK_STATUSES,
+        ).firstOrNull()
+
+        return InternalModerationTaskLookupResponse(
+            exists = task != null,
+            taskId = task?.id,
+        )
     }
 
     private fun toListItem(
@@ -323,5 +347,12 @@ class ModerationQueryServiceImpl(
         }
 
         return Sort.by(Sort.Order(direction, property))
+    }
+
+    companion object {
+        private val ACTIVE_TASK_STATUSES = listOf(
+            ModerationTaskStatus.OPEN,
+            ModerationTaskStatus.IN_PROGRESS,
+        )
     }
 }

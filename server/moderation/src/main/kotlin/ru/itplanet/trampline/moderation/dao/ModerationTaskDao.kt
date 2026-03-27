@@ -50,6 +50,24 @@ interface ModerationTaskDao : JpaRepository<ModerationTaskDto, Long>, JpaSpecifi
 
     @Query(
         """
+        select m
+        from ModerationTaskDto m
+        where m.entityType = :entityType
+          and m.entityId = :entityId
+          and m.taskType = :taskType
+          and m.status in :statuses
+        order by m.createdAt asc, m.id asc
+        """
+    )
+    fun findActiveByKey(
+        @Param("entityType") entityType: ModerationEntityType,
+        @Param("entityId") entityId: Long,
+        @Param("taskType") taskType: ModerationTaskType,
+        @Param("statuses") statuses: Collection<ModerationTaskStatus>,
+    ): List<ModerationTaskDto>
+
+    @Query(
+        """
         select m.entityType as entityType, count(m) as count
         from ModerationTaskDto m
         where m.status in :statuses
