@@ -52,9 +52,14 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(
+                        request.matcher("/v3/api-docs/**"),
+                        request.matcher("/swagger-ui.html"),
+                        request.matcher("/swagger-ui/**"),
+                        request.matcher("/error")
+                    ).permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/api/moderation/**")).hasAnyRole("CURATOR", "ADMIN")
-                    .requestMatchers(request.matcher("/error")).permitAll()
                     .anyRequest().authenticated()
             }
             .addFilterBefore(internalApiRequestFilter, LogoutFilter::class.java)
