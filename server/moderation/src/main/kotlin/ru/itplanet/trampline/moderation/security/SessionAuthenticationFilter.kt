@@ -62,12 +62,10 @@ class SessionAuthenticationFilter(
                 userId = user.id,
                 email = user.email,
                 role = user.role,
-                status = user.status
             )
 
             val authorities = listOf(
                 SimpleGrantedAuthority("ROLE_${user.role.name}"),
-                SimpleGrantedAuthority("STATUS_${user.status.name}")
             )
 
             val authentication = UsernamePasswordAuthenticationToken(

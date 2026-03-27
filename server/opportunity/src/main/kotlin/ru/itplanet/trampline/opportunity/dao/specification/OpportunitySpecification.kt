@@ -2,8 +2,8 @@ package ru.itplanet.trampline.opportunity.dao.specification
 
 import jakarta.persistence.criteria.JoinType
 import org.springframework.data.jpa.domain.Specification
-import ru.itplanet.trampline.opportunity.dao.dto.CityDto
-import ru.itplanet.trampline.opportunity.dao.dto.LocationDto
+import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.dao.dto.LocationDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
 import ru.itplanet.trampline.opportunity.dao.dto.TagDto
 import ru.itplanet.trampline.commons.model.enums.OpportunityStatus

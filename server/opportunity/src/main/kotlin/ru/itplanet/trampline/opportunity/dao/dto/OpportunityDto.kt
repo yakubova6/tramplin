@@ -5,6 +5,8 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
+import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.dao.dto.LocationDto
 import ru.itplanet.trampline.commons.model.OpportunityContactInfo
 import ru.itplanet.trampline.commons.model.enums.*
 import java.time.LocalDate

@@ -183,7 +183,6 @@ class ModerationQueryServiceImpl(
             displayName = displayName,
             email = email,
             role = role,
-            status = status
         )
     }
 
@@ -231,21 +230,6 @@ class ModerationQueryServiceImpl(
         textValue(payload, "summary")?.let { return it }
 
         val summary = when (entityType) {
-            ModerationEntityType.USER -> {
-                val displayName = textValue(payload, "displayName")
-                val email = textValue(payload, "email")
-                listOfNotNull(displayName, email).joinToString(" • ")
-            }
-
-            ModerationEntityType.APPLICANT_PROFILE -> {
-                val firstName = textValue(payload, "firstName")
-                val lastName = textValue(payload, "lastName")
-                val universityName = textValue(payload, "universityName")
-                listOfNotNull(
-                    listOfNotNull(firstName, lastName).joinToString(" ").takeIf { it.isNotBlank() },
-                    universityName
-                ).joinToString(" • ")
-            }
 
             ModerationEntityType.EMPLOYER_PROFILE -> {
                 val companyName = textValue(payload, "companyName")

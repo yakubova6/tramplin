@@ -23,8 +23,6 @@ class ModerationReadModelJdbcDao(
         entityId: Long
     ): JsonNode {
         val sql = when (entityType) {
-            ModerationEntityType.USER -> USER_SQL
-            ModerationEntityType.APPLICANT_PROFILE -> APPLICANT_PROFILE_SQL
             ModerationEntityType.EMPLOYER_PROFILE -> EMPLOYER_PROFILE_SQL
             ModerationEntityType.EMPLOYER_VERIFICATION -> EMPLOYER_VERIFICATION_SQL
             ModerationEntityType.OPPORTUNITY -> OPPORTUNITY_SQL
@@ -80,81 +78,6 @@ class ModerationReadModelJdbcDao(
     }
 
     private companion object {
-        val USER_SQL = """
-            select jsonb_build_object(
-                'id', u.id,
-                'email', u.email,
-                'displayName', u.display_name,
-                'role', u.role,
-                'status', u.status,
-                'emailVerified', u.email_verified,
-                'lastLoginAt', u.last_login_at,
-                'createdAt', u.created_at,
-                'updatedAt', u.updated_at
-            )::text as data
-            from users u
-            where u.id = :id
-        """.trimIndent()
-
-        val APPLICANT_PROFILE_SQL = """
-            select jsonb_build_object(
-                'userId', ap.user_id,
-                'user', jsonb_build_object(
-                    'id', u.id,
-                    'email', u.email,
-                    'displayName', u.display_name,
-                    'role', u.role,
-                    'status', u.status
-                ),
-                'firstName', ap.first_name,
-                'lastName', ap.last_name,
-                'middleName', ap.middle_name,
-                'universityName', ap.university_name,
-                'facultyName', ap.faculty_name,
-                'studyProgram', ap.study_program,
-                'course', ap.course,
-                'graduationYear', ap.graduation_year,
-                'about', ap.about,
-                'resumeText', ap.resume_text,
-                'portfolioLinks', coalesce(ap.portfolio_links, '[]'::jsonb),
-                'contactLinks', coalesce(ap.contact_links, '[]'::jsonb),
-                'profileVisibility', ap.profile_visibility,
-                'resumeVisibility', ap.resume_visibility,
-                'applicationsVisibility', ap.applications_visibility,
-                'contactsVisibility', ap.contacts_visibility,
-                'openToWork', ap.open_to_work,
-                'openToEvents', ap.open_to_events,
-                'city', case
-                    when c.id is null then null
-                    else jsonb_build_object(
-                        'id', c.id,
-                        'name', c.name,
-                        'regionName', c.region_name,
-                        'countryCode', c.country_code
-                    )
-                end,
-                'tags', coalesce((
-                    select jsonb_agg(
-                        jsonb_build_object(
-                            'id', t.id,
-                            'name', t.name,
-                            'category', t.category,
-                            'relationType', at.relation_type
-                        )
-                        order by t.name
-                    )
-                    from applicant_tag at
-                    join tag t on t.id = at.tag_id
-                    where at.applicant_user_id = ap.user_id
-                ), '[]'::jsonb),
-                'createdAt', ap.created_at,
-                'updatedAt', ap.updated_at
-            )::text as data
-            from applicant_profile ap
-            join users u on u.id = ap.user_id
-            left join city c on c.id = ap.city_id
-            where ap.user_id = :id
-        """.trimIndent()
 
         val EMPLOYER_PROFILE_SQL = """
             select jsonb_build_object(

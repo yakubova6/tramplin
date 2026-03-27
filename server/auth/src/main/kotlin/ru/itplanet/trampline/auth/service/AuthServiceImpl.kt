@@ -9,7 +9,6 @@ import ru.itplanet.trampline.auth.exception.InvalidCredentialsException
 import ru.itplanet.trampline.auth.exception.InvalidSessionException
 import ru.itplanet.trampline.auth.exception.RegistrationRoleNotAllowedException
 import ru.itplanet.trampline.auth.exception.UserAlreadyExistsException
-import ru.itplanet.trampline.commons.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
@@ -19,7 +18,7 @@ import ru.itplanet.trampline.auth.util.EmailNormalizer
 import ru.itplanet.trampline.commons.dao.UserDao
 import ru.itplanet.trampline.commons.dao.dto.UserDto
 import ru.itplanet.trampline.commons.model.Role
-import ru.itplanet.trampline.commons.model.Status
+import ru.itplanet.trampline.commons.model.TokenPayload
 import java.time.Instant
 
 @Service
@@ -44,17 +43,10 @@ class AuthServiceImpl(
             throw UserAlreadyExistsException()
         }
 
-        val status = if (request.role == Role.EMPLOYER) {
-            Status.PENDING_VERIFICATION
-        } else {
-            Status.ACTIVE
-        }
-
         val userToSave = userConverter.toUserDto(
             source = request,
             normalizedEmail = normalizedEmail,
             passwordHash = passwordEncoder.encode(request.password),
-            status = status
         )
 
         val savedUser = try {
@@ -84,10 +76,6 @@ class AuthServiceImpl(
             ?: throw InvalidCredentialsException()
 
         if (!passwordEncoder.matches(request.password, userDto.passwordHash)) {
-            throw InvalidCredentialsException()
-        }
-
-        if (userDto.status == Status.BLOCKED || userDto.status == Status.DELETED) {
             throw InvalidCredentialsException()
         }
 
@@ -128,11 +116,6 @@ class AuthServiceImpl(
                 sessionService.deleteSession(sessionId)
                 throw InvalidSessionException()
             }
-
-        if (user.status == Status.BLOCKED || user.status == Status.DELETED) {
-            sessionService.deleteSession(sessionId)
-            throw InvalidSessionException()
-        }
 
         val extendedPayload = sessionService.extendSession(sessionId)
 

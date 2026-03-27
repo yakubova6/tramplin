@@ -9,11 +9,10 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import ru.itplanet.trampline.commons.dao.UserDao
 import ru.itplanet.trampline.auth.config.SessionProperties
 import ru.itplanet.trampline.auth.model.AuthenticatedUser
 import ru.itplanet.trampline.auth.service.SessionService
-import ru.itplanet.trampline.commons.model.Status
+import ru.itplanet.trampline.commons.dao.UserDao
 
 @Component
 class SessionAuthenticationFilter(
@@ -36,19 +35,17 @@ class SessionAuthenticationFilter(
             if (tokenPayload != null) {
                 val user = userDao.findById(tokenPayload.userId).orElse(null)
 
-                if (user == null || user.status == Status.BLOCKED || user.status == Status.DELETED) {
+                if (user == null) {
                     sessionService.deleteSession(sessionId)
                 } else {
                     val principal = AuthenticatedUser(
                         userId = user.id!!,
                         email = user.email,
-                        role = user.role,
-                        status = user.status
+                        role = user.role
                     )
 
                     val authorities = listOf(
-                        SimpleGrantedAuthority("ROLE_${user.role.name}"),
-                        SimpleGrantedAuthority("STATUS_${user.status.name}")
+                        SimpleGrantedAuthority("ROLE_${user.role.name}")
                     )
 
                     val authentication = UsernamePasswordAuthenticationToken(

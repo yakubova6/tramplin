@@ -1,7 +1,6 @@
 package ru.itplanet.trampline.commons.model.auth
 
 import ru.itplanet.trampline.commons.model.Role
-import ru.itplanet.trampline.commons.model.Status
 
 data class AuthCurrentSessionResponse(
     val user: AuthUserResponse,
@@ -13,7 +12,6 @@ data class AuthUserResponse(
     val displayName: String,
     val email: String,
     val role: Role,
-    val status: Status
 )
 
 data class AuthSessionInfoResponse(
