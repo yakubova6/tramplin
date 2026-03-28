@@ -24,6 +24,7 @@ import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.EmployerProfile
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
+import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
 
@@ -77,33 +78,38 @@ class ProfileServiceImpl(
         file: MultipartFile,
     ): ApplicantProfile {
         val profile = loadApplicantProfileDto(userId)
-        val previousAvatarAttachmentIds = getApplicantAvatarAttachments(userId)
-            .map { it.attachmentId }
 
-        val createdFile = mediaServiceClient.uploadFile(
-            file = file,
-            ownerUserId = userId,
-            kind = FileAssetKind.AVATAR,
-            visibility = profile.profileVisibility.toFileVisibility(),
-        )
-
-        val createdAttachment = mediaServiceClient.createAttachment(
-            InternalCreateFileAttachmentRequest(
-                fileId = createdFile.fileId,
-                entityType = FileAttachmentEntityType.APPLICANT_PROFILE,
-                entityId = userId,
-                attachmentRole = FileAttachmentRole.AVATAR,
-            ),
-        )
-
-        detachPreviousApplicantAvatarAttachments(
+        val avatar = replaceApplicantSingleFileAttachment(
             userId = userId,
-            attachmentIds = previousAvatarAttachmentIds,
+            file = file,
+            kind = FileAssetKind.AVATAR,
+            attachmentRole = FileAttachmentRole.AVATAR,
+            visibility = profile.profileVisibility.toFileVisibility(),
         )
 
         return buildApplicantProfile(
             profileDto = profile,
-            avatar = createdAttachment.file.toProfileFileMetadata(),
+            avatar = avatar,
+        )
+    }
+
+    override fun putApplicantResumeFile(
+        userId: Long,
+        file: MultipartFile,
+    ): ApplicantProfile {
+        val profile = loadApplicantProfileDto(userId)
+
+        val resumeFile = replaceApplicantSingleFileAttachment(
+            userId = userId,
+            file = file,
+            kind = FileAssetKind.RESUME,
+            attachmentRole = FileAttachmentRole.RESUME,
+            visibility = profile.resumeVisibility.toFileVisibility(),
+        )
+
+        return buildApplicantProfile(
+            profileDto = profile,
+            resumeFile = resumeFile,
         )
     }
 
@@ -112,7 +118,7 @@ class ProfileServiceImpl(
         request: EmployerProfilePatchRequest,
     ): EmployerProfile {
         val profile = employerProfileDao.findById(userId)
-            .orElseThrow { EntityNotFoundException("Profile for user $userId not found") }
+            .orElseThrow { EntityNotFoundException("Employer profile for user $userId not found") }
 
         request.companyName?.let { profile.companyName = it }
         request.legalName?.let { profile.legalName = it }
@@ -174,42 +180,113 @@ class ProfileServiceImpl(
 
     private fun buildApplicantProfile(
         profileDto: ApplicantProfileDto,
-        avatar: InternalFileMetadataResponse? = loadApplicantAvatarOrNull(profileDto.userId),
+        avatar: InternalFileMetadataResponse? = loadApplicantAvatarOrNull(profileDto),
+        resumeFile: InternalFileMetadataResponse? = loadApplicantResumeFileOrNull(profileDto),
     ): ApplicantProfile {
         return applicantProfileConverter.fromDto(profileDto).copy(
             avatar = avatar,
+            resumeFile = resumeFile,
         )
     }
 
-    private fun loadApplicantAvatarOrNull(userId: Long): InternalFileMetadataResponse? {
+    private fun replaceApplicantSingleFileAttachment(
+        userId: Long,
+        file: MultipartFile,
+        kind: FileAssetKind,
+        attachmentRole: FileAttachmentRole,
+        visibility: FileAssetVisibility,
+    ): InternalFileMetadataResponse {
+        val previousAttachmentIds = getApplicantAttachments(userId, attachmentRole)
+            .map { it.attachmentId }
+
+        val createdFile = mediaServiceClient.uploadFile(
+            file = file,
+            ownerUserId = userId,
+            kind = kind,
+            visibility = visibility,
+        )
+
+        val createdAttachment = mediaServiceClient.createAttachment(
+            InternalCreateFileAttachmentRequest(
+                fileId = createdFile.fileId,
+                entityType = FileAttachmentEntityType.APPLICANT_PROFILE,
+                entityId = userId,
+                attachmentRole = attachmentRole,
+            ),
+        )
+
+        detachPreviousApplicantAttachments(
+            userId = userId,
+            attachmentIds = previousAttachmentIds,
+            attachmentRole = attachmentRole,
+        )
+
+        return createdAttachment.file.toProfileFileMetadata(visibility)
+    }
+
+    private fun loadApplicantAvatarOrNull(
+        profileDto: ApplicantProfileDto,
+    ): InternalFileMetadataResponse? {
+        return loadApplicantAttachmentOrNull(
+            userId = profileDto.userId,
+            attachmentRole = FileAttachmentRole.AVATAR,
+            visibility = profileDto.profileVisibility.toFileVisibility(),
+        )
+    }
+
+    private fun loadApplicantResumeFileOrNull(
+        profileDto: ApplicantProfileDto,
+    ): InternalFileMetadataResponse? {
+        return loadApplicantAttachmentOrNull(
+            userId = profileDto.userId,
+            attachmentRole = FileAttachmentRole.RESUME,
+            visibility = profileDto.resumeVisibility.toFileVisibility(),
+        )
+    }
+
+    private fun loadApplicantAttachmentOrNull(
+        userId: Long,
+        attachmentRole: FileAttachmentRole,
+        visibility: FileAssetVisibility,
+    ): InternalFileMetadataResponse? {
         return try {
-            getApplicantAvatarAttachments(userId)
+            getApplicantAttachments(userId, attachmentRole)
                 .maxByOrNull { it.attachmentId }
                 ?.file
-                ?.toProfileFileMetadata()
+                ?.toProfileFileMetadata(visibility)
         } catch (ex: Exception) {
-            logger.warn("Failed to load applicant avatar for user {}", userId, ex)
+            logger.warn(
+                "Failed to load applicant {} for user {}",
+                attachmentRole.name.lowercase(),
+                userId,
+                ex,
+            )
             null
         }
     }
 
-    private fun getApplicantAvatarAttachments(userId: Long): List<InternalFileAttachmentResponse> {
+    private fun getApplicantAttachments(
+        userId: Long,
+        attachmentRole: FileAttachmentRole,
+    ): List<InternalFileAttachmentResponse> {
         return mediaServiceClient.getAttachments(
             entityType = FileAttachmentEntityType.APPLICANT_PROFILE,
             entityId = userId,
-        ).filter { it.attachmentRole == FileAttachmentRole.AVATAR }
+        ).filter { it.attachmentRole == attachmentRole }
     }
 
-    private fun detachPreviousApplicantAvatarAttachments(
+    private fun detachPreviousApplicantAttachments(
         userId: Long,
         attachmentIds: List<Long>,
+        attachmentRole: FileAttachmentRole,
     ) {
         attachmentIds.forEach { attachmentId ->
             try {
                 mediaServiceClient.deleteAttachment(attachmentId)
             } catch (ex: Exception) {
                 logger.warn(
-                    "Failed to delete previous applicant avatar attachment {} for user {}",
+                    "Failed to delete previous applicant {} attachment {} for user {}",
+                    attachmentRole.name.lowercase(),
                     attachmentId,
                     userId,
                     ex,
@@ -218,20 +295,11 @@ class ProfileServiceImpl(
         }
     }
 
-    private fun InternalFileMetadataResponse.toProfileFileMetadata(): InternalFileMetadataResponse {
-        return InternalFileMetadataResponse(
-            fileId = fileId,
-            ownerUserId = ownerUserId,
-            storageProvider = storageProvider,
-            originalFileName = originalFileName,
-            mediaType = mediaType,
-            sizeBytes = sizeBytes,
-            checksumSha256 = checksumSha256,
-            status = status,
-            kind = kind,
+    private fun InternalFileMetadataResponse.toProfileFileMetadata(
+        visibility: FileAssetVisibility = this.visibility,
+    ): InternalFileMetadataResponse {
+        return copy(
             visibility = visibility,
-            createdAt = createdAt,
-            updatedAt = updatedAt,
         )
     }
 
@@ -240,6 +308,14 @@ class ProfileServiceImpl(
             ProfileVisibility.PUBLIC -> FileAssetVisibility.PUBLIC
             ProfileVisibility.AUTHENTICATED -> FileAssetVisibility.AUTHENTICATED
             ProfileVisibility.PRIVATE -> FileAssetVisibility.PRIVATE
+        }
+    }
+
+    private fun ResumeVisibility.toFileVisibility(): FileAssetVisibility {
+        return when (this) {
+            ResumeVisibility.PUBLIC -> FileAssetVisibility.PUBLIC
+            ResumeVisibility.AUTHENTICATED -> FileAssetVisibility.AUTHENTICATED
+            ResumeVisibility.PRIVATE -> FileAssetVisibility.PRIVATE
         }
     }
 

@@ -7,7 +7,7 @@ import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
 import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 
-data class ApplicantProfile (
+data class ApplicantProfile(
     val userId: Long,
     val firstName: String?,
     val lastName: String?,
@@ -29,4 +29,5 @@ data class ApplicantProfile (
     val openToWork: Boolean,
     val openToEvents: Boolean,
     val avatar: InternalFileMetadataResponse? = null,
+    val resumeFile: InternalFileMetadataResponse? = null,
 )
