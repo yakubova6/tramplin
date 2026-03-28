@@ -7,14 +7,8 @@ import ProfileEditPage from './pages/ProfileEdit/ProfileEdit'
 import SeekerDashboard from './pages/Dashboard/SeekerDashboard/SeekerDashboard'
 import EmployerDashboard from './pages/Dashboard/EmployerDashboard/EmployerDashboard'
 import CuratorDashboard from './pages/Dashboard/CuratorDashboard/CuratorDashboard'
-
-function Home() {
-    return (
-        <main className="container" style={{ paddingBlock: '40px' }}>
-            <h1>Трамплин</h1>
-        </main>
-    )
-}
+import OpportunitiesPage from './pages/Opportunities/OpportunitiesPage/OpportunitiesPage'
+import OpportunityDetailPage from './pages/Opportunities/OpportunityDetailPage/OpportunityDetailPage'
 
 function NotFound() {
     return (
@@ -29,7 +23,8 @@ function App() {
     return (
         <>
             <Switch>
-                <Route path="/" component={Home} />
+                <Route path="/" component={OpportunitiesPage} />
+                <Route path="/opportunities/:id" component={OpportunityDetailPage} />
                 <Route path="/login" component={Login} />
                 <Route path="/register" component={Register} />
 

@@ -357,6 +357,12 @@ $transition: all 0.2s ease;
   border-radius: 16px;
   font-size: 12px;
   color: $primary-dark;
+  border: 1px solid transparent;
+
+  &.skill-tag--active {
+    border-color: $primary;
+    background: #d7f4f1;
+  }
 }
 
 .employer-opportunities__meta {
@@ -378,12 +384,18 @@ $transition: all 0.2s ease;
   font-size: 12px;
   font-weight: 500;
 
-  &.status-active {
+  &.status-active,
+  &.status-PUBLISHED,
+  &.status-PENDING_MODERATION,
+  &.status-PLANNED {
     background: #e3f7e5;
     color: #2e7d32;
   }
 
-  &.status-closed {
+  &.status-closed,
+  &.status-CLOSED,
+  &.status-ARCHIVED,
+  &.status-REJECTED {
     background: #ffe5e5;
     color: #c62828;
   }

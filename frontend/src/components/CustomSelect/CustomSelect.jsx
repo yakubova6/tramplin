@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Label from '../Label'
 import './CustomSelect.scss'
 
@@ -13,7 +14,9 @@ function CustomSelect({
                       }) {
     const [isOpen, setIsOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(-1)
+    const [menuPosition, setMenuPosition] = useState(null)
     const rootRef = useRef(null)
+    const buttonRef = useRef(null)
 
     const selected = options.find((o) => o.value === value)
 
@@ -24,6 +27,29 @@ function CustomSelect({
         document.addEventListener('mousedown', onDocClick)
         return () => document.removeEventListener('mousedown', onDocClick)
     }, [])
+
+    useEffect(() => {
+        if (!isOpen) return
+
+        const updatePosition = () => {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            setMenuPosition({
+                top: rect.bottom + 6,
+                left: rect.left,
+                width: rect.width,
+            })
+        }
+
+        updatePosition()
+        window.addEventListener('resize', updatePosition)
+        window.addEventListener('scroll', updatePosition, true)
+
+        return () => {
+            window.removeEventListener('resize', updatePosition)
+            window.removeEventListener('scroll', updatePosition, true)
+        }
+    }, [isOpen])
 
     const handleKeyDown = (event) => {
         if (event.key === 'ArrowDown') {
@@ -46,6 +72,39 @@ function CustomSelect({
     const displayText = selected?.label || placeholder
     const truncatedText = displayText.length > 40 ? displayText.slice(0, 37) + '...' : displayText
 
+    const menu = isOpen && menuPosition && createPortal(
+        <div
+            className="custom-select__menu custom-select__menu--portal"
+            role="listbox"
+            style={{
+                position: 'fixed',
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+                width: `${menuPosition.width}px`,
+            }}
+        >
+            {options.map((option, idx) => (
+                <button
+                    key={option.value}
+                    type="button"
+                    className={`custom-select__item ${
+                        value === option.value ? 'is-selected' : ''
+                    } ${idx === activeIndex ? 'is-active' : ''}`}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                        onChange(option.value)
+                        setIsOpen(false)
+                    }}
+                    title={option.label}
+                >
+                    {option.label}
+                </button>
+            ))}
+        </div>,
+        document.body
+    )
+
     return (
         <div className="custom-select" ref={rootRef}>
             {label && (
@@ -56,6 +115,7 @@ function CustomSelect({
             )}
             <div className="custom-select__wrapper">
                 <button
+                    ref={buttonRef}
                     type="button"
                     className={`custom-select__button ${error ? 'is-error' : ''}`}
                     onClick={() => setIsOpen((v) => !v)}
@@ -66,29 +126,8 @@ function CustomSelect({
                     <span className="custom-select__text">{truncatedText}</span>
                     <span className={`custom-select__arrow ${isOpen ? 'is-open' : ''}`}>▾</span>
                 </button>
-                {isOpen && (
-                    <div className="custom-select__menu" role="listbox">
-                        {options.map((option, idx) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                className={`custom-select__item ${
-                                    value === option.value ? 'is-selected' : ''
-                                } ${idx === activeIndex ? 'is-active' : ''}`}
-                                onMouseEnter={() => setActiveIndex(idx)}
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    onChange(option.value)
-                                    setIsOpen(false)
-                                }}
-                                title={option.label}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                )}
             </div>
+            {menu}
             {error && <p className="field-error">{error}</p>}
         </div>
     )

@@ -5,6 +5,7 @@
 
 .custom-select__wrapper {
   position: relative;
+  z-index: 1;
 }
 
 .custom-select__button {
@@ -52,7 +53,7 @@
 
 .custom-select__menu {
   position: absolute;
-  z-index: 50;
+  z-index: 1200;
   left: 0;
   right: 0;
   top: calc(100% + 6px);
@@ -104,4 +105,10 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.custom-select__menu--portal {
+  z-index: 100000;
+  max-height: 320px;
+  overflow-y: auto;
 }

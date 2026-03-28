@@ -2,6 +2,11 @@
 
 const API_BASE = '/api'
 import { CITIES } from '../constants/cities'
+import {
+    archiveEmployerOpportunity,
+    createEmployerOpportunity,
+    listEmployerOpportunities
+} from '../api/opportunities'
 
 function getCurrentUser() {
     try {
@@ -349,39 +354,62 @@ export async function removeFromSaved(opportunityId) {
     return { success: true }
 }
 
-export async function getEmployerOpportunities() {
-    const user = getCurrentUser()
-    if (!user) return []
-    const key = `employer_opportunities_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
+export async function getEmployerOpportunities(params = {}) {
+    const page = await listEmployerOpportunities({
+        limit: params.limit || 20,
+        offset: params.offset || 0,
+        sortBy: params.sortBy || 'UPDATED_AT',
+        sortDirection: params.sortDirection || 'DESC',
+        status: params.status,
+        group: params.group,
+        type: params.type,
+        workFormat: params.workFormat,
+        search: params.search,
+    })
+
+    return page?.items || []
+}
+
+function normalizeTagIds(tagIds) {
+    if (!Array.isArray(tagIds)) return []
+    return tagIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
 }
 
 export async function createOpportunity(opportunity) {
-    const user = getCurrentUser()
-    if (!user) throw new Error('Пользователь не авторизован')
-    const key = `employer_opportunities_${user.email}`
-    const saved = localStorage.getItem(key)
-    const opportunities = saved ? JSON.parse(saved) : []
-    const newOpportunity = {
-        id: Date.now(),
-        ...opportunity,
-        createdAt: new Date().toISOString(),
-        status: 'active',
+    const payload = {
+        title: opportunity.title?.trim(),
+        shortDescription: opportunity.shortDescription?.trim() || opportunity.description?.trim() || '',
+        fullDescription: opportunity.fullDescription?.trim() || opportunity.description?.trim() || '',
+        requirements: opportunity.requirements?.trim() || null,
+        companyName: opportunity.companyName?.trim() || opportunity.profileCompanyName || 'Компания работодателя',
+        type: opportunity.type || 'VACANCY',
+        workFormat: opportunity.workFormat || opportunity.format || 'REMOTE',
+        employmentType: opportunity.employmentType || 'FULL_TIME',
+        grade: opportunity.grade || opportunity.experienceLevel || 'JUNIOR',
+        salaryFrom: opportunity.salaryFrom ? Number(opportunity.salaryFrom) : null,
+        salaryTo: opportunity.salaryTo ? Number(opportunity.salaryTo) : null,
+        salaryCurrency: opportunity.salaryCurrency || 'RUB',
+        expiresAt: opportunity.expiresAt || opportunity.deadline || null,
+        eventDate: opportunity.eventDate || null,
+        cityId: opportunity.cityId ? Number(opportunity.cityId) : null,
+        locationId: opportunity.locationId ? Number(opportunity.locationId) : null,
+        contactInfo: {
+            email: opportunity.contactEmail || null,
+            phone: opportunity.contactPhone || null,
+            telegram: opportunity.contactTelegram || null,
+            contactPerson: opportunity.contactPerson || null,
+        },
+        resourceLinks: Array.isArray(opportunity.resourceLinks) ? opportunity.resourceLinks : [],
+        tagIds: normalizeTagIds(opportunity.tagIds),
     }
-    const updated = [newOpportunity, ...opportunities]
-    localStorage.setItem(key, JSON.stringify(updated))
-    return newOpportunity
+
+    return createEmployerOpportunity(payload)
 }
 
 export async function deleteOpportunity(opportunityId) {
-    const user = getCurrentUser()
-    if (!user) throw new Error('Пользователь не авторизован')
-    const key = `employer_opportunities_${user.email}`
-    const saved = localStorage.getItem(key)
-    const opportunities = saved ? JSON.parse(saved) : []
-    const updated = opportunities.filter(opp => opp.id !== opportunityId)
-    localStorage.setItem(key, JSON.stringify(updated))
+    await archiveEmployerOpportunity(opportunityId)
     return { success: true }
 }
 

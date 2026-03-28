@@ -19,6 +19,7 @@ import {
     updateApplicationStatus,
     searchCities
 } from '../../../utils/profileApi'
+import { listTags, OPPORTUNITY_LABELS } from '../../../api/opportunities'
 import '../DashboardBase.scss'
 import './EmployerDashboard.scss'
 
@@ -29,7 +30,7 @@ import linkIcon from '../../../assets/icons/link.svg'
 const OPPORTUNITY_TYPES = [
     { value: 'VACANCY', label: 'Вакансия' },
     { value: 'INTERNSHIP', label: 'Стажировка' },
-    { value: 'MENTORSHIP', label: 'Менторская программа' },
+    { value: 'MENTORING', label: 'Менторская программа' },
     { value: 'EVENT', label: 'Мероприятие' },
 ]
 
@@ -40,15 +41,15 @@ const WORK_FORMATS = [
 ]
 
 const EXPERIENCE_LEVELS = [
+    { value: 'INTERN', label: 'Intern' },
     { value: 'JUNIOR', label: 'Junior' },
     { value: 'MIDDLE', label: 'Middle' },
     { value: 'SENIOR', label: 'Senior' },
-    { value: 'NO_EXPERIENCE', label: 'Без опыта' },
 ]
 
 const EMPLOYMENT_TYPES = [
-    { value: 'FULL', label: 'Полная занятость' },
-    { value: 'PARTIAL', label: 'Частичная занятость' },
+    { value: 'FULL_TIME', label: 'Полная занятость' },
+    { value: 'PART_TIME', label: 'Частичная занятость' },
     { value: 'PROJECT', label: 'Проектная работа' },
 ]
 
@@ -115,19 +116,27 @@ function EmployerDashboard() {
 
     const [newOpportunity, setNewOpportunity] = useState({
         title: '',
-        description: '',
+        shortDescription: '',
+        fullDescription: '',
         type: 'VACANCY',
-        format: 'REMOTE',
-        location: '',
-        deadline: '',
+        workFormat: 'REMOTE',
+        cityId: null,
+        cityName: '',
+        expiresAt: '',
         requirements: '',
-        experienceLevel: 'JUNIOR',
-        employmentType: 'FULL',
-        skills: '',
+        grade: 'JUNIOR',
+        employmentType: 'FULL_TIME',
+        salaryFrom: '',
+        salaryTo: '',
+        tagIds: [],
+        contactEmail: '',
+        contactPhone: '',
+        contactPerson: '',
     })
 
     const [opportunities, setOpportunities] = useState([])
     const [applicants, setApplicants] = useState([])
+    const [techTags, setTechTags] = useState([])
 
     // Функция поиска городов
     const handleCitySearch = async (value) => {
@@ -263,6 +272,12 @@ function EmployerDashboard() {
         loadData()
     }, [toast])
 
+    useEffect(() => {
+        listTags('TECH')
+            .then((items) => setTechTags(items || []))
+            .catch(() => setTechTags([]))
+    }, [])
+
     // Закрываем редактирование при смене вкладки
     useEffect(() => {
         if (isEditing) {
@@ -275,7 +290,7 @@ function EmployerDashboard() {
 
     const validateProfile = () => {
         const newErrors = {}
-        if (!profile.companyName?.trim()) newErrors.companyName = 'Укажите название компании'
+        if (!profile.companyName?.trim()) newErrors.companyName = 'Укажие название компании'
         if (!profile.inn?.trim() || !/^\d{10}(\d{2})?$/.test(profile.inn.trim())) {
             newErrors.inn = 'ИНН должен содержать 10 или 12 цифр'
         }
@@ -346,7 +361,7 @@ function EmployerDashboard() {
             setProfile(prev => ({ ...prev, verificationStatus: 'PENDING' }))
             setShowVerificationModal(false)
             toast({ title: 'Заявка отправлена', description: 'Профиль отправлен на проверку' })
-        } catch (error) {
+        } catch {
             toast({ title: 'Ошибка', description: 'Не удалось отправить заявку', variant: 'destructive' })
         } finally {
             setIsLoading(false)
@@ -354,30 +369,40 @@ function EmployerDashboard() {
     }
 
     const handleCreateOpportunity = async () => {
-        if (!newOpportunity.title.trim()) {
-            toast({ title: 'Ошибка', description: 'Укажите название позиции', variant: 'destructive' })
+        if (!newOpportunity.title.trim() || !newOpportunity.shortDescription.trim()) {
+            toast({ title: 'Ошибка', description: 'Заполните название и краткое описание', variant: 'destructive' })
             return
         }
         setIsLoading(true)
         try {
-            const created = await createOpportunity(newOpportunity)
+            const created = await createOpportunity({
+                ...newOpportunity,
+                companyName: profile.companyName || user?.displayName,
+            })
             setOpportunities(prev => [created, ...prev])
             setNewOpportunity({
                 title: '',
-                description: '',
+                shortDescription: '',
+                fullDescription: '',
                 type: 'VACANCY',
-                format: 'REMOTE',
-                location: '',
-                deadline: '',
+                workFormat: 'REMOTE',
+                cityId: null,
+                cityName: '',
+                expiresAt: '',
                 requirements: '',
-                experienceLevel: 'JUNIOR',
-                employmentType: 'FULL',
-                skills: ''
+                grade: 'JUNIOR',
+                employmentType: 'FULL_TIME',
+                salaryFrom: '',
+                salaryTo: '',
+                tagIds: [],
+                contactEmail: '',
+                contactPhone: '',
+                contactPerson: '',
             })
-            toast({ title: 'Публикация создана', description: 'Ваша вакансия опубликована' })
+            toast({ title: 'Публикация создана', description: 'Карточка отправлена на модерацию' })
             setActiveTab('opportunities')
         } catch (error) {
-            toast({ title: 'Ошибка', description: 'Не удалось создать публикацию', variant: 'destructive' })
+            toast({ title: 'Ошибка', description: error?.message || 'Не удалось создать публикацию', variant: 'destructive' })
         } finally {
             setIsLoading(false)
         }
@@ -388,7 +413,7 @@ function EmployerDashboard() {
             await deleteOpportunity(id)
             setOpportunities(prev => prev.filter(opp => opp.id !== id))
             toast({ title: 'Удалено', description: `"${title}" удалена` })
-        } catch (error) {
+        } catch {
             toast({ title: 'Ошибка', description: 'Не удалось удалить', variant: 'destructive' })
         }
     }
@@ -399,7 +424,7 @@ function EmployerDashboard() {
             setApplicants(prev => prev.map(app => app.id === id ? { ...app, status: newStatus } : app))
             const statusText = newStatus === 'approved' ? 'Принят' : newStatus === 'rejected' ? 'Отклонён' : 'В резерве'
             toast({ title: 'Статус обновлён', description: `Статус изменён на "${statusText}"` })
-        } catch (error) {
+        } catch {
             toast({ title: 'Ошибка', description: 'Не удалось обновить статус', variant: 'destructive' })
         }
     }
@@ -414,8 +439,12 @@ function EmployerDashboard() {
     // Фильтрация вакансий
     const filteredOpportunities = opportunities.filter(opp => {
         const matchesSearch = opp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            opp.description?.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesStatus = filterStatus === 'all' || opp.status === filterStatus
+            opp.shortDescription?.toLowerCase().includes(searchTerm.toLowerCase())
+        const statusMap = {
+            active: ['PUBLISHED', 'PENDING_MODERATION', 'PLANNED'],
+            closed: ['CLOSED', 'ARCHIVED'],
+        }
+        const matchesStatus = filterStatus === 'all' || statusMap[filterStatus]?.includes(opp.status)
         return matchesSearch && matchesStatus
     })
 
@@ -530,20 +559,20 @@ function EmployerDashboard() {
                                         <div className="employer-opportunities__info">
                                             <h3>{opp.title}</h3>
                                             <p className="employer-opportunities__type">
-                                                {OPPORTUNITY_TYPES.find(t => t.value === opp.type)?.label} • {WORK_FORMATS.find(f => f.value === opp.format)?.label}
+                                                {OPPORTUNITY_LABELS.type[opp.type] || opp.type} • {OPPORTUNITY_LABELS.workFormat[opp.workFormat] || opp.workFormat}
                                             </p>
-                                            <p className="employer-opportunities__description">{opp.description}</p>
+                                            <p className="employer-opportunities__description">{opp.shortDescription}</p>
                                             <div className="employer-opportunities__skills">
-                                                {opp.skills?.split(',').map((s, i) => <span key={i}
-                                                                                            className="skill-tag">{s.trim()}</span>)}
+                                                {opp.tags?.map((tag) => <span key={tag.id}
+                                                                              className="skill-tag">{tag.name}</span>)}
                                             </div>
                                         </div>
                                         <div className="employer-opportunities__meta">
                                             <span className={`status-badge status-${opp.status}`}>
-                                                {opp.status === 'active' ? 'Активна' : opp.status === 'closed' ? 'Закрыта' : 'Запланирована'}
+                                                {OPPORTUNITY_LABELS.status[opp.status] || opp.status}
                                             </span>
                                             <span className="employer-opportunities__date">
-                                                {new Date(opp.createdAt).toLocaleDateString('ru-RU')}
+                                                {new Date(opp.updatedAt || opp.createdAt).toLocaleDateString('ru-RU')}
                                             </span>
                                             <div className="employer-opportunities__actions">
                                                 <button className="employer-opportunities__view"
@@ -560,14 +589,14 @@ function EmployerDashboard() {
                                                     <h4>Подробнее</h4>
                                                     <p><strong>Требования:</strong> {opp.requirements || '—'}</p>
                                                     <p>
-                                                        <strong>Уровень:</strong> {EXPERIENCE_LEVELS.find(l => l.value === opp.experienceLevel)?.label}
+                                                        <strong>Уровень:</strong> {OPPORTUNITY_LABELS.grade[opp.grade] || opp.grade}
                                                     </p>
                                                     <p>
-                                                        <strong>Занятость:</strong> {EMPLOYMENT_TYPES.find(t => t.value === opp.employmentType)?.label}
+                                                        <strong>Занятость:</strong> {OPPORTUNITY_LABELS.employmentType[opp.employmentType] || opp.employmentType}
                                                     </p>
-                                                    <p><strong>Место:</strong> {opp.location || '—'}</p>
-                                                    {opp.deadline && <p><strong>Срок
-                                                        до:</strong> {new Date(opp.deadline).toLocaleDateString('ru-RU')}
+                                                    <p><strong>Место:</strong> {opp.city?.name || opp.locationPreview?.addressLine || '—'}</p>
+                                                    {opp.expiresAt && <p><strong>Срок
+                                                        до:</strong> {new Date(opp.expiresAt).toLocaleDateString('ru-RU')}
                                                     </p>}
                                                 </div>
                                             )}
@@ -592,43 +621,68 @@ function EmployerDashboard() {
                             <CustomSelect label="Тип" value={newOpportunity.type}
                                           onChange={val => setNewOpportunity({...newOpportunity, type: val})}
                                           options={OPPORTUNITY_TYPES}/>
-                            <CustomSelect label="Формат" value={newOpportunity.format}
-                                          onChange={val => setNewOpportunity({...newOpportunity, format: val})}
+                            <CustomSelect label="Формат" value={newOpportunity.workFormat}
+                                          onChange={val => setNewOpportunity({...newOpportunity, workFormat: val})}
                                           options={WORK_FORMATS}/>
                         </div>
                         <div className="employer-create-form__field">
-                            <Label>Место</Label>
-                            <Input value={newOpportunity.location}
-                                   onChange={e => setNewOpportunity({...newOpportunity, location: e.target.value})}
-                                   placeholder="Москва или адрес офиса"/>
+                            <Label>Краткое описание <span className="required-star">*</span></Label>
+                            <Textarea rows={3} value={newOpportunity.shortDescription}
+                                      onChange={e => setNewOpportunity({...newOpportunity, shortDescription: e.target.value})}
+                                      placeholder="Кратко о вакансии/стажировке"/>
                         </div>
                         <div className="employer-create-form__field">
-                            <Label>Описание <span className="required-star">*</span></Label>
-                            <Textarea rows={5} value={newOpportunity.description} onChange={e => setNewOpportunity({
+                            <Label>Полное описание</Label>
+                            <Textarea rows={5} value={newOpportunity.fullDescription} onChange={e => setNewOpportunity({
                                 ...newOpportunity,
-                                description: e.target.value
+                                fullDescription: e.target.value
                             })} placeholder="Обязанности, требования, условия..."/>
                         </div>
                         <div className="employer-create-form__grid-3">
-                            <CustomSelect label="Уровень" value={newOpportunity.experienceLevel}
-                                          onChange={val => setNewOpportunity({...newOpportunity, experienceLevel: val})}
+                            <CustomSelect label="Уровень" value={newOpportunity.grade}
+                                          onChange={val => setNewOpportunity({...newOpportunity, grade: val})}
                                           options={EXPERIENCE_LEVELS}/>
                             <CustomSelect label="Занятость" value={newOpportunity.employmentType}
                                           onChange={val => setNewOpportunity({...newOpportunity, employmentType: val})}
                                           options={EMPLOYMENT_TYPES}/>
                             <div className="employer-create-form__field">
                                 <Label>Срок до</Label>
-                                <Input type="date" value={newOpportunity.deadline} onChange={e => setNewOpportunity({
+                                <Input type="date" value={newOpportunity.expiresAt} onChange={e => setNewOpportunity({
                                     ...newOpportunity,
-                                    deadline: e.target.value
+                                    expiresAt: e.target.value
                                 })}/>
                             </div>
                         </div>
+                        <div className="employer-create-form__grid-3">
+                            <Input type="number" value={newOpportunity.salaryFrom}
+                                   onChange={e => setNewOpportunity({...newOpportunity, salaryFrom: e.target.value})}
+                                   placeholder="Зарплата от"/>
+                            <Input type="number" value={newOpportunity.salaryTo}
+                                   onChange={e => setNewOpportunity({...newOpportunity, salaryTo: e.target.value})}
+                                   placeholder="Зарплата до"/>
+                            <Input value={newOpportunity.contactEmail}
+                                   onChange={e => setNewOpportunity({...newOpportunity, contactEmail: e.target.value})}
+                                   placeholder="Контактный email"/>
+                        </div>
                         <div className="employer-create-form__field">
-                            <Label>Навыки</Label>
-                            <Input value={newOpportunity.skills}
-                                   onChange={e => setNewOpportunity({...newOpportunity, skills: e.target.value})}
-                                   placeholder="React, Node.js, Python"/>
+                            <Label>Теги</Label>
+                            <div className="employer-opportunities__skills">
+                                {techTags.map((tag) => (
+                                    <button
+                                        key={tag.id}
+                                        type="button"
+                                        className={`skill-tag ${newOpportunity.tagIds.includes(tag.id) ? 'skill-tag--active' : ''}`}
+                                        onClick={() => setNewOpportunity((prev) => ({
+                                            ...prev,
+                                            tagIds: prev.tagIds.includes(tag.id)
+                                                ? prev.tagIds.filter((id) => id !== tag.id)
+                                                : [...prev.tagIds, tag.id],
+                                        }))}
+                                    >
+                                        #{tag.name}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div className="employer-create-form__actions">
                             <button className="btn-primary" onClick={handleCreateOpportunity} disabled={isLoading}>
