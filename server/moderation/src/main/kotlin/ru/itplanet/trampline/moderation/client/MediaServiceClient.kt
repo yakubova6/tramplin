@@ -10,12 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.multipart.MultipartFile
-import ru.itplanet.trampline.commons.model.file.FileAssetKind
-import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
-import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequest
-import ru.itplanet.trampline.commons.model.file.InternalCreatedFileResponse
-import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
-import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
+import ru.itplanet.trampline.commons.model.file.*
 
 @FeignClient(
     name = "moderation-media-service-client",
@@ -39,6 +34,12 @@ interface MediaServiceClient {
     fun getDownloadUrl(
         @PathVariable fileId: Long,
     ): InternalFileDownloadUrlResponse
+
+    @GetMapping("/internal/entities/{entityType}/{entityId}/attachments")
+    fun getAttachments(
+        @PathVariable entityType: FileAttachmentEntityType,
+        @PathVariable entityId: Long,
+    ): List<InternalFileAttachmentResponse>
 
     @PostMapping("/internal/attachments")
     fun createAttachment(

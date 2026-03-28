@@ -8,7 +8,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import ru.itplanet.trampline.commons.model.Role
+import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
@@ -64,22 +68,22 @@ class ModerationQueryServiceImpl(
             inProgressCount = moderationTaskDao.countByStatus(ModerationTaskStatus.IN_PROGRESS),
             myInProgressCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
                 ModerationTaskStatus.IN_PROGRESS,
-                currentUser.userId
+                currentUser.userId,
             ),
             countsByEntityType = countsByEntityType,
-            countsByPriority = countsByPriority
+            countsByPriority = countsByPriority,
         )
     }
 
     @Transactional(readOnly = true)
     override fun getTasks(
         currentUser: AuthenticatedUser,
-        request: GetModerationTasksRequest
+        request: GetModerationTasksRequest,
     ): ModerationTaskPageResponse {
         val pageable = PageRequest.of(
             request.page,
             request.size,
-            parseSort(request.sort)
+            parseSort(request.sort),
         )
 
         val specification = ModerationTaskSpecifications.build(request, currentUser.userId)
@@ -91,7 +95,7 @@ class ModerationQueryServiceImpl(
         } else {
             moderationLogDao.findByTaskIdInAndActionOrderByTaskIdAscCreatedAtAscIdAsc(
                 taskIds,
-                ModerationLogAction.CREATED
+                ModerationLogAction.CREATED,
             )
         }
 
@@ -105,7 +109,7 @@ class ModerationQueryServiceImpl(
             val taskId = task.id ?: error("Task id must not be null")
             toListItem(
                 task = task,
-                createdSnapshot = createdSnapshotsByTaskId[taskId]
+                createdSnapshot = createdSnapshotsByTaskId[taskId],
             )
         }
 
@@ -114,14 +118,14 @@ class ModerationQueryServiceImpl(
             page = request.page,
             size = request.size,
             totalItems = page.totalElements,
-            totalPages = page.totalPages
+            totalPages = page.totalPages,
         )
     }
 
     @Transactional(readOnly = true)
     override fun getTask(
         taskId: Long,
-        currentUser: AuthenticatedUser
+        currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
         val task = moderationTaskDao.findById(taskId)
             .orElseThrow { ModerationTaskNotFoundException(taskId) }
@@ -135,7 +139,7 @@ class ModerationQueryServiceImpl(
 
         val currentEntityState = moderationReadModelDao.findCurrentEntityState(
             task.entityType,
-            task.entityId
+            task.entityId,
         )
 
         val attachments = moderationReadModelDao.findTaskAttachments(taskId)
@@ -157,7 +161,21 @@ class ModerationQueryServiceImpl(
             currentEntityState = currentEntityState,
             history = history.map { it.toHistoryResponse() },
             attachments = attachments,
-            availableActions = resolveAvailableActions(task, currentUser)
+            availableActions = resolveAvailableActions(task, currentUser),
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEntityAttachments(
+        entityType: FileAttachmentEntityType,
+        entityId: Long,
+        currentUser: AuthenticatedUser,
+    ): List<InternalFileAttachmentResponse> {
+        ensureCanViewAttachments(currentUser)
+
+        return mediaServiceClient.getAttachments(
+            entityType = entityType,
+            entityId = entityId,
         )
     }
 
@@ -171,6 +189,7 @@ class ModerationQueryServiceImpl(
             .orElseThrow { ModerationTaskNotFoundException(taskId) }
 
         val attachment = findTaskAttachmentByFileId(taskId, fileId)
+        ensureCanDownloadAttachment(currentUser, attachment)
 
         return mediaServiceClient.getDownloadUrl(attachment.fileId)
     }
@@ -178,7 +197,7 @@ class ModerationQueryServiceImpl(
     @Transactional(readOnly = true)
     override fun getEntityHistory(
         entityType: ModerationEntityType,
-        entityId: Long
+        entityId: Long,
     ): List<ModerationEntityHistoryItemResponse> {
         return moderationLogDao.findByEntityTypeAndEntityIdOrderByCreatedAtAscIdAsc(entityType, entityId)
             .map { it.toEntityHistoryResponse() }
@@ -209,14 +228,39 @@ class ModerationQueryServiceImpl(
     ): ModerationTaskAttachmentResponse {
         return moderationReadModelDao.findTaskAttachments(taskId)
             .firstOrNull { attachment ->
-                attachment.fileId == fileId && attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
+                attachment.fileId == fileId &&
+                        attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
             }
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Moderation attachment not found")
     }
 
+    private fun ensureCanViewAttachments(
+        currentUser: AuthenticatedUser,
+    ) {
+        if (currentUser.role !in MODERATION_DOWNLOAD_ROLES) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+    }
+
+    private fun ensureCanDownloadAttachment(
+        currentUser: AuthenticatedUser,
+        attachment: ModerationTaskAttachmentResponse,
+    ) {
+        if (currentUser.role !in MODERATION_DOWNLOAD_ROLES) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        }
+
+        if (attachment.visibility != FileAssetVisibility.AUTHENTICATED.name) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Only AUTHENTICATED attachments can be downloaded in moderation",
+            )
+        }
+    }
+
     private fun toListItem(
         task: ModerationTaskDto,
-        createdSnapshot: JsonNode?
+        createdSnapshot: JsonNode?,
     ): ModerationTaskListItemResponse {
         return ModerationTaskListItemResponse(
             id = task.id ?: error("Task id must not be null"),
@@ -228,7 +272,7 @@ class ModerationQueryServiceImpl(
             assignee = task.assigneeUser?.toResponse(),
             createdAt = task.createdAt ?: error("Task createdAt must not be null"),
             updatedAt = task.updatedAt ?: error("Task updatedAt must not be null"),
-            snapshotSummary = buildSnapshotSummary(task.entityType, createdSnapshot)
+            snapshotSummary = buildSnapshotSummary(task.entityType, createdSnapshot),
         )
     }
 
@@ -238,7 +282,7 @@ class ModerationQueryServiceImpl(
             action = action,
             actor = actorUser?.toResponse(),
             payload = payload.deepCopy(),
-            createdAt = createdAt ?: error("Log createdAt must not be null")
+            createdAt = createdAt ?: error("Log createdAt must not be null"),
         )
     }
 
@@ -249,7 +293,7 @@ class ModerationQueryServiceImpl(
             action = action,
             actor = actorUser?.toResponse(),
             payload = payload.deepCopy(),
-            createdAt = createdAt ?: error("Log createdAt must not be null")
+            createdAt = createdAt ?: error("Log createdAt must not be null"),
         )
     }
 
@@ -264,7 +308,7 @@ class ModerationQueryServiceImpl(
 
     private fun resolveAvailableActions(
         task: ModerationTaskDto,
-        currentUser: AuthenticatedUser
+        currentUser: AuthenticatedUser,
     ): List<String> {
         val assigneeId = task.assigneeUser?.id
 
@@ -274,7 +318,7 @@ class ModerationQueryServiceImpl(
                 "APPROVE",
                 "REJECT",
                 "COMMENT",
-                "CANCEL"
+                "CANCEL",
             )
 
             ModerationTaskStatus.IN_PROGRESS -> {
@@ -297,7 +341,7 @@ class ModerationQueryServiceImpl(
 
     private fun buildSnapshotSummary(
         entityType: ModerationEntityType,
-        payload: JsonNode?
+        payload: JsonNode?,
     ): String? {
         if (payload == null || (payload.isObject && payload.size() == 0)) {
             return null
@@ -385,6 +429,11 @@ class ModerationQueryServiceImpl(
         private val ACTIVE_TASK_STATUSES = listOf(
             ModerationTaskStatus.OPEN,
             ModerationTaskStatus.IN_PROGRESS,
+        )
+
+        private val MODERATION_DOWNLOAD_ROLES = setOf(
+            Role.CURATOR,
+            Role.ADMIN,
         )
     }
 }

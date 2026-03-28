@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.annotation.CurrentUser
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
@@ -78,6 +80,15 @@ class ModerationController(
         @CurrentUser currentUser: AuthenticatedUser,
     ): List<ModerationEntityHistoryItemResponse> {
         return moderationQueryService.getEntityHistory(entityType, entityId)
+    }
+
+    @GetMapping("/entities/{entityType}/{entityId}/attachments")
+    fun getEntityAttachments(
+        @PathVariable entityType: FileAttachmentEntityType,
+        @PathVariable @Positive entityId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): List<InternalFileAttachmentResponse> {
+        return moderationQueryService.getEntityAttachments(entityType, entityId, currentUser)
     }
 
     @PostMapping("/tasks/{taskId}/assign")

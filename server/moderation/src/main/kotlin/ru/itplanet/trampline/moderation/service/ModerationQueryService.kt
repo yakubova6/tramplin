@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.moderation.service
 
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
@@ -17,13 +19,19 @@ interface ModerationQueryService {
 
     fun getTasks(
         currentUser: AuthenticatedUser,
-        request: GetModerationTasksRequest
+        request: GetModerationTasksRequest,
     ): ModerationTaskPageResponse
 
     fun getTask(
         taskId: Long,
-        currentUser: AuthenticatedUser
+        currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse
+
+    fun getEntityAttachments(
+        entityType: FileAttachmentEntityType,
+        entityId: Long,
+        currentUser: AuthenticatedUser,
+    ): List<InternalFileAttachmentResponse>
 
     fun getTaskAttachmentDownloadUrl(
         taskId: Long,
@@ -33,7 +41,7 @@ interface ModerationQueryService {
 
     fun getEntityHistory(
         entityType: ModerationEntityType,
-        entityId: Long
+        entityId: Long,
     ): List<ModerationEntityHistoryItemResponse>
 
     fun findActiveTaskByEntity(
