@@ -40,6 +40,7 @@ import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskReques
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CreateManualModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.RejectModerationTaskRequest
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskAttachmentResponse
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 import java.time.OffsetDateTime
 
@@ -312,7 +313,7 @@ class ModerationCommandServiceImpl(
         currentUser: AuthenticatedUser,
         file: MultipartFile,
     ) {
-        ensureAttachmentCanBeAdded(taskId)
+        ensureAttachmentCanBeModified(taskId)
 
         val createdFile = mediaServiceClient.uploadFile(
             file = file,
@@ -343,6 +344,35 @@ class ModerationCommandServiceImpl(
                 action = ModerationLogAction.UPDATED,
                 actorUserId = currentUser.userId,
                 payload = buildAttachmentAddedPayload(attachment),
+                createdAt = now,
+            )
+        }
+    }
+
+    override fun deleteAttachment(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        attachmentId: Long,
+    ) {
+        ensureAttachmentCanBeModified(taskId)
+
+        val attachment = loadTaskAttachment(taskId, attachmentId)
+
+        mediaServiceClient.deleteAttachment(attachment.id)
+
+        transactionTemplate.executeWithoutResult {
+            val task = getTaskForUpdate(taskId)
+            validateAttachmentAllowed(task)
+
+            val now = OffsetDateTime.now()
+            task.updatedAt = now
+            moderationTaskDao.save(task)
+
+            saveLog(
+                task = task,
+                action = ModerationLogAction.UPDATED,
+                actorUserId = currentUser.userId,
+                payload = buildAttachmentDeletedPayload(attachment),
                 createdAt = now,
             )
         }
@@ -387,7 +417,7 @@ class ModerationCommandServiceImpl(
         )
     }
 
-    private fun ensureAttachmentCanBeAdded(taskId: Long) {
+    private fun ensureAttachmentCanBeModified(taskId: Long) {
         transactionTemplate.executeWithoutResult {
             val task = getTaskForUpdate(taskId)
             validateAttachmentAllowed(task)
@@ -396,8 +426,19 @@ class ModerationCommandServiceImpl(
 
     private fun validateAttachmentAllowed(task: ModerationTaskDto) {
         if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
-            throw conflict("Attachments can be added only to OPEN or IN_PROGRESS tasks")
+            throw conflict("Attachments can be added or deleted only to OPEN or IN_PROGRESS tasks")
         }
+    }
+
+    private fun loadTaskAttachment(
+        taskId: Long,
+        attachmentId: Long,
+    ): ModerationTaskAttachmentResponse {
+        return moderationReadModelDao.findTaskAttachments(taskId)
+            .firstOrNull { attachment ->
+                attachment.id == attachmentId && attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
+            }
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Moderation attachment not found")
     }
 
     private fun buildAttachmentAddedPayload(
@@ -411,6 +452,22 @@ class ModerationCommandServiceImpl(
             put("mediaType", attachment.file.mediaType)
             put("sizeBytes", attachment.file.sizeBytes)
             put("attachmentRole", attachment.attachmentRole.name)
+        }
+    }
+
+    private fun buildAttachmentDeletedPayload(
+        attachment: ModerationTaskAttachmentResponse,
+    ): ObjectNode {
+        return JsonNodeFactory.instance.objectNode().apply {
+            put("updateType", "ATTACHMENT_DELETED")
+            put("attachmentId", attachment.id)
+            put("fileId", attachment.fileId)
+            put("originalFileName", attachment.originalFileName)
+            put("mediaType", attachment.mediaType)
+            put("sizeBytes", attachment.sizeBytes)
+            put("visibility", attachment.visibility)
+            put("status", attachment.status)
+            put("attachmentRole", attachment.attachmentRole)
         }
     }
 

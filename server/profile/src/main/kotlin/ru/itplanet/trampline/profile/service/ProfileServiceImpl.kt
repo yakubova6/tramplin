@@ -149,6 +149,24 @@ class ProfileServiceImpl(
         return loadApplicantPortfolioAttachments(profile)
     }
 
+    override fun deleteApplicantFile(
+        userId: Long,
+        fileId: Long,
+    ): ApplicantProfile {
+        val profile = loadApplicantProfileDto(userId)
+
+        val attachment = mediaServiceClient.getAttachments(
+            entityType = FileAttachmentEntityType.APPLICANT_PROFILE,
+            entityId = userId,
+        ).firstOrNull { attachment ->
+            attachment.fileId == fileId && attachment.attachmentRole in applicantDownloadRoles
+        } ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Applicant file not found")
+
+        mediaServiceClient.deleteAttachment(attachment.attachmentId)
+
+        return buildApplicantProfile(profileDto = profile)
+    }
+
     override fun patchEmployerProfile(
         userId: Long,
         request: EmployerProfilePatchRequest,
@@ -199,6 +217,24 @@ class ProfileServiceImpl(
             profileDto = profile,
             logo = logo,
         )
+    }
+
+    override fun deleteEmployerFile(
+        userId: Long,
+        fileId: Long,
+    ): EmployerProfile {
+        val profile = loadEmployerProfileDto(userId)
+
+        val attachment = mediaServiceClient.getAttachments(
+            entityType = FileAttachmentEntityType.EMPLOYER_PROFILE,
+            entityId = userId,
+        ).firstOrNull { attachment ->
+            attachment.fileId == fileId && attachment.attachmentRole in employerDownloadRoles
+        } ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Employer file not found")
+
+        mediaServiceClient.deleteAttachment(attachment.attachmentId)
+
+        return buildEmployerProfile(profileDto = profile)
     }
 
     override fun getApplicantProfile(

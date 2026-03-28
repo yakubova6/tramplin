@@ -51,6 +51,12 @@ interface ModerationCommandService {
         file: MultipartFile,
     )
 
+    fun deleteAttachment(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        attachmentId: Long,
+    )
+
     fun cancel(
         taskId: Long,
         currentUser: AuthenticatedUser,

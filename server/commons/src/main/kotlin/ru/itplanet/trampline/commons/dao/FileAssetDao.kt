@@ -8,9 +8,14 @@ import java.time.OffsetDateTime
 
 interface FileAssetDao : JpaRepository<FileAssetDto, Long> {
 
-    fun findAllByStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(
+    fun findAllByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
         status: FileAssetStatus,
-        updatedAtBefore: OffsetDateTime,
+        createdAtBefore: OffsetDateTime,
+        pageable: Pageable,
+    ): List<FileAssetDto>
+
+    fun findAllByStatusOrderByCreatedAtAsc(
+        status: FileAssetStatus,
         pageable: Pageable,
     ): List<FileAssetDto>
 }

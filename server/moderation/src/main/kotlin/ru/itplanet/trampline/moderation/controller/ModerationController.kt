@@ -4,6 +4,7 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.Positive
 import org.springframework.http.MediaType
 import org.springframework.validation.annotation.Validated
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.annotation.CurrentUser
+import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskRequest
@@ -118,6 +120,15 @@ class ModerationController(
         return moderationQueryService.getTask(taskId, currentUser)
     }
 
+    @GetMapping("/tasks/{taskId}/attachments/{fileId}/download-url")
+    fun getTaskAttachmentDownloadUrl(
+        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive fileId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): InternalFileDownloadUrlResponse {
+        return moderationQueryService.getTaskAttachmentDownloadUrl(taskId, currentUser, fileId)
+    }
+
     @PostMapping(
         value = ["/tasks/{taskId}/attachments"],
         consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
@@ -128,6 +139,16 @@ class ModerationController(
         @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
         moderationCommandService.addAttachment(taskId, currentUser, file)
+        return moderationQueryService.getTask(taskId, currentUser)
+    }
+
+    @DeleteMapping("/tasks/{taskId}/attachments/{attachmentId}")
+    fun deleteTaskAttachment(
+        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive attachmentId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ModerationTaskDetailResponse {
+        moderationCommandService.deleteAttachment(taskId, currentUser, attachmentId)
         return moderationQueryService.getTask(taskId, currentUser)
     }
 

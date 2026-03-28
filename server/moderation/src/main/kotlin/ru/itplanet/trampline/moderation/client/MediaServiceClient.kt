@@ -2,6 +2,9 @@ package ru.itplanet.trampline.moderation.client
 
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.http.MediaType
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
@@ -12,6 +15,7 @@ import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequest
 import ru.itplanet.trampline.commons.model.file.InternalCreatedFileResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
+import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 
 @FeignClient(
     name = "moderation-media-service-client",
@@ -31,8 +35,18 @@ interface MediaServiceClient {
         @RequestParam visibility: FileAssetVisibility,
     ): InternalCreatedFileResponse
 
+    @GetMapping("/internal/files/{fileId}/download-url")
+    fun getDownloadUrl(
+        @PathVariable fileId: Long,
+    ): InternalFileDownloadUrlResponse
+
     @PostMapping("/internal/attachments")
     fun createAttachment(
         @RequestBody request: InternalCreateFileAttachmentRequest,
     ): InternalFileAttachmentResponse
+
+    @DeleteMapping("/internal/attachments/{attachmentId}")
+    fun deleteAttachment(
+        @PathVariable attachmentId: Long,
+    )
 }

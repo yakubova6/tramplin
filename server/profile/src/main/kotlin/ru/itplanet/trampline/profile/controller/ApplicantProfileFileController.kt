@@ -1,13 +1,10 @@
 package ru.itplanet.trampline.profile.controller
 
+import jakarta.validation.constraints.Positive
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.validation.annotation.Validated
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestPart
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.annotation.CurrentUser
@@ -52,6 +49,15 @@ class ApplicantProfileFileController(
             userId = currentUser.userId,
             file = file,
         )
+    }
+
+    @DeleteMapping("/files/{fileId}")
+    fun deleteApplicantFile(
+        @PathVariable @Positive fileId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ApplicantProfile {
+        ensureApplicant(currentUser)
+        return profileService.deleteApplicantFile(currentUser.userId, fileId)
     }
 
     private fun ensureApplicant(currentUser: AuthenticatedUser) {

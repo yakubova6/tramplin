@@ -4,12 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
+import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
+import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
+import ru.itplanet.trampline.moderation.client.MediaServiceClient
 import ru.itplanet.trampline.moderation.dao.ModerationLogDao
 import ru.itplanet.trampline.moderation.dao.ModerationTaskDao
 import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
@@ -22,6 +27,7 @@ import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
 import ru.itplanet.trampline.moderation.model.response.ModerationDashboardResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationEntityHistoryItemResponse
+import ru.itplanet.trampline.moderation.model.response.ModerationTaskAttachmentResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationTaskDetailResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationTaskHistoryItemResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationTaskListItemResponse
@@ -34,6 +40,7 @@ class ModerationQueryServiceImpl(
     private val moderationTaskDao: ModerationTaskDao,
     private val moderationLogDao: ModerationLogDao,
     private val moderationReadModelDao: ModerationReadModelDao,
+    private val mediaServiceClient: MediaServiceClient,
 ) : ModerationQueryService {
 
     @Transactional(readOnly = true)
@@ -155,6 +162,20 @@ class ModerationQueryServiceImpl(
     }
 
     @Transactional(readOnly = true)
+    override fun getTaskAttachmentDownloadUrl(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        fileId: Long,
+    ): InternalFileDownloadUrlResponse {
+        moderationTaskDao.findById(taskId)
+            .orElseThrow { ModerationTaskNotFoundException(taskId) }
+
+        val attachment = findTaskAttachmentByFileId(taskId, fileId)
+
+        return mediaServiceClient.getDownloadUrl(attachment.fileId)
+    }
+
+    @Transactional(readOnly = true)
     override fun getEntityHistory(
         entityType: ModerationEntityType,
         entityId: Long
@@ -180,6 +201,17 @@ class ModerationQueryServiceImpl(
             exists = task != null,
             taskId = task?.id,
         )
+    }
+
+    private fun findTaskAttachmentByFileId(
+        taskId: Long,
+        fileId: Long,
+    ): ModerationTaskAttachmentResponse {
+        return moderationReadModelDao.findTaskAttachments(taskId)
+            .firstOrNull { attachment ->
+                attachment.fileId == fileId && attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
+            }
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Moderation attachment not found")
     }
 
     private fun toListItem(

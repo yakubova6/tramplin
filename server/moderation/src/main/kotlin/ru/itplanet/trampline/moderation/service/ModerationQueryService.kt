@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.moderation.service
 
+import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
@@ -23,6 +24,12 @@ interface ModerationQueryService {
         taskId: Long,
         currentUser: AuthenticatedUser
     ): ModerationTaskDetailResponse
+
+    fun getTaskAttachmentDownloadUrl(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        fileId: Long,
+    ): InternalFileDownloadUrlResponse
 
     fun getEntityHistory(
         entityType: ModerationEntityType,
