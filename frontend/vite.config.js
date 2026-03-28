@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const authTarget = env.VITE_AUTH_PROXY_TARGET || 'http://localhost:9999'
   const profileTarget = env.VITE_PROFILE_PROXY_TARGET || 'http://localhost:8080'
   const opportunityTarget = env.VITE_OPPORTUNITY_PROXY_TARGET || 'http://localhost:8081'
-  const interactionTarget = env.VITE_INTERACTION_PROXY_TARGET || 'http://localhost:8082'
+  const interactionTarget = env.VITE_INTERACTION_PROXY_TARGET || 'http://localhost:8083'
 
   return {
     plugins: [react()],
@@ -49,7 +49,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Interaction API (контакты)
         '/api/interaction': {
           target: interactionTarget,
           changeOrigin: true,
