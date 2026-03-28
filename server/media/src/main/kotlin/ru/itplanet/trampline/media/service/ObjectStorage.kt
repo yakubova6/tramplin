@@ -11,6 +11,8 @@ interface ObjectStorage {
         metadata: Map<String, String> = emptyMap(),
     )
 
+    fun deleteObject(key: String)
+
     fun generateDownloadUrl(key: String): PresignedUrl
 
     data class PresignedUrl(

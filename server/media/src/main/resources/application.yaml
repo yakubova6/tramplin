@@ -43,3 +43,10 @@ storage:
 
 internal-api:
   api-key: moderation-api-key
+
+media:
+  cleanup:
+    enabled: true
+    batch-size: 50
+    deleted-file-min-age: 10m
+    fixed-delay: 30m

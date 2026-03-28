@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service
 import ru.itplanet.trampline.media.config.S3StorageProperties
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
@@ -32,6 +33,15 @@ class S3ObjectStorage(
             .build()
 
         s3Client.putObject(request, RequestBody.fromBytes(bytes))
+    }
+
+    override fun deleteObject(key: String) {
+        val request = DeleteObjectRequest.builder()
+            .bucket(properties.bucket)
+            .key(normalizeKey(key))
+            .build()
+
+        s3Client.deleteObject(request)
     }
 
     override fun generateDownloadUrl(key: String): ObjectStorage.PresignedUrl {
