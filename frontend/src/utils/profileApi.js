@@ -1,10 +1,21 @@
-const API_BASE = '/api'
 import { CITIES } from '../constants/cities'
 import {
     archiveEmployerOpportunity,
     createEmployerOpportunity,
     listEmployerOpportunities
 } from '../api/opportunities'
+import {
+    getContacts,
+    addContact as addContactApi,
+    acceptContactRequest,
+    declineContactRequest,
+    removeContact as removeContactApi,
+    getMyResponses,
+    createResponse,
+    getFavorites,
+    addToFavorites,
+    removeFromFavorites
+} from '../api/interaction'
 
 function getCurrentUser() {
     try {
@@ -67,7 +78,7 @@ export async function getApplicantProfile() {
         throw new Error('Пользователь не авторизован')
     }
 
-    const url = `${API_BASE}/profile/applicant/${user.userId}`
+    const url = `/api/profile/applicant/${user.userId}`
     console.log('[API] GET applicant profile:', url)
 
     try {
@@ -90,7 +101,6 @@ export async function updateApplicantProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
-    // Если приходит массив объектов, преобразуем в массив строк
     let portfolioLinks = []
     let contactLinks = []
 
@@ -142,7 +152,7 @@ export async function updateApplicantProfile(profile) {
 
     console.log('[API] Saving applicant profile with PATCH:', payload)
 
-    const url = `${API_BASE}/profile/applicant`
+    const url = `/api/profile/applicant`
     const data = await apiRequest(url, {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -150,120 +160,17 @@ export async function updateApplicantProfile(profile) {
     return data
 }
 
-// ========== ОТКЛИКИ ==========
-
-/**
- * Получение списка откликов соискателя
- * GET /api/applicant/applications
- */
-export async function getSeekerApplications() {
-    const user = getCurrentUser()
-    if (!user) return []
-
-    try {
-        const url = `${API_BASE}/applicant/applications`
-        console.log('[API] GET applications:', url)
-        const data = await apiRequest(url)
-        return data || []
-    } catch (error) {
-        console.error('[API] Failed to load applications:', error)
-        return []
-    }
-}
-
-/**
- * Отклик на вакансию
- * POST /api/opportunities/{id}/apply
- */
-export async function applyToOpportunity(opportunityId, message = '') {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Чтобы откликнуться, необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/opportunities/${opportunityId}/apply`
-    console.log('[API] POST apply:', url)
-
-    return apiRequest(url, {
-        method: 'POST',
-        body: JSON.stringify({ message }),
-    })
-}
-
-// ========== ИЗБРАННОЕ ==========
-
-/**
- * Получение списка избранных вакансий
- * GET /api/applicant/saved
- */
-export async function getSeekerSaved() {
-    const user = getCurrentUser()
-    if (!user) return []
-
-    try {
-        const url = `${API_BASE}/applicant/saved`
-        console.log('[API] GET saved:', url)
-        const data = await apiRequest(url)
-        return data || []
-    } catch (error) {
-        console.error('[API] Failed to load saved:', error)
-        return []
-    }
-}
-
-/**
- * Добавление вакансии в избранное
- * POST /api/opportunities/{id}/save
- */
-export async function addToSaved(opportunityId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/opportunities/${opportunityId}/save`
-    console.log('[API] POST save:', url)
-
-    return apiRequest(url, {
-        method: 'POST',
-    })
-}
-
-/**
- * Удаление вакансии из избранного
- * DELETE /api/opportunities/{id}/save
- */
-export async function removeFromSaved(opportunityId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/opportunities/${opportunityId}/save`
-    console.log('[API] DELETE saved:', url)
-
-    return apiRequest(url, {
-        method: 'DELETE',
-    })
-}
-
-// ========== ПРОФЕССИОНАЛЬНЫЕ КОНТАКТЫ (INTERACTION API) ==========
+// ========== КОНТАКТЫ (INTERACTION API) ==========
 
 /**
  * Получение списка контактов соискателя
  * GET /api/interaction/contacts
  */
 export async function getSeekerContacts() {
-    const user = getCurrentUser()
-    if (!user) return []
-
     try {
-        const url = `${API_BASE}/interaction/contacts`
-        console.log('[API] GET contacts:', url)
-        const data = await apiRequest(url)
-        return data || []
+        return await getContacts()
     } catch (error) {
-        console.error('[API] Failed to load contacts:', error)
+        console.error('Failed to load contacts:', error)
         return []
     }
 }
@@ -271,57 +178,25 @@ export async function getSeekerContacts() {
 /**
  * Отправка запроса на добавление в контакты
  * POST /api/interaction/contacts
- * Body: { "contactUserId": userId }
  */
 export async function addContact(contactUserId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/interaction/contacts`
-    console.log('[API] POST add contact:', url)
-
-    return apiRequest(url, {
-        method: 'POST',
-        body: JSON.stringify({ contactUserId }),
-    })
+    return await addContactApi(contactUserId)
 }
 
 /**
  * Принять запрос в контакты
  * POST /api/interaction/contacts/{requestId}/accept
  */
-export async function acceptContactRequest(requestId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/interaction/contacts/${requestId}/accept`
-    console.log('[API] POST accept contact:', url)
-
-    return apiRequest(url, {
-        method: 'POST',
-    })
+export async function acceptContact(contactRequestId) {
+    return await acceptContactRequest(contactRequestId)
 }
 
 /**
  * Отклонить запрос в контакты
  * POST /api/interaction/contacts/{requestId}/decline
  */
-export async function declineContactRequest(requestId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
-    }
-
-    const url = `${API_BASE}/interaction/contacts/${requestId}/decline`
-    console.log('[API] POST decline contact:', url)
-
-    return apiRequest(url, {
-        method: 'POST',
-    })
+export async function declineContact(contactRequestId) {
+    return await declineContactRequest(contactRequestId)
 }
 
 /**
@@ -329,17 +204,162 @@ export async function declineContactRequest(requestId) {
  * DELETE /api/interaction/contacts/{contactUserId}
  */
 export async function removeContact(contactUserId) {
-    const user = getCurrentUser()
-    if (!user) {
-        throw new Error('Необходимо войти в аккаунт')
+    return await removeContactApi(contactUserId)
+}
+
+// ========== ОТКЛИКИ (INTERACTION API) ==========
+
+/**
+ * Получение списка моих откликов
+ * GET /api/interaction/responses/my
+ */
+export async function getSeekerApplications() {
+    try {
+        const responses = await getMyResponses()
+        console.log('[API] Raw responses response:', responses)
+
+        // Нормализуем данные для компонента
+        if (Array.isArray(responses)) {
+            const normalized = responses.map(item => {
+                // Если приходит объект с полем opportunity
+                if (item.opportunity) {
+                    return {
+                        id: item.id,
+                        opportunityId: item.opportunity.id,
+                        position: item.opportunity.title,
+                        title: item.opportunity.title,
+                        companyName: item.opportunity.companyName,
+                        status: item.status,
+                        message: item.employerComment || item.message,
+                        appliedAt: item.createdAt,
+                        createdAt: item.createdAt
+                    }
+                }
+                // Если приходит прямая структура
+                return {
+                    id: item.id,
+                    opportunityId: item.opportunityId,
+                    position: item.position || item.title,
+                    title: item.title,
+                    companyName: item.companyName,
+                    status: item.status,
+                    message: item.employerComment || item.message,
+                    appliedAt: item.appliedAt || item.createdAt,
+                    createdAt: item.createdAt
+                }
+            })
+            console.log('[API] Normalized responses:', normalized)
+            return normalized
+        }
+        return []
+    } catch (error) {
+        console.error('Failed to load applications from API:', error)
+        return []
     }
+}
 
-    const url = `${API_BASE}/interaction/contacts/${contactUserId}`
-    console.log('[API] DELETE contact:', url)
+/**
+ * Отклик на вакансию
+ * POST /api/interaction/responses
+ */
+export async function applyToOpportunity(opportunityId, message = '') {
+    try {
+        return await createResponse(opportunityId)
+    } catch (error) {
+        console.error('Failed to apply:', error)
+        throw error
+    }
+}
 
-    return apiRequest(url, {
-        method: 'DELETE',
-    })
+/**
+ * Получение откликов на вакансию (для работодателя)
+ * GET /api/interaction/opportunities/{opportunityId}/responses
+ */
+export async function getOpportunityResponses(opportunityId) {
+    try {
+        const { getOpportunityResponses } = await import('../api/interaction')
+        return await getOpportunityResponses(opportunityId)
+    } catch (error) {
+        console.error('Failed to load opportunity responses:', error)
+        return []
+    }
+}
+
+// ========== ИЗБРАННОЕ (INTERACTION API) ==========
+
+/**
+ * Получение списка избранного текущего пользователя
+ * GET /api/interaction/favorites
+ */
+export async function getSeekerSaved() {
+    try {
+        const favorites = await getFavorites()
+        console.log('[API] Raw favorites response:', favorites)
+
+        // Нормализуем данные для компонента
+        if (Array.isArray(favorites)) {
+            const normalized = favorites.map(item => {
+                // Если приходит объект с полем opportunity
+                if (item.opportunity) {
+                    return {
+                        id: item.opportunity.id,
+                        title: item.opportunity.title,
+                        companyName: item.opportunity.companyName,
+                        shortDescription: item.opportunity.shortDescription,
+                        salaryFrom: item.opportunity.salaryFrom,
+                        salaryTo: item.opportunity.salaryTo,
+                        salaryCurrency: item.opportunity.salaryCurrency,
+                        type: item.opportunity.type,
+                        workFormat: item.opportunity.workFormat
+                    }
+                }
+                // Если приходит прямая структура
+                return {
+                    id: item.id,
+                    title: item.title,
+                    companyName: item.companyName,
+                    shortDescription: item.shortDescription,
+                    salaryFrom: item.salaryFrom,
+                    salaryTo: item.salaryTo,
+                    salaryCurrency: item.salaryCurrency,
+                    type: item.type,
+                    workFormat: item.workFormat
+                }
+            })
+            console.log('[API] Normalized favorites:', normalized)
+            return normalized
+        }
+        return []
+    } catch (error) {
+        console.error('Failed to load favorites from API:', error)
+        return []
+    }
+}
+
+/**
+ * Добавить в избранное
+ * POST /api/interaction/favorites/{opportunityId}
+ */
+export async function addToSaved(opportunityId) {
+    try {
+        return await addToFavorites(opportunityId)
+    } catch (error) {
+        console.error('Failed to add to favorites:', error)
+        throw error
+    }
+}
+
+/**
+ * Удалить из избранного
+ * DELETE /api/interaction/favorites/{opportunityId}
+ */
+export async function removeFromSaved(opportunityId) {
+    try {
+        return await removeFromFavorites(opportunityId)
+    } catch (error) {
+        console.error('Failed to remove from favorites:', error)
+        throw error
+    }
 }
 
 // ========== РАБОТОДАТЕЛЬ ==========
@@ -354,7 +374,7 @@ export async function getEmployerProfile() {
         throw new Error('Пользователь не авторизован')
     }
 
-    const url = `${API_BASE}/profile/employer/${user.userId}`
+    const url = `/api/profile/employer/${user.userId}`
     console.log('[API] GET employer profile:', url)
 
     try {
@@ -454,7 +474,7 @@ export async function updateEmployerProfile(profile) {
 
     console.log('[API] Saving employer profile with PATCH:', JSON.stringify(payload, null, 2))
 
-    const url = `${API_BASE}/profile/employer`
+    const url = `/api/profile/employer`
     const data = await apiRequest(url, {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -472,7 +492,7 @@ export async function submitVerification(payload) {
         throw new Error('Пользователь не авторизован')
     }
 
-    const url = `${API_BASE}/employer/verification`
+    const url = `/api/employer/verification`
     console.log('[API] Submitting verification:', payload)
 
     const data = await apiRequest(url, {
@@ -482,7 +502,7 @@ export async function submitVerification(payload) {
     return data
 }
 
-// ========== РАБОТОДАТЕЛЬ: ВАКАНСИИ И ОТКЛИКИ ==========
+// ========== РАБОТОДАТЕЛЬ: ВАКАНСИИ ==========
 
 export async function getEmployerOpportunities(params = {}) {
     const page = await listEmployerOpportunities({
@@ -543,16 +563,19 @@ export async function deleteOpportunity(opportunityId) {
     return { success: true }
 }
 
+// ========== РАБОТОДАТЕЛЬ: ОТКЛИКИ ==========
+
 /**
  * Получение списка откликов на вакансии работодателя
- * GET /api/employer/applications
+ * GET /api/employer/applications (старый эндпоинт)
+ * Альтернатива: GET /api/interaction/opportunities/{id}/responses
  */
 export async function getEmployerApplications() {
     const user = getCurrentUser()
     if (!user) return []
 
     try {
-        const url = `${API_BASE}/employer/applications`
+        const url = `/api/employer/applications`
         console.log('[API] GET employer applications:', url)
         const data = await apiRequest(url)
         return data || []
@@ -572,7 +595,7 @@ export async function updateApplicationStatus(applicationId, status) {
         throw new Error('Необходимо войти в аккаунт')
     }
 
-    const url = `${API_BASE}/employer/applications/${applicationId}`
+    const url = `/api/employer/applications/${applicationId}`
     console.log('[API] PATCH application status:', url)
 
     return apiRequest(url, {

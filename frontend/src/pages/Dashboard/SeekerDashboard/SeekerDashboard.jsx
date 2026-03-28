@@ -977,19 +977,19 @@ function SeekerDashboard() {
                                 {applications.map(app => (
                                     <div key={app.id} className="application-card">
                                         <div className="application-card__content">
-                                            <h3>{app.title || app.position}</h3>
+                                            <h3>{app.position || app.title}</h3>
                                             <p className="application-card__company">{app.companyName}</p>
                                             <p className="application-card__description">{app.message || 'Отклик отправлен'}</p>
                                             <div className="application-card__footer">
-                                                <span className={`status-badge status-${app.status?.toLowerCase() || 'pending'}`}>
-                                                    {app.status === 'PENDING' && 'На рассмотрении'}
-                                                    {app.status === 'APPROVED' && 'Принято'}
-                                                    {app.status === 'REJECTED' && 'Отклонено'}
-                                                    {!app.status && 'Отправлено'}
-                                                </span>
+                                <span className={`status-badge status-${app.status?.toLowerCase() || 'pending'}`}>
+                                    {app.status === 'PENDING' && 'На рассмотрении'}
+                                    {app.status === 'APPROVED' && 'Принято'}
+                                    {app.status === 'REJECTED' && 'Отклонено'}
+                                    {!app.status && 'Отправлено'}
+                                </span>
                                                 <span className="application-card__date">
-                                                    {formatDate(app.appliedAt || app.createdAt)}
-                                                </span>
+                                    {app.appliedAt ? formatDate(app.appliedAt) : formatDate(app.createdAt)}
+                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -1007,8 +1007,10 @@ function SeekerDashboard() {
                         </div>
                         {savedOpportunities.length === 0 ? (
                             <div className="empty-state">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                    <path d="M12 21L10.6 19.8C7.5 17.1 5 14.9 5 12.2C5 9.9 6.9 8 9.2 8C10.5 8 11.8 8.7 12 9.6C12.2 8.7 13.5 8 14.8 8C17.1 8 19 9.9 19 12.2C19 14.9 16.5 17.1 13.4 19.8L12 21Z"/>
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     strokeWidth="1">
+                                    <path
+                                        d="M12 21L10.6 19.8C7.5 17.1 5 14.9 5 12.2C5 9.9 6.9 8 9.2 8C10.5 8 11.8 8.7 12 9.6C12.2 8.7 13.5 8 14.8 8C17.1 8 19 9.9 19 12.2C19 14.9 16.5 17.1 13.4 19.8L12 21Z"/>
                                 </svg>
                                 <p>У вас пока нет избранных вакансий</p>
                                 <span>Добавляйте вакансии в избранное на главной странице</span>
@@ -1026,7 +1028,8 @@ function SeekerDashboard() {
                                             className="saved-card__remove"
                                             onClick={() => handleRemoveSaved(opp.id, opp.title)}
                                         >
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                                 stroke="currentColor">
                                                 <path d="M18 6L6 18M6 6L18 18" strokeWidth="1.5" strokeLinecap="round"/>
                                             </svg>
                                             Удалить
@@ -1046,7 +1049,8 @@ function SeekerDashboard() {
                         </div>
                         {contacts.length === 0 ? (
                             <div className="empty-state">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     strokeWidth="1">
                                     <path d="M17 21V19C17 16.8 15.2 15 13 15H5C2.8 15 1 16.8 1 19V21"/>
                                     <circle cx="9" cy="7" r="4"/>
                                     <path d="M23 21V19C22.6 17 21 15.6 19 15.3"/>
