@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'wouter'
 import { useToast } from '../../../hooks/use-toast'
 import DashboardLayout from '../DashboardLayout'
 import Input from '../../../components/Input'
@@ -13,7 +14,9 @@ import {
     updateApplicantProfile,
     getSeekerApplications,
     getSeekerSaved,
+    getSeekerContacts,
     removeFromSaved,
+    removeContact,
     searchCities
 } from '../../../utils/profileApi'
 import '../DashboardBase.scss'
@@ -74,6 +77,7 @@ function SeekerDashboard() {
 
     const [applications, setApplications] = useState([])
     const [savedOpportunities, setSavedOpportunities] = useState([])
+    const [contacts, setContacts] = useState([])
 
     // Состояние для городов
     const [isCitySearchOpen, setIsCitySearchOpen] = useState(false)
@@ -81,6 +85,14 @@ function SeekerDashboard() {
     const [citySuggestions, setCitySuggestions] = useState([])
     const [cityActiveIndex, setCityActiveIndex] = useState(-1)
     const citySearchRef = useRef(null)
+
+    // Форматирование даты
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Дата не указана'
+        const date = new Date(dateString)
+        if (isNaN(date.getTime())) return 'Дата не указана'
+        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    }
 
     // Преобразование массива строк в массив объектов для редактирования
     const linksToArray = (linksArray) => {
@@ -126,6 +138,7 @@ function SeekerDashboard() {
         setIsCitySearchOpen(false)
     }
 
+    // Загрузка данных
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true)
@@ -146,7 +159,7 @@ function SeekerDashboard() {
                         course: profileData.course,
                         graduationYear: profileData.graduationYear,
                         cityId: profileData.cityId,
-                        cityName: profileData.cityName || '',
+                        cityName: profileData.city?.name || '',
                         about: profileData.about || '',
                         resumeText: profileData.resumeText || '',
                         portfolioLinks: profileData.portfolioLinks || [],
@@ -158,11 +171,10 @@ function SeekerDashboard() {
                         openToWork: profileData.openToWork ?? true,
                         openToEvents: profileData.openToEvents ?? true,
                     }))
-                    if (profileData.cityName) {
-                        setCitySearchQuery(profileData.cityName)
+                    if (profileData.city?.name) {
+                        setCitySearchQuery(profileData.city.name)
                     }
 
-                    // Инициализируем временные массивы для ссылок
                     setTempPortfolioLinks(linksToArray(profileData.portfolioLinks || []))
                     setTempContactLinks(linksToArray(profileData.contactLinks || []))
                 }
@@ -172,7 +184,11 @@ function SeekerDashboard() {
 
                 const saved = await getSeekerSaved()
                 setSavedOpportunities(saved)
+
+                const contactsList = await getSeekerContacts()
+                setContacts(contactsList)
             } catch (error) {
+                console.error('Load error:', error)
                 toast({
                     title: 'Ошибка',
                     description: 'Не удалось загрузить профиль',
@@ -211,7 +227,6 @@ function SeekerDashboard() {
             setIsEditing(false)
             setErrors({})
 
-            // Диспатчим событие обновления профиля
             window.dispatchEvent(new CustomEvent('profile-updated', {
                 detail: {
                     firstName: profile.firstName,
@@ -354,7 +369,23 @@ function SeekerDashboard() {
         }
     }
 
-    // Открытие редактирования портфолио
+    const handleRemoveContact = async (userId) => {
+        try {
+            await removeContact(userId)
+            setContacts(prev => prev.filter(c => c.id !== userId))
+            toast({
+                title: 'Контакт удалён',
+                description: 'Пользователь удалён из ваших контактов',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось удалить контакт',
+                variant: 'destructive',
+            })
+        }
+    }
+
     const handleOpenPortfolioEdit = () => {
         if (!isEditingPortfolio) {
             if (tempPortfolioLinks.length === 0) {
@@ -366,7 +397,6 @@ function SeekerDashboard() {
         }
     }
 
-    // Открытие редактирования контактов
     const handleOpenContactsEdit = () => {
         if (!isEditingContacts) {
             if (tempContactLinks.length === 0) {
@@ -378,19 +408,6 @@ function SeekerDashboard() {
         }
     }
 
-    if (isLoading && !profile.firstName) {
-        return (
-            <DashboardLayout title="Мой профиль">
-                <div className="dashboard-loading">
-                    <div className="loading-spinner"></div>
-                    <p>Загрузка профиля...</p>
-                </div>
-            </DashboardLayout>
-        )
-    }
-
-    // ===== ФУНКЦИИ ДЛЯ ОТОБРАЖЕНИЯ ИМЕНИ =====
-
     const getInitials = () => {
         if (profile.firstName || profile.lastName) {
             return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
@@ -399,13 +416,6 @@ function SeekerDashboard() {
             return user.displayName[0].toUpperCase()
         }
         return '?'
-    }
-
-    const getFullName = () => {
-        const parts = []
-        if (profile.firstName) parts.push(profile.firstName)
-        if (profile.lastName) parts.push(profile.lastName)
-        return parts.join(' ')
     }
 
     const getFullNameWithPatronymic = () => {
@@ -424,13 +434,6 @@ function SeekerDashboard() {
         return user?.email?.split('@')[0] || 'Пользователь'
     }
 
-    const getShortName = () => {
-        if (profile.firstName) return profile.firstName
-        if (user?.displayName) return user.displayName
-        return user?.email?.split('@')[0] || 'Пользователь'
-    }
-
-    // Функция для отображения ссылок
     const renderLinks = (links, title) => {
         if (!links || links.length === 0) return null
 
@@ -455,6 +458,17 @@ function SeekerDashboard() {
                     })}
                 </div>
             </div>
+        )
+    }
+
+    if (isLoading && !profile.firstName) {
+        return (
+            <DashboardLayout title="Мой профиль">
+                <div className="dashboard-loading">
+                    <div className="loading-spinner"></div>
+                    <p>Загрузка профиля...</p>
+                </div>
+            </DashboardLayout>
         )
     }
 
@@ -943,7 +957,6 @@ function SeekerDashboard() {
                     </div>
                 )}
 
-                {/* Остальные табы */}
                 {activeTab === 'applications' && (
                     <div className="seeker-applications">
                         <div className="section-header">
@@ -964,18 +977,18 @@ function SeekerDashboard() {
                                 {applications.map(app => (
                                     <div key={app.id} className="application-card">
                                         <div className="application-card__content">
-                                            <h3>{app.title}</h3>
-                                            <p className="application-card__company">{app.company}</p>
-                                            <p className="application-card__description">{app.description}</p>
+                                            <h3>{app.title || app.position}</h3>
+                                            <p className="application-card__company">{app.companyName}</p>
+                                            <p className="application-card__description">{app.message || 'Отклик отправлен'}</p>
                                             <div className="application-card__footer">
-                                                <span className={`status-badge status-${app.status?.toLowerCase()}`}>
-                                                    {app.status === 'pending' && 'На рассмотрении'}
-                                                    {app.status === 'approved' && 'Принято'}
-                                                    {app.status === 'rejected' && 'Отклонено'}
+                                                <span className={`status-badge status-${app.status?.toLowerCase() || 'pending'}`}>
+                                                    {app.status === 'PENDING' && 'На рассмотрении'}
+                                                    {app.status === 'APPROVED' && 'Принято'}
+                                                    {app.status === 'REJECTED' && 'Отклонено'}
                                                     {!app.status && 'Отправлено'}
                                                 </span>
                                                 <span className="application-card__date">
-                                                    {new Date(app.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                    {formatDate(app.appliedAt || app.createdAt)}
                                                 </span>
                                             </div>
                                         </div>
@@ -1006,8 +1019,8 @@ function SeekerDashboard() {
                                     <div key={opp.id} className="saved-card">
                                         <div className="saved-card__content">
                                             <h3>{opp.title}</h3>
-                                            <p className="saved-card__company">{opp.company}</p>
-                                            <p className="saved-card__description">{opp.description}</p>
+                                            <p className="saved-card__company">{opp.companyName}</p>
+                                            <p className="saved-card__description">{opp.shortDescription}</p>
                                         </div>
                                         <button
                                             className="saved-card__remove"
@@ -1029,18 +1042,41 @@ function SeekerDashboard() {
                     <div className="seeker-contacts">
                         <div className="section-header">
                             <h2>Профессиональные контакты</h2>
-                            <span className="section-count">0</span>
+                            <span className="section-count">{contacts.length}</span>
                         </div>
-                        <div className="empty-state">
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                <path d="M17 21V19C17 16.8 15.2 15 13 15H5C2.8 15 1 16.8 1 19V21"/>
-                                <circle cx="9" cy="7" r="4"/>
-                                <path d="M23 21V19C22.6 17 21 15.6 19 15.3"/>
-                                <path d="M16 3.3C18 3.6 19.6 5 20 7"/>
-                            </svg>
-                            <p>У вас пока нет контактов</p>
-                            <span>Добавляйте интересных специалистов в их профилях</span>
-                        </div>
+                        {contacts.length === 0 ? (
+                            <div className="empty-state">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                                    <path d="M17 21V19C17 16.8 15.2 15 13 15H5C2.8 15 1 16.8 1 19V21"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21V19C22.6 17 21 15.6 19 15.3"/>
+                                    <path d="M16 3.3C18 3.6 19.6 5 20 7"/>
+                                </svg>
+                                <p>У вас пока нет контактов</p>
+                                <span>Добавляйте интересных специалистов в их профилях</span>
+                            </div>
+                        ) : (
+                            <div className="contacts-list">
+                                {contacts.map(contact => (
+                                    <div key={contact.id} className="contact-card">
+                                        <div className="contact-card__avatar">
+                                            {contact.firstName?.[0]}{contact.lastName?.[0]}
+                                        </div>
+                                        <div className="contact-card__info">
+                                            <h3>{contact.firstName} {contact.lastName}</h3>
+                                            <p>{contact.universityName}</p>
+                                            <div className="contact-card__interests">
+                                                {contact.openToWork && <span className="tag">Ищет работу</span>}
+                                                {contact.openToEvents && <span className="tag">Интересуется мероприятиями</span>}
+                                            </div>
+                                        </div>
+                                        <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id)}>
+                                            Удалить
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

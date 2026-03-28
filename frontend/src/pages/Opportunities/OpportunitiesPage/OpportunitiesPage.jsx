@@ -12,6 +12,7 @@ import {
     listTags,
     OPPORTUNITY_LABELS
 } from '../../../api/opportunities'
+import { addToSaved, removeFromSaved, applyToOpportunity } from '../../../utils/profileApi'
 import './OpportunitiesPage.scss'
 
 // Импорт SVG иконок из папки assets
@@ -67,34 +68,6 @@ function getStorageSet(key) {
     } catch {
         return new Set()
     }
-}
-
-function saveApplicationToLocal(opportunity) {
-    const user = getCurrentUser()
-    if (!user?.email) {
-        throw new Error('Чтобы откликнуться, необходимо войти в аккаунт соискателя')
-    }
-
-    const key = `seeker_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    const items = saved ? JSON.parse(saved) : []
-    if (items.some((item) => item.opportunityId === opportunity.id)) {
-        return { alreadyApplied: true }
-    }
-
-    const nextItem = {
-        id: Date.now(),
-        opportunityId: opportunity.id,
-        position: opportunity.title,
-        companyName: opportunity.companyName,
-        status: 'PENDING',
-        message: 'Отклик отправлен',
-        appliedAt: new Date().toISOString(),
-    }
-
-    const next = [nextItem, ...items]
-    localStorage.setItem(key, JSON.stringify(next))
-    return { alreadyApplied: false }
 }
 
 function OpportunitiesPage() {
@@ -207,14 +180,56 @@ function OpportunitiesPage() {
         else next.add(companyName)
         setFavoriteCompanies(next)
         setStorageSet('tramplin_favorite_companies', next)
+
+        toast({
+            title: next.has(companyName) ? 'Компания добавлена в избранное' : 'Компания удалена из избранного',
+            description: next.has(companyName) ? 'Вакансии этой компании будут выделены на карте' : '',
+        })
     }
 
-    const toggleOpportunityFavorite = (id) => {
-        const next = new Set(favoriteOpportunities)
-        if (next.has(id)) next.delete(id)
-        else next.add(id)
-        setFavoriteOpportunities(next)
-        setStorageSet('tramplin_favorite_opportunities', next)
+    const toggleOpportunityFavorite = async (opportunity) => {
+        const isFavorite = favoriteOpportunities.has(opportunity.id)
+
+        if (!currentUser) {
+            toast({
+                title: 'Требуется авторизация',
+                description: 'Войдите в аккаунт, чтобы добавить в избранное',
+                variant: 'destructive'
+            })
+            setTimeout(() => navigate('/auth/login'), 1500)
+            return
+        }
+
+        try {
+            if (isFavorite) {
+                await removeFromSaved(opportunity.id)
+                const next = new Set(favoriteOpportunities)
+                next.delete(opportunity.id)
+                setFavoriteOpportunities(next)
+                setStorageSet('tramplin_favorite_opportunities', next)
+                toast({
+                    title: 'Удалено из избранного',
+                    description: `"${opportunity.title}" удалено из избранного`,
+                })
+            } else {
+                await addToSaved(opportunity.id)
+                const next = new Set(favoriteOpportunities)
+                next.add(opportunity.id)
+                setFavoriteOpportunities(next)
+                setStorageSet('tramplin_favorite_opportunities', next)
+                toast({
+                    title: 'Добавлено в избранное',
+                    description: `"${opportunity.title}" сохранено в избранное`,
+                })
+            }
+        } catch (error) {
+            console.error('Favorite error:', error)
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось изменить избранное',
+                variant: 'destructive'
+            })
+        }
     }
 
     const handleShowOnMap = (id) => {
@@ -246,8 +261,16 @@ function OpportunitiesPage() {
         }
 
         try {
-            const result = saveApplicationToLocal(opportunity)
-            if (result.alreadyApplied) {
+            await applyToOpportunity(opportunity.id)
+            toast({
+                title: 'Отклик отправлен',
+                description: `Ваш отклик на "${opportunity.title}" успешно отправлен`,
+                variant: 'default'
+            })
+        } catch (applyError) {
+            console.error('Apply error:', applyError)
+
+            if (applyError.message?.includes('already') || applyError.message?.includes('уже')) {
                 toast({
                     title: 'Уже откликались',
                     description: 'Вы уже откликались на эту возможность',
@@ -256,12 +279,6 @@ function OpportunitiesPage() {
                 return
             }
 
-            toast({
-                title: 'Отклик отправлен',
-                description: 'Ваш отклик успешно сохранён',
-                variant: 'default'
-            })
-        } catch (applyError) {
             toast({
                 title: 'Ошибка',
                 description: applyError.message || 'Не удалось отправить отклик',
@@ -436,7 +453,7 @@ function OpportunitiesPage() {
                                                 <h3>{item.title}</h3>
                                                 <button
                                                     className={`opportunities-page__fav-star ${favoriteOpportunities.has(item.id) ? 'is-favorite' : ''}`}
-                                                    onClick={() => toggleOpportunityFavorite(item.id)}
+                                                    onClick={() => toggleOpportunityFavorite(item)}
                                                 >
                                                     ★
                                                 </button>
@@ -524,7 +541,7 @@ function OpportunitiesPage() {
                                                 </div>
                                                 <button
                                                     className={`opportunities-page__fav-star ${favoriteOpportunities.has(item.id) ? 'is-favorite' : ''}`}
-                                                    onClick={() => toggleOpportunityFavorite(item.id)}
+                                                    onClick={() => toggleOpportunityFavorite(item)}
                                                 >
                                                     ★
                                                 </button>

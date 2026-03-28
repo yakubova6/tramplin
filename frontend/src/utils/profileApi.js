@@ -1,5 +1,3 @@
-// utils/profileApi.js
-
 const API_BASE = '/api'
 import { CITIES } from '../constants/cities'
 import {
@@ -98,16 +96,12 @@ export async function updateApplicantProfile(profile) {
 
     if (profile.portfolioLinks) {
         if (Array.isArray(profile.portfolioLinks)) {
-            // Если это массив строк
             if (profile.portfolioLinks.length > 0 && typeof profile.portfolioLinks[0] === 'string') {
                 portfolioLinks = profile.portfolioLinks
-            }
-            // Если это массив объектов
-            else if (profile.portfolioLinks.length > 0 && profile.portfolioLinks[0].url) {
+            } else if (profile.portfolioLinks.length > 0 && profile.portfolioLinks[0].url) {
                 portfolioLinks = profile.portfolioLinks.map(link => link.url)
             }
         } else if (typeof profile.portfolioLinks === 'object') {
-            // Если это объект
             portfolioLinks = Object.values(profile.portfolioLinks)
         }
     }
@@ -156,6 +150,198 @@ export async function updateApplicantProfile(profile) {
     return data
 }
 
+// ========== ОТКЛИКИ ==========
+
+/**
+ * Получение списка откликов соискателя
+ * GET /api/applicant/applications
+ */
+export async function getSeekerApplications() {
+    const user = getCurrentUser()
+    if (!user) return []
+
+    try {
+        const url = `${API_BASE}/applicant/applications`
+        console.log('[API] GET applications:', url)
+        const data = await apiRequest(url)
+        return data || []
+    } catch (error) {
+        console.error('[API] Failed to load applications:', error)
+        return []
+    }
+}
+
+/**
+ * Отклик на вакансию
+ * POST /api/opportunities/{id}/apply
+ */
+export async function applyToOpportunity(opportunityId, message = '') {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Чтобы откликнуться, необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/opportunities/${opportunityId}/apply`
+    console.log('[API] POST apply:', url)
+
+    return apiRequest(url, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+    })
+}
+
+// ========== ИЗБРАННОЕ ==========
+
+/**
+ * Получение списка избранных вакансий
+ * GET /api/applicant/saved
+ */
+export async function getSeekerSaved() {
+    const user = getCurrentUser()
+    if (!user) return []
+
+    try {
+        const url = `${API_BASE}/applicant/saved`
+        console.log('[API] GET saved:', url)
+        const data = await apiRequest(url)
+        return data || []
+    } catch (error) {
+        console.error('[API] Failed to load saved:', error)
+        return []
+    }
+}
+
+/**
+ * Добавление вакансии в избранное
+ * POST /api/opportunities/{id}/save
+ */
+export async function addToSaved(opportunityId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/opportunities/${opportunityId}/save`
+    console.log('[API] POST save:', url)
+
+    return apiRequest(url, {
+        method: 'POST',
+    })
+}
+
+/**
+ * Удаление вакансии из избранного
+ * DELETE /api/opportunities/{id}/save
+ */
+export async function removeFromSaved(opportunityId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/opportunities/${opportunityId}/save`
+    console.log('[API] DELETE saved:', url)
+
+    return apiRequest(url, {
+        method: 'DELETE',
+    })
+}
+
+// ========== ПРОФЕССИОНАЛЬНЫЕ КОНТАКТЫ (INTERACTION API) ==========
+
+/**
+ * Получение списка контактов соискателя
+ * GET /api/interaction/contacts
+ */
+export async function getSeekerContacts() {
+    const user = getCurrentUser()
+    if (!user) return []
+
+    try {
+        const url = `${API_BASE}/interaction/contacts`
+        console.log('[API] GET contacts:', url)
+        const data = await apiRequest(url)
+        return data || []
+    } catch (error) {
+        console.error('[API] Failed to load contacts:', error)
+        return []
+    }
+}
+
+/**
+ * Отправка запроса на добавление в контакты
+ * POST /api/interaction/contacts
+ * Body: { "contactUserId": userId }
+ */
+export async function addContact(contactUserId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/interaction/contacts`
+    console.log('[API] POST add contact:', url)
+
+    return apiRequest(url, {
+        method: 'POST',
+        body: JSON.stringify({ contactUserId }),
+    })
+}
+
+/**
+ * Принять запрос в контакты
+ * POST /api/interaction/contacts/{requestId}/accept
+ */
+export async function acceptContactRequest(requestId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/interaction/contacts/${requestId}/accept`
+    console.log('[API] POST accept contact:', url)
+
+    return apiRequest(url, {
+        method: 'POST',
+    })
+}
+
+/**
+ * Отклонить запрос в контакты
+ * POST /api/interaction/contacts/{requestId}/decline
+ */
+export async function declineContactRequest(requestId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/interaction/contacts/${requestId}/decline`
+    console.log('[API] POST decline contact:', url)
+
+    return apiRequest(url, {
+        method: 'POST',
+    })
+}
+
+/**
+ * Удаление из контактов
+ * DELETE /api/interaction/contacts/{contactUserId}
+ */
+export async function removeContact(contactUserId) {
+    const user = getCurrentUser()
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/interaction/contacts/${contactUserId}`
+    console.log('[API] DELETE contact:', url)
+
+    return apiRequest(url, {
+        method: 'DELETE',
+    })
+}
+
 // ========== РАБОТОДАТЕЛЬ ==========
 
 /**
@@ -175,7 +361,6 @@ export async function getEmployerProfile() {
         const data = await apiRequest(url)
         console.log('[API] Employer profile received:', data)
 
-        // Преобразуем socialLinks (массив строк) в формат для LinksEditor
         const socialLinksArray = data.socialLinks && Array.isArray(data.socialLinks)
             ? data.socialLinks.map((url, index) => ({
                 id: index,
@@ -184,7 +369,6 @@ export async function getEmployerProfile() {
             }))
             : []
 
-        // Преобразуем publicContacts (объект) в формат для LinksEditor
         const publicContactsArray = data.publicContacts && typeof data.publicContacts === 'object'
             ? Object.entries(data.publicContacts).map(([title, url], index) => ({
                 id: index,
@@ -214,31 +398,24 @@ export async function updateEmployerProfile(profile) {
         throw new Error('Пользователь не авторизован')
     }
 
-    // Преобразуем socialLinks - ожидается массив строк
     let socialLinks = []
     if (profile.socialLinks) {
         if (Array.isArray(profile.socialLinks)) {
-            // Если это массив объектов с title/url
             if (profile.socialLinks.length > 0 && profile.socialLinks[0].title !== undefined) {
                 socialLinks = profile.socialLinks
                     .filter(link => link.url?.trim())
                     .map(link => link.url.trim())
-            }
-            // Если это уже массив строк
-            else if (profile.socialLinks.length > 0 && typeof profile.socialLinks[0] === 'string') {
+            } else if (profile.socialLinks.length > 0 && typeof profile.socialLinks[0] === 'string') {
                 socialLinks = profile.socialLinks.filter(url => url?.trim())
             }
         } else if (typeof profile.socialLinks === 'object') {
-            // Если это объект, преобразуем в массив значений
             socialLinks = Object.values(profile.socialLinks).filter(url => url?.trim())
         }
     }
 
-    // Преобразуем publicContacts - ожидается объект Map<String, String>
     let publicContacts = {}
     if (profile.publicContacts) {
         if (Array.isArray(profile.publicContacts)) {
-            // Если это массив объектов с title/url
             if (profile.publicContacts.length > 0 && profile.publicContacts[0].title !== undefined) {
                 profile.publicContacts.forEach(contact => {
                     const title = contact.title?.trim()
@@ -247,9 +424,7 @@ export async function updateEmployerProfile(profile) {
                         publicContacts[title] = url
                     }
                 })
-            }
-            // Если это массив строк
-            else if (profile.publicContacts.length > 0 && typeof profile.publicContacts[0] === 'string') {
+            } else if (profile.publicContacts.length > 0 && typeof profile.publicContacts[0] === 'string') {
                 profile.publicContacts.forEach((url, index) => {
                     if (url?.trim()) {
                         publicContacts[`contact_${index + 1}`] = url.trim()
@@ -257,7 +432,6 @@ export async function updateEmployerProfile(profile) {
                 })
             }
         } else if (typeof profile.publicContacts === 'object') {
-            // Если это уже объект
             publicContacts = profile.publicContacts
         }
     }
@@ -281,13 +455,10 @@ export async function updateEmployerProfile(profile) {
     console.log('[API] Saving employer profile with PATCH:', JSON.stringify(payload, null, 2))
 
     const url = `${API_BASE}/profile/employer`
-    console.log('[API] PATCH employer profile:', url)
-
     const data = await apiRequest(url, {
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
-    console.log('[API] Employer profile saved:', data)
     return data
 }
 
@@ -308,51 +479,10 @@ export async function submitVerification(payload) {
         method: 'POST',
         body: JSON.stringify(payload),
     })
-    console.log('[API] Verification response:', data)
     return data
 }
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (локально) ==========
-
-export async function getSeekerApplications() {
-    const user = getCurrentUser()
-    if (!user) return []
-    const key = `seeker_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
-}
-
-export async function getSeekerSaved() {
-    const user = getCurrentUser()
-    if (!user) return []
-    const key = `seeker_saved_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
-}
-
-export async function addToSaved(opportunity) {
-    const user = getCurrentUser()
-    if (!user) throw new Error('Пользователь не авторизован')
-    const key = `seeker_saved_${user.email}`
-    const saved = localStorage.getItem(key)
-    const savedItems = saved ? JSON.parse(saved) : []
-    if (!savedItems.some(item => item.id === opportunity.id)) {
-        const updated = [opportunity, ...savedItems]
-        localStorage.setItem(key, JSON.stringify(updated))
-    }
-    return { success: true }
-}
-
-export async function removeFromSaved(opportunityId) {
-    const user = getCurrentUser()
-    if (!user) throw new Error('Пользователь не авторизован')
-    const key = `seeker_saved_${user.email}`
-    const saved = localStorage.getItem(key)
-    const savedItems = saved ? JSON.parse(saved) : []
-    const updated = savedItems.filter(item => item.id !== opportunityId)
-    localStorage.setItem(key, JSON.stringify(updated))
-    return { success: true }
-}
+// ========== РАБОТОДАТЕЛЬ: ВАКАНСИИ И ОТКЛИКИ ==========
 
 export async function getEmployerOpportunities(params = {}) {
     const page = await listEmployerOpportunities({
@@ -413,23 +543,40 @@ export async function deleteOpportunity(opportunityId) {
     return { success: true }
 }
 
+/**
+ * Получение списка откликов на вакансии работодателя
+ * GET /api/employer/applications
+ */
 export async function getEmployerApplications() {
     const user = getCurrentUser()
     if (!user) return []
-    const key = `employer_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
+
+    try {
+        const url = `${API_BASE}/employer/applications`
+        console.log('[API] GET employer applications:', url)
+        const data = await apiRequest(url)
+        return data || []
+    } catch (error) {
+        console.error('[API] Failed to load employer applications:', error)
+        return []
+    }
 }
 
+/**
+ * Обновление статуса отклика
+ * PATCH /api/employer/applications/{id}
+ */
 export async function updateApplicationStatus(applicationId, status) {
     const user = getCurrentUser()
-    if (!user) throw new Error('Пользователь не авторизован')
-    const key = `employer_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    const applications = saved ? JSON.parse(saved) : []
-    const updated = applications.map(app =>
-        app.id === applicationId ? { ...app, status } : app
-    )
-    localStorage.setItem(key, JSON.stringify(updated))
-    return { success: true }
+    if (!user) {
+        throw new Error('Необходимо войти в аккаунт')
+    }
+
+    const url = `${API_BASE}/employer/applications/${applicationId}`
+    console.log('[API] PATCH application status:', url)
+
+    return apiRequest(url, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+    })
 }
