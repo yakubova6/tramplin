@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.moderation.service
 
+import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskResponse
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
@@ -42,6 +43,12 @@ interface ModerationCommandService {
         taskId: Long,
         currentUser: AuthenticatedUser,
         request: CommentModerationTaskRequest,
+    )
+
+    fun addAttachment(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        file: MultipartFile,
     )
 
     fun cancel(

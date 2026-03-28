@@ -10,6 +10,11 @@ spring:
     username: tramplin_adm
     password: tramplin_adm
 
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
 feign:
   client:
     config:
@@ -28,6 +33,10 @@ profile:
 opportunity:
   service:
     url: ${OPPORTUNITY_SERVICE_URL:http://localhost:8081}
+
+media:
+  service:
+    url: ${MEDIA_SERVICE_URL:http://localhost:8091}
 
 internal-api:
   api-key: moderation-api-key

@@ -24,7 +24,7 @@ spring:
 auth:
   session:
     cookie-name: sessionId
-    ttl-seconds: 3600
+    ttl-seconds: 86400
     secure-cookie: false
     same-site: Lax
 

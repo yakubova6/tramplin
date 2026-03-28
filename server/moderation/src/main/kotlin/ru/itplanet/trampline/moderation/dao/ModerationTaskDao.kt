@@ -20,12 +20,10 @@ interface ModerationTaskDao : JpaRepository<ModerationTaskDto, Long>, JpaSpecifi
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         """
-        select m
-        from ModerationTaskDto m
-        left join fetch m.assigneeUser
-        left join fetch m.createdByUser
-        where m.id = :taskId
-        """
+    select m
+    from ModerationTaskDto m
+    where m.id = :taskId
+    """
     )
     fun findByIdForUpdate(@Param("taskId") taskId: Long): ModerationTaskDto?
 

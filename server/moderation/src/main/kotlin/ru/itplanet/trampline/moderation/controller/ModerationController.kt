@@ -2,6 +2,7 @@ package ru.itplanet.trampline.moderation.controller
 
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Positive
+import org.springframework.http.MediaType
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
@@ -9,7 +10,9 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.annotation.CurrentUser
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.moderation.model.request.ApproveModerationTaskRequest
@@ -112,6 +115,19 @@ class ModerationController(
         @Valid @RequestBody request: CommentModerationTaskRequest,
     ): ModerationTaskDetailResponse {
         moderationCommandService.comment(taskId, currentUser, request)
+        return moderationQueryService.getTask(taskId, currentUser)
+    }
+
+    @PostMapping(
+        value = ["/tasks/{taskId}/attachments"],
+        consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
+    )
+    fun addTaskAttachment(
+        @PathVariable @Positive taskId: Long,
+        @RequestPart("file") file: MultipartFile,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ModerationTaskDetailResponse {
+        moderationCommandService.addAttachment(taskId, currentUser, file)
         return moderationQueryService.getTask(taskId, currentUser)
     }
 
