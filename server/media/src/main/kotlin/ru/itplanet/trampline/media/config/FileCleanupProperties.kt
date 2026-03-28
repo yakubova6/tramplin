@@ -13,6 +13,6 @@ data class FileCleanupProperties(
     var enabled: Boolean = true,
     @field:Positive
     var batchSize: Int = 50,
-    var deletedFileMinAge: Duration = Duration.ofMinutes(10),
+    var readyFileMinAge: Duration = Duration.ofMinutes(15),
     var fixedDelay: Duration = Duration.ofMinutes(30),
 )

@@ -26,51 +26,67 @@ class FileAssetCleanupService(
     }
 
     @Scheduled(fixedDelayString = "#{@fileCleanupProperties.fixedDelay.toMillis()}")
-    fun cleanupDeletedFiles() {
+    fun cleanupStandaloneOrphanFiles() {
         if (!fileCleanupProperties.enabled) {
             return
         }
 
-        val updatedAtBefore = OffsetDateTime.now().minus(fileCleanupProperties.deletedFileMinAge)
+        cleanupOldReadyStandaloneFiles()
+        retryDeleteMarkedFiles()
+    }
 
-        val candidates = transactionTemplate.execute {
-            fileAssetDao.findAllByStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(
-                status = FileAssetStatus.DELETED,
-                updatedAtBefore = updatedAtBefore,
-                pageable = PageRequest.of(0, fileCleanupProperties.batchSize),
-            ).mapNotNull { fileAsset ->
-                val fileId = fileAsset.id ?: return@mapNotNull null
+    private fun cleanupOldReadyStandaloneFiles() {
+        val createdAtBefore = OffsetDateTime.now().minus(fileCleanupProperties.readyFileMinAge)
+
+        val candidates = fileAssetDao.findAllByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+            status = FileAssetStatus.READY,
+            createdAtBefore = createdAtBefore,
+            pageable = PageRequest.of(0, fileCleanupProperties.batchSize),
+        )
+
+        candidates.forEach { fileAsset ->
+            val fileId = fileAsset.id ?: return@forEach
+            val deletionCandidate = markDeletedIfOrphaned(fileId) ?: return@forEach
+            deleteFromStorageAndFinalize(deletionCandidate)
+        }
+    }
+
+    private fun retryDeleteMarkedFiles() {
+        val candidates = fileAssetDao.findAllByStatusOrderByCreatedAtAsc(
+            status = FileAssetStatus.DELETED,
+            pageable = PageRequest.of(0, fileCleanupProperties.batchSize),
+        )
+
+        candidates.forEach { fileAsset ->
+            val fileId = fileAsset.id ?: return@forEach
+            deleteFromStorageAndFinalize(
                 DeletionCandidate(
                     fileId = fileId,
                     storageKey = fileAsset.storageKey,
-                )
-            }
-        }.orEmpty()
-
-        candidates.forEach(::deleteFromStorageAndFinalize)
+                ),
+            )
+        }
     }
 
     private fun markDeletedIfOrphaned(fileId: Long): DeletionCandidate? {
         return transactionTemplate.execute {
+            val fileAsset = fileAssetDao.findById(fileId).orElse(null)
+                ?: return@execute null
+
+            if (fileAsset.status != FileAssetStatus.READY && fileAsset.status != FileAssetStatus.DELETED) {
+                return@execute null
+            }
+
             if (fileAttachmentDao.existsByFileId(fileId)) {
                 return@execute null
             }
 
-            val fileAsset = fileAssetDao.findById(fileId).orElse(null)
-            if (fileAsset == null) {
-                logger.warn(
-                    "File {} became orphaned, but file asset record was not found",
-                    fileId,
-                )
-                return@execute null
-            }
-
-            if (fileAsset.status != FileAssetStatus.DELETED) {
+            if (fileAsset.status == FileAssetStatus.READY) {
                 fileAsset.status = FileAssetStatus.DELETED
                 fileAssetDao.save(fileAsset)
 
                 logger.info(
-                    "File {} has no active attachments, marked as DELETED and queued for storage cleanup",
+                    "File {} has no attachments, marked as DELETED and queued for object storage cleanup",
                     fileId,
                 )
             }
@@ -87,7 +103,7 @@ class FileAssetCleanupService(
             objectStorage.deleteObject(candidate.storageKey)
         } catch (ex: Exception) {
             logger.warn(
-                "Failed to delete orphaned file {} from object storage, cleanup will retry later",
+                "Failed to delete file {} from object storage, cleanup will retry later",
                 candidate.fileId,
                 ex,
             )
@@ -95,14 +111,6 @@ class FileAssetCleanupService(
         }
 
         transactionTemplate.executeWithoutResult {
-            if (fileAttachmentDao.existsByFileId(candidate.fileId)) {
-                logger.warn(
-                    "Skipping final cleanup for file {} because attachments appeared again",
-                    candidate.fileId,
-                )
-                return@executeWithoutResult
-            }
-
             val fileAsset = fileAssetDao.findById(candidate.fileId).orElse(null)
             if (fileAsset == null) {
                 logger.info(
@@ -114,9 +122,17 @@ class FileAssetCleanupService(
 
             if (fileAsset.status != FileAssetStatus.DELETED) {
                 logger.warn(
-                    "Skipping final cleanup for file {} because status is {}, expected DELETED",
+                    "Skipping cleanup finalization for file {} because status is {}, expected DELETED",
                     candidate.fileId,
                     fileAsset.status,
+                )
+                return@executeWithoutResult
+            }
+
+            if (fileAttachmentDao.existsByFileId(candidate.fileId)) {
+                logger.warn(
+                    "Skipping cleanup finalization for file {} because attachments appeared unexpectedly",
+                    candidate.fileId,
                 )
                 return@executeWithoutResult
             }

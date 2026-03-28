@@ -48,5 +48,5 @@ media:
   cleanup:
     enabled: true
     batch-size: 50
-    deleted-file-min-age: 10m
+    deleted-file-min-age: 15m
     fixed-delay: 30m
