@@ -319,7 +319,7 @@ class ModerationCommandServiceImpl(
             file = file,
             ownerUserId = currentUser.userId,
             kind = FileAssetKind.MODERATION_ATTACHMENT,
-            visibility = FileAssetVisibility.PRIVATE,
+            visibility = FileAssetVisibility.AUTHENTICATED,
         )
 
         val attachment = mediaServiceClient.createAttachment(
@@ -652,6 +652,7 @@ class ModerationCommandServiceImpl(
     }
 
     private fun conflict(message: String): ResponseStatusException {
+        println(message)
         return ResponseStatusException(HttpStatus.CONFLICT, message)
     }
 
