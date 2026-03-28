@@ -20,17 +20,20 @@ import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.profile.client.MediaServiceClient
 import ru.itplanet.trampline.profile.client.ModerationServiceClient
+import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerVerificationDao
 import ru.itplanet.trampline.profile.dao.dto.EmployerVerificationDto
 import ru.itplanet.trampline.profile.model.enums.VerificationMethod
 import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 import ru.itplanet.trampline.profile.model.request.EmployerVerificationRequest
 import ru.itplanet.trampline.profile.model.response.EmployerVerificationResponse
+import java.time.OffsetDateTime
 
 @Primary
 @Service
 class EmployerVerificationServiceImpl(
     private val employerVerificationDao: EmployerVerificationDao,
+    private val employerProfileDao: EmployerProfileDao,
     private val mediaServiceClient: MediaServiceClient,
     private val moderationServiceClient: ModerationServiceClient,
     private val objectMapper: ObjectMapper,
@@ -100,7 +103,7 @@ class EmployerVerificationServiceImpl(
 
         return moderationServiceClient.getTaskByEntity(
             entityType = ModerationEntityType.EMPLOYER_VERIFICATION,
-            entityId = verification.id!!,
+            entityId = requireNotNull(verification.id),
             taskType = ModerationTaskType.VERIFICATION_REVIEW,
         )
     }
@@ -115,15 +118,23 @@ class EmployerVerificationServiceImpl(
 
         val taskLookup = moderationServiceClient.getTaskByEntity(
             entityType = ModerationEntityType.EMPLOYER_VERIFICATION,
-            entityId = verification.id!!,
+            entityId = requireNotNull(verification.id),
             taskType = ModerationTaskType.VERIFICATION_REVIEW,
         )
 
-        if (!taskLookup.exists || taskLookup.taskId == null) {
-            return
+        val taskId = taskLookup.taskId
+        if (taskLookup.exists && taskId != null) {
+            moderationServiceClient.cancelTask(taskId)
         }
 
-        moderationServiceClient.cancelTask(taskLookup.taskId!!)
+        verification.status = VerificationStatus.REJECTED
+        verification.reviewComment = "Verification request cancelled by employer"
+        verification.reviewedAt = OffsetDateTime.now()
+        verification.reviewedByUserId = null
+
+        employerProfileDao.findById(verification.employerUserId).orElse(null)?.let { profile ->
+            profile.verificationStatus = VerificationStatus.REJECTED
+        }
     }
 
     @Transactional
@@ -215,7 +226,7 @@ class EmployerVerificationServiceImpl(
 
     private fun toResponse(entity: EmployerVerificationDto): EmployerVerificationResponse {
         return EmployerVerificationResponse(
-            id = entity.id!!,
+            id = requireNotNull(entity.id),
             employerUserId = entity.employerUserId,
             status = entity.status.name,
             verificationMethod = entity.verificationMethod?.name ?: "",

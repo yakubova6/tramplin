@@ -21,6 +21,10 @@ auth:
   service:
     url: ${AUTH_SERVICE_URL:http://localhost:9999}
 
+moderation:
+  service:
+    url: ${MODERATION_SERVICE_URL:http://localhost:8082}
+
 internal-api:
   api-key: moderation-api-key
 
