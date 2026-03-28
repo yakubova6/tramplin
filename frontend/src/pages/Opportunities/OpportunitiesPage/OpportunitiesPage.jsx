@@ -4,13 +4,12 @@ import Button from '../../../components/Button'
 import Input from '../../../components/Input'
 import CustomSelect from '../../../components/CustomSelect'
 import Navbar from '../../../layouts/Navbar'
-import YandexOpportunityMap from '../../../components/Map/YandexOpportunityMap'
+import YandexOpportunityMap from '../../../components/map/YandexOpportunityMap'
 import { useToast } from '../../../hooks/use-toast'
 import {
     listOpportunityMap,
     listOpportunities,
     listTags,
-    applyToOpportunity,
     OPPORTUNITY_LABELS
 } from '../../../api/opportunities'
 import './OpportunitiesPage.scss'
@@ -70,6 +69,34 @@ function getStorageSet(key) {
     }
 }
 
+function saveApplicationToLocal(opportunity) {
+    const user = getCurrentUser()
+    if (!user?.email) {
+        throw new Error('Чтобы откликнуться, необходимо войти в аккаунт соискателя')
+    }
+
+    const key = `seeker_applications_${user.email}`
+    const saved = localStorage.getItem(key)
+    const items = saved ? JSON.parse(saved) : []
+    if (items.some((item) => item.opportunityId === opportunity.id)) {
+        return { alreadyApplied: true }
+    }
+
+    const nextItem = {
+        id: Date.now(),
+        opportunityId: opportunity.id,
+        position: opportunity.title,
+        companyName: opportunity.companyName,
+        status: 'PENDING',
+        message: 'Отклик отправлен',
+        appliedAt: new Date().toISOString(),
+    }
+
+    const next = [nextItem, ...items]
+    localStorage.setItem(key, JSON.stringify(next))
+    return { alreadyApplied: false }
+}
+
 function OpportunitiesPage() {
     const [, navigate] = useLocation()
     const { toast } = useToast()
@@ -125,14 +152,12 @@ function OpportunitiesPage() {
 
     // Загрузка тегов
     useEffect(() => {
-        console.log('[Debug] Loading tags...')
         listTags('TECH')
             .then((data) => {
-                console.log('[Debug] Tags loaded:', data)
                 setTags(data || [])
             })
             .catch((err) => {
-                console.error('[Debug] Error loading tags:', err)
+                console.error('Error loading tags:', err)
                 setTags([])
             })
     }, [])
@@ -146,7 +171,6 @@ function OpportunitiesPage() {
             setError('')
 
             try {
-                console.log('[Debug] Loading opportunities with params:', queryParams)
                 const [listData, mapData] = await Promise.all([
                     listOpportunities(queryParams),
                     listOpportunityMap({ ...queryParams, limit: 100, offset: 0 }),
@@ -154,15 +178,11 @@ function OpportunitiesPage() {
 
                 if (!mounted) return
 
-                console.log('[Debug] Opportunities loaded:', listData?.items?.length || 0, 'items')
-                console.log('[Debug] Map points loaded:', mapData?.items?.length || 0, 'points')
-
                 setOpportunities(listData?.items || [])
                 setTotal(listData?.total || 0)
                 setMapPoints(mapData?.items || [])
             } catch (requestError) {
                 if (!mounted) return
-                console.error('[Debug] Load error:', requestError)
                 setError(requestError?.message || 'Не удалось загрузить вакансии')
             } finally {
                 if (mounted) setIsLoading(false)
@@ -226,16 +246,8 @@ function OpportunitiesPage() {
         }
 
         try {
-            await applyToOpportunity(opportunity.id)
-            toast({
-                title: 'Отклик отправлен',
-                description: 'Ваш отклик успешно отправлен работодателю',
-                variant: 'default'
-            })
-        } catch (applyError) {
-            console.error('Apply error:', applyError)
-
-            if (applyError.message?.includes('already') || applyError.message?.includes('уже')) {
+            const result = saveApplicationToLocal(opportunity)
+            if (result.alreadyApplied) {
                 toast({
                     title: 'Уже откликались',
                     description: 'Вы уже откликались на эту возможность',
@@ -244,6 +256,12 @@ function OpportunitiesPage() {
                 return
             }
 
+            toast({
+                title: 'Отклик отправлен',
+                description: 'Ваш отклик успешно сохранён',
+                variant: 'default'
+            })
+        } catch (applyError) {
             toast({
                 title: 'Ошибка',
                 description: applyError.message || 'Не удалось отправить отклик',
@@ -259,6 +277,46 @@ function OpportunitiesPage() {
         }
     }
 
+    // ========== ОБРАБОТЧИКИ ДЛЯ ФИЛЬТРОВ ==========
+    const handleSearchChange = (e) => {
+        setPage(0)
+        setFilters((prev) => ({ ...prev, search: e.target.value }))
+    }
+
+    const handleSkillsChange = (e) => {
+        setPage(0)
+        setFilters((prev) => ({ ...prev, skillsQuery: e.target.value }))
+    }
+
+    const handleTypeChange = (value) => {
+        setPage(0)
+        setFilters((prev) => ({ ...prev, type: value }))
+    }
+
+    const handleFormatChange = (value) => {
+        setPage(0)
+        setFilters((prev) => ({ ...prev, format: value }))
+    }
+
+    const handleSalaryFromChange = (e) => {
+        setPage(0)
+        setSalaryRange({ ...salaryRange, from: e.target.value })
+    }
+
+    const handleSalaryToChange = (e) => {
+        setPage(0)
+        setSalaryRange({ ...salaryRange, to: e.target.value })
+    }
+
+    const handleTagClick = (tagId) => {
+        setPage(0)
+        setSelectedTags((prev) =>
+            prev.includes(tagId)
+                ? prev.filter((id) => id !== tagId)
+                : [...prev, tagId]
+        )
+    }
+
     return (
         <div className="opportunities-page">
             <Navbar />
@@ -271,34 +329,22 @@ function OpportunitiesPage() {
                     <div className="opportunities-page__search-bar">
                         <Input
                             value={filters.search}
-                            onChange={(event) => {
-                                setPage(0)
-                                setFilters((prev) => ({ ...prev, search: event.target.value }))
-                            }}
+                            onChange={handleSearchChange}
                             placeholder="Поиск по компании, названию, описанию"
                         />
                         <Input
                             value={filters.skillsQuery}
-                            onChange={(event) => {
-                                setPage(0)
-                                setFilters((prev) => ({ ...prev, skillsQuery: event.target.value }))
-                            }}
-                            placeholder="Навыки и теги"
+                            onChange={handleSkillsChange}
+                            placeholder="Навыки"
                         />
                         <CustomSelect
                             value={filters.type}
-                            onChange={(value) => {
-                                setPage(0)
-                                setFilters((prev) => ({ ...prev, type: value }))
-                            }}
+                            onChange={handleTypeChange}
                             options={TYPE_OPTIONS}
                         />
                         <CustomSelect
                             value={filters.format}
-                            onChange={(value) => {
-                                setPage(0)
-                                setFilters((prev) => ({ ...prev, format: value }))
-                            }}
+                            onChange={handleFormatChange}
                             options={FORMAT_OPTIONS}
                         />
                     </div>
@@ -310,10 +356,7 @@ function OpportunitiesPage() {
                             <Input
                                 type="number"
                                 value={salaryRange.from}
-                                onChange={(e) => {
-                                    setPage(0)
-                                    setSalaryRange({ ...salaryRange, from: e.target.value })
-                                }}
+                                onChange={handleSalaryFromChange}
                                 placeholder="от"
                                 className="salary-input"
                             />
@@ -321,10 +364,7 @@ function OpportunitiesPage() {
                             <Input
                                 type="number"
                                 value={salaryRange.to}
-                                onChange={(e) => {
-                                    setPage(0)
-                                    setSalaryRange({ ...salaryRange, to: e.target.value })
-                                }}
+                                onChange={handleSalaryToChange}
                                 placeholder="до"
                                 className="salary-input"
                             />
@@ -340,14 +380,7 @@ function OpportunitiesPage() {
                                     key={tag.id}
                                     type="button"
                                     className={`opportunities-page__tag ${selectedTags.includes(tag.id) ? 'is-active' : ''}`}
-                                    onClick={() => {
-                                        setPage(0)
-                                        setSelectedTags((prev) =>
-                                            prev.includes(tag.id)
-                                                ? prev.filter((id) => id !== tag.id)
-                                                : [...prev, tag.id]
-                                        )
-                                    }}
+                                    onClick={() => handleTagClick(tag.id)}
                                 >
                                     #{tag.name}
                                 </button>

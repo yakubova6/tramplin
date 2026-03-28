@@ -15,15 +15,20 @@ function CustomSelect({
     const [isOpen, setIsOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(-1)
     const [menuPosition, setMenuPosition] = useState(null)
+
     const rootRef = useRef(null)
     const buttonRef = useRef(null)
+    const menuRef = useRef(null)
 
     const selected = options.find((o) => o.value === value)
 
     useEffect(() => {
         const onDocClick = (e) => {
-            if (rootRef.current && !rootRef.current.contains(e.target)) setIsOpen(false)
+            const insideRoot = rootRef.current?.contains(e.target)
+            const insideMenu = menuRef.current?.contains(e.target)
+            if (!insideRoot && !insideMenu) setIsOpen(false)
         }
+
         document.addEventListener('mousedown', onDocClick)
         return () => document.removeEventListener('mousedown', onDocClick)
     }, [])
@@ -74,6 +79,7 @@ function CustomSelect({
 
     const menu = isOpen && menuPosition && createPortal(
         <div
+            ref={menuRef}
             className="custom-select__menu custom-select__menu--portal"
             role="listbox"
             style={{
@@ -113,6 +119,7 @@ function CustomSelect({
                     {required && <span className="required-star"> *</span>}
                 </Label>
             )}
+
             <div className="custom-select__wrapper">
                 <button
                     ref={buttonRef}
@@ -127,6 +134,7 @@ function CustomSelect({
                     <span className={`custom-select__arrow ${isOpen ? 'is-open' : ''}`}>▾</span>
                 </button>
             </div>
+
             {menu}
             {error && <p className="field-error">{error}</p>}
         </div>

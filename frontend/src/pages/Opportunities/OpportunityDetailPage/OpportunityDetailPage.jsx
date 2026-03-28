@@ -3,11 +3,11 @@ import { Link, useLocation, useRoute } from 'wouter'
 import Navbar from '../../../layouts/Navbar'
 import Button from '../../../components/Button'
 import { useToast } from '../../../hooks/use-toast'
-import YandexOpportunityMap from '../../../components/Map/YandexOpportunityMap'
+import YandexOpportunityMap from '../../../components/map/YandexOpportunityMap'
 import { getOpportunity, OPPORTUNITY_LABELS } from '../../../api/opportunities'
 import './OpportunityDetailPage.scss'
 
-// Импорт SVG иконок из папки assets
+// Импорт SVG иконок
 import locationIcon from '../../../assets/icons/location.svg'
 import briefcaseIcon from '../../../assets/icons/briefcase.svg'
 import calendarIcon from '../../../assets/icons/calendar.svg'
@@ -163,7 +163,18 @@ export default function OpportunityDetailPage() {
             <Navbar />
 
             <main className="container opportunity-detail-page__main">
-                <Link href="/frontend/public" className="opportunity-detail-page__back">
+                <Link
+                    href="/"
+                    className="opportunity-detail-page__back"
+                    onClick={(event) => {
+                        event.preventDefault()
+                        if (window.history.length > 1) {
+                            window.history.back()
+                            return
+                        }
+                        navigate('/')
+                    }}
+                >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M15 18L9 12L15 6" />
                     </svg>
@@ -180,7 +191,7 @@ export default function OpportunityDetailPage() {
                 {error && (
                     <div className="opportunity-detail-page__error-card">
                         <p>{error}</p>
-                        <Link href="/frontend/public">
+                        <Link href="/">
                             <Button>Вернуться к поиску</Button>
                         </Link>
                     </div>
