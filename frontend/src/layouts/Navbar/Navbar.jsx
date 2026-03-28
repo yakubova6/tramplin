@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'wouter'
 import { useState, useEffect } from 'react'
 import brandMark from '../../assets/icons/brand-mark.svg'
-import { getCurrentUserInfo } from '../../utils/authApi'
+import { getCurrentUserInfo, logoutUser } from '../../api/authApi'
 import { getApplicantProfile, getEmployerProfile } from '../../utils/profileApi'
+import { getCurrentUser, setCurrentUser, clearCurrentUser } from '../../utils/userHelpers'
 import './Navbar.scss'
 
 function Navbar() {
@@ -16,6 +17,7 @@ function Navbar() {
         try {
             // Получаем данные о сессии
             const sessionData = await getCurrentUserInfo()
+            console.log('[Navbar] Session data:', sessionData)
 
             // Сохраняем пользователя в state
             let userData
@@ -28,11 +30,16 @@ function Navbar() {
             setUser(userData)
 
             if (!userData) {
+                // Если нет пользователя, чистим localStorage
+                clearCurrentUser()
                 setIsLoading(false)
                 return
             }
 
-            // В зависимости от роли, получаем профиль
+            // Сохраняем в localStorage как кэш
+            setCurrentUser(userData)
+
+            // В зависимости от роли, получаем профиль для отображения имени
             if (userData.role === 'APPLICANT') {
                 try {
                     const profile = await getApplicantProfile()
@@ -66,16 +73,41 @@ function Navbar() {
                 setDisplayName(userData.displayName || userData.email?.split('@')[0])
             }
         } catch (error) {
-            console.error('Failed to load user data:', error)
-            // Пробуем получить из localStorage как fallback
-            const stored = localStorage.getItem('tramplin_current_user')
-            if (stored) {
-                const localUser = JSON.parse(stored)
-                setUser(localUser)
-                setDisplayName(localUser.displayName || localUser.email?.split('@')[0])
+            console.error('[Navbar] Failed to load user data:', error)
+
+            // При 401 или любой ошибке авторизации — чистим localStorage
+            if (error.message?.includes('401') || error.message?.includes('истекла') || error.message?.includes('Unauthorized')) {
+                clearCurrentUser()
+                setUser(null)
+                setDisplayName('')
+            } else {
+                // Fallback на localStorage только при ошибках сети
+                const cachedUser = getCurrentUser()
+                if (cachedUser) {
+                    console.log('[Navbar] Using cached user from localStorage')
+                    setUser(cachedUser)
+                    setDisplayName(cachedUser.displayName || cachedUser.email?.split('@')[0])
+                }
             }
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    const handleLogout = async () => {
+        try {
+            // Вызываем backend logout
+            await logoutUser()
+            console.log('[Navbar] Logout successful')
+        } catch (error) {
+            console.error('[Navbar] Logout error:', error)
+        } finally {
+            // В любом случае чистим локальные данные
+            clearCurrentUser()
+            setUser(null)
+            setDisplayName('')
+            // Редирект на главную
+            window.location.href = '/'
         }
     }
 
@@ -91,20 +123,18 @@ function Navbar() {
                 if (fullName) {
                     setDisplayName(fullName)
                     // Обновляем также в localStorage
-                    const stored = localStorage.getItem('tramplin_current_user')
+                    const stored = getCurrentUser()
                     if (stored) {
-                        const localUser = JSON.parse(stored)
-                        localUser.displayName = fullName
-                        localStorage.setItem('tramplin_current_user', JSON.stringify(localUser))
+                        stored.displayName = fullName
+                        setCurrentUser(stored)
                     }
                 }
             } else if (role === 'EMPLOYER' && companyName) {
                 setDisplayName(companyName)
-                const stored = localStorage.getItem('tramplin_current_user')
+                const stored = getCurrentUser()
                 if (stored) {
-                    const localUser = JSON.parse(stored)
-                    localUser.displayName = companyName
-                    localStorage.setItem('tramplin_current_user', JSON.stringify(localUser))
+                    stored.displayName = companyName
+                    setCurrentUser(stored)
                 }
             } else {
                 // Если нет данных, перезагружаем полностью
@@ -118,11 +148,6 @@ function Navbar() {
             window.removeEventListener('profile-updated', handleProfileUpdate)
         }
     }, [])
-
-    const handleLogout = () => {
-        localStorage.removeItem('tramplin_current_user')
-        window.location.href = '/login'
-    }
 
     const isActive = (path) => location === path
 
