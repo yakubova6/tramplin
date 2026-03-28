@@ -39,23 +39,28 @@ export const OPPORTUNITY_LABELS = {
 
 export async function listOpportunities(params = {}) {
     const query = toQuery(params)
+    console.log('[API] listOpportunities:', `${API_BASE}/opportunities${query ? `?${query}` : ''}`)
     return httpJson(`${API_BASE}/opportunities${query ? `?${query}` : ''}`)
 }
 
 export async function listOpportunityMap(params = {}) {
     const query = toQuery(params)
+    console.log('[API] listOpportunityMap:', `${API_BASE}/opportunities/map${query ? `?${query}` : ''}`)
     return httpJson(`${API_BASE}/opportunities/map${query ? `?${query}` : ''}`)
 }
 
 export async function getOpportunity(id) {
+    console.log('[API] getOpportunity:', `${API_BASE}/opportunities/${id}`)
     return httpJson(`${API_BASE}/opportunities/${id}`)
 }
 
 export async function listTags(category) {
     const query = toQuery({ category })
+    console.log('[API] listTags:', `${API_BASE}/tags${query ? `?${query}` : ''}`)
     return httpJson(`${API_BASE}/tags${query ? `?${query}` : ''}`)
 }
 
+// Employer endpoints
 export async function listEmployerOpportunities(params = {}) {
     const query = toQuery(params)
     return httpJson(`${API_BASE}/employer/opportunities${query ? `?${query}` : ''}`)
@@ -85,4 +90,17 @@ export async function closeEmployerOpportunity(id) {
 
 export async function archiveEmployerOpportunity(id) {
     return httpJson(`${API_BASE}/employer/opportunities/${id}/archive`, { method: 'POST' })
+}
+
+export async function returnToDraftEmployerOpportunity(id) {
+    return httpJson(`${API_BASE}/employer/opportunities/${id}/return-to-draft`, { method: 'POST' })
+}
+
+// Отклик на вакансию
+export async function applyToOpportunity(opportunityId, message = '') {
+    console.log('[API] applyToOpportunity:', `${API_BASE}/opportunities/${opportunityId}/apply`)
+    return httpJson(`${API_BASE}/opportunities/${opportunityId}/apply`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+    })
 }
