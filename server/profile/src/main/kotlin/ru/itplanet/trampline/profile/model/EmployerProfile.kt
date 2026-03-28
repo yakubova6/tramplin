@@ -2,9 +2,10 @@ package ru.itplanet.trampline.profile.model
 
 import ru.itplanet.trampline.commons.model.City
 import ru.itplanet.trampline.commons.model.Location
+import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
 import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 
-data class EmployerProfile (
+data class EmployerProfile(
     val userId: Long,
     val companyName: String?,
     val legalName: String?,
@@ -19,4 +20,5 @@ data class EmployerProfile (
     val socialLinks: List<String>, // TODO: переделать в List моделей
     val publicContacts: Map<String, String>, // TODO: переделать в List моделей
     val verificationStatus: VerificationStatus,
+    val logo: InternalFileMetadataResponse? = null,
 )

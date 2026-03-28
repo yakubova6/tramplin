@@ -30,4 +30,5 @@ data class ApplicantProfile(
     val openToEvents: Boolean,
     val avatar: InternalFileMetadataResponse? = null,
     val resumeFile: InternalFileMetadataResponse? = null,
+    val portfolioFiles: List<InternalFileMetadataResponse> = emptyList(),
 )

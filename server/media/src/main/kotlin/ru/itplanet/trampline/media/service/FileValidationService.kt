@@ -62,14 +62,14 @@ class FileValidationService {
         return when (kind) {
             FileAssetKind.AVATAR,
             FileAssetKind.LOGO,
-            FileAssetKind.OPPORTUNITY_MEDIA -> 5L * 1024 * 1024
+            FileAssetKind.OPPORTUNITY_MEDIA -> 10L * 1024 * 1024
 
             FileAssetKind.RESUME,
             FileAssetKind.VERIFICATION_ATTACHMENT,
-            FileAssetKind.APPLICATION_ATTACHMENT -> 10L * 1024 * 1024
+            FileAssetKind.APPLICATION_ATTACHMENT -> 20L * 1024 * 1024
 
             FileAssetKind.PORTFOLIO,
-            FileAssetKind.OTHER -> 20L * 1024 * 1024
+            FileAssetKind.OTHER -> 50L * 1024 * 1024
         }
     }
 
