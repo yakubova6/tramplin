@@ -1,6 +1,7 @@
 package ru.itplanet.trampline.profile.model
 
 import ru.itplanet.trampline.commons.model.City
+import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
@@ -26,5 +27,6 @@ data class ApplicantProfile (
     val applicationsVisibility: ApplicationsVisibility,
     val contactsVisibility: ContactsVisibility,
     val openToWork: Boolean,
-    val openToEvents: Boolean
+    val openToEvents: Boolean,
+    val avatar: InternalFileMetadataResponse? = null,
 )

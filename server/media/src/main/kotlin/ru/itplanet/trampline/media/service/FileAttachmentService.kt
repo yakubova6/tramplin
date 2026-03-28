@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.media.service
 
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -11,7 +13,7 @@ import ru.itplanet.trampline.commons.dao.FileAttachmentDao
 import ru.itplanet.trampline.commons.dao.dto.FileAttachmentDto
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
-import ru.itplanet.trampline.media.model.request.CreateFileAttachmentRequest
+import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequest
 
 @Service
 class FileAttachmentService(
@@ -19,8 +21,11 @@ class FileAttachmentService(
     private val fileAttachmentDao: FileAttachmentDao,
 ) {
 
+    @PersistenceContext
+    private lateinit var entityManager: EntityManager
+
     @Transactional
-    fun create(request: CreateFileAttachmentRequest): FileAttachmentDto {
+    fun create(request: InternalCreateFileAttachmentRequest): FileAttachmentDto {
         val fileAsset = fileAssetDao.findById(request.fileId)
             .orElseThrow { fileNotFound() }
 
@@ -31,7 +36,7 @@ class FileAttachmentService(
         if (fileAsset.status != FileAssetStatus.READY) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "File must be in READY status to be attached. Current status: ${fileAsset.status.name}"
+                "File must be in READY status to be attached. Current status: ${fileAsset.status.name}",
             )
         }
 
@@ -45,29 +50,33 @@ class FileAttachmentService(
         ) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "File is already attached to this entity with this role"
+                "File is already attached to this entity with this role",
             )
         }
 
         val savedAttachment = try {
-            fileAttachmentDao.save(
+            fileAttachmentDao.saveAndFlush(
                 FileAttachmentDto().apply {
                     fileId = request.fileId
                     entityType = request.entityType
                     entityId = request.entityId
                     attachmentRole = request.attachmentRole
                     sortOrder = request.sortOrder
-                }
+                },
             )
         } catch (ex: DataIntegrityViolationException) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "File is already attached to this entity with this role",
-                ex
+                ex,
             )
         }
 
-        return fileAttachmentDao.findOneById(savedAttachment.id!!)
+        // Ключевой момент:
+        // без detach Hibernate может вернуть тот же managed instance с file = null
+        entityManager.detach(savedAttachment)
+
+        return fileAttachmentDao.findDetailedById(savedAttachment.id!!)
             ?: throw IllegalStateException("Created attachment ${savedAttachment.id} not found")
     }
 
@@ -76,7 +85,7 @@ class FileAttachmentService(
         entityType: FileAttachmentEntityType,
         entityId: Long,
     ): List<FileAttachmentDto> {
-        return fileAttachmentDao.findAllByEntityTypeAndEntityIdOrderBySortOrderAscIdAsc(
+        return fileAttachmentDao.findAllDetailedByEntityTypeAndEntityId(
             entityType = entityType,
             entityId = entityId,
         )
@@ -103,18 +112,24 @@ class FileAttachmentService(
 
         val fileAsset = fileAssetDao.findById(fileId).orElse(null)
         if (fileAsset == null) {
-            logger.warn("File {} became orphaned after attachment detach, but file asset record was not found", fileId)
+            logger.warn(
+                "File {} became orphaned after attachment detach, but file asset record was not found",
+                fileId,
+            )
             return
         }
 
         if (fileAsset.status == FileAssetStatus.DELETED) {
-            logger.info("File {} has no active attachments and is already marked as DELETED", fileId)
+            logger.info(
+                "File {} has no active attachments and is already marked as DELETED",
+                fileId,
+            )
             return
         }
 
         logger.info(
             "File {} has no active attachments and is now orphaned. For MVP it remains stored as-is and should be processed by a cleanup job later",
-            fileId
+            fileId,
         )
     }
 

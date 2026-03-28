@@ -1,11 +1,9 @@
-package ru.itplanet.trampline.media.model.request
+package ru.itplanet.trampline.commons.model.file
 
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.PositiveOrZero
-import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
-import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
 
-data class CreateFileAttachmentRequest(
+data class InternalCreateFileAttachmentRequest(
     @field:Positive
     val fileId: Long,
 

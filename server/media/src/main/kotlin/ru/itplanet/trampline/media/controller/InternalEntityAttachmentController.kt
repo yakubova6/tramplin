@@ -7,22 +7,23 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
-import ru.itplanet.trampline.media.model.response.FileAttachmentResponse
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
+import ru.itplanet.trampline.media.mapper.toInternalFileAttachmentResponse
 import ru.itplanet.trampline.media.service.FileAttachmentService
 
 @Validated
 @RestController
 @RequestMapping("/internal/entities")
 class InternalEntityAttachmentController(
-    private val fileAttachmentService: FileAttachmentService
+    private val fileAttachmentService: FileAttachmentService,
 ) {
 
     @GetMapping("/{entityType}/{entityId}/attachments")
     fun getAttachments(
         @PathVariable entityType: FileAttachmentEntityType,
         @PathVariable @Positive entityId: Long,
-    ): List<FileAttachmentResponse> {
+    ): List<InternalFileAttachmentResponse> {
         return fileAttachmentService.getByEntity(entityType, entityId)
-            .map(FileAttachmentResponse::from)
+            .map { it.toInternalFileAttachmentResponse() }
     }
 }
