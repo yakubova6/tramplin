@@ -74,11 +74,11 @@ export async function searchCities(query) {
  */
 export async function getApplicantProfile() {
     const user = getCurrentUser()
-    if (!user || !user.userId) {
+    if (!user || !user.id) {
         throw new Error('Пользователь не авторизован')
     }
 
-    const url = `/api/profile/applicant/${user.userId}`
+    const url = `/api/profile/applicant/${user.id}`
     console.log('[API] GET applicant profile:', url)
 
     try {
