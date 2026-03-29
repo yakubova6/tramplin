@@ -39,6 +39,8 @@ services:
     container_name: tramplin_auth
     image: tramplin_auth:latest
     build: ./server/auth
+    env_file:
+      - creds.env
     environment:
       PORT: 9999
 
@@ -63,6 +65,8 @@ services:
     container_name: tramplin_profile
     image: tramplin_profile:latest
     build: ./server/profile
+    env_file:
+      - creds.env
     environment:
       PORT: 8080
       AUTH_SERVER_HOST: http://auth:9999
@@ -85,6 +89,8 @@ services:
     container_name: tramplin_opportunity
     image: tramplin_opportunity:latest
     build: ./server/opportunity
+    env_file:
+      - creds.env
     environment:
       PORT: 8081
       AUTH_SERVER_HOST: http://auth:9999
@@ -110,6 +116,8 @@ services:
     container_name: tramplin_moderation
     image: tramplin_moderation:latest
     build: ./server/moderation
+    env_file:
+      - creds.env
     environment:
       PORT: 8082
       AUTH_SERVER_HOST: http://auth:9999
@@ -137,6 +145,8 @@ services:
     container_name: tramplin_interaction
     image: tramplin_interaction:latest
     build: ./server/interaction
+    env_file:
+      - creds.env
     environment:
       PORT: 8083
       AUTH_SERVER_HOST: http://auth:9999
@@ -162,6 +172,8 @@ services:
     container_name: tramplin_geo
     image: tramplin_geo:latest
     build: ./server/geo
+    env_file:
+      - creds.env
     environment:
       PORT: 8084
       AUTH_SERVER_HOST: http://auth:9999
