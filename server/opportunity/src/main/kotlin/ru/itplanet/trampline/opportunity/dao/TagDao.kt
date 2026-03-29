@@ -20,4 +20,9 @@ interface TagDao : JpaRepository<TagDto, Long> {
         category: TagCategory,
         name: String,
     ): List<TagDto>
+
+    fun findAllByIdInAndIsActiveTrueAndModerationStatusOrderByNameAsc(
+        ids: Collection<Long>,
+        moderationStatus: TagModerationStatus,
+    ): List<TagDto>
 }

@@ -7,7 +7,6 @@ import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.config.web.PathPatternRequestMatcherBuilderFactoryBean
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.logout.LogoutFilter
@@ -22,33 +21,21 @@ import ru.itplanet.trampline.interaction.security.SessionAuthenticationFilter
 @EnableConfigurationProperties(
     value = [
         AuthServiceProperties::class,
-        InternalApiProperties::class
-    ]
+        InternalApiProperties::class,
+    ],
 )
 class SecurityConfig(
     private val sessionAuthenticationFilter: SessionAuthenticationFilter,
     private val internalApiRequestFilter: InternalApiRequestFilter,
     private val apiAuthenticationEntryPoint: ApiAuthenticationEntryPoint,
-    private val apiAccessDeniedHandler: ApiAccessDeniedHandler
+    private val apiAccessDeniedHandler: ApiAccessDeniedHandler,
 ) {
-
-    @Bean
-    fun requestMatcherBuilder(): PathPatternRequestMatcherBuilderFactoryBean {
-        return PathPatternRequestMatcherBuilderFactoryBean()
-    }
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         val request = PathPatternRequestMatcher.withDefaults()
 
         return http
-            // .csrf { csrf ->
-            //     csrf
-            //         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-            //         .ignoringRequestMatchers(
-            //             request.matcher("/internal/**")
-            //         )
-            // }
             .csrf { it.disable() } // TODO: потом вернуть
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
@@ -64,8 +51,9 @@ class SecurityConfig(
                         request.matcher("/v3/api-docs/**"),
                         request.matcher("/swagger-ui.html"),
                         request.matcher("/swagger-ui/**"),
-                        request.matcher("/error")
+                        request.matcher("/error"),
                     ).permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/employer/**").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.PATCH, "/api/interaction/responses/**").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.PATCH, "/api/interaction/contacts/**").hasRole("APPLICANT")
                     .requestMatchers(HttpMethod.GET, "/api/interaction/opportunities/**").hasRole("EMPLOYER")

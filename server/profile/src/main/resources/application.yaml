@@ -5,9 +5,23 @@ spring:
   application:
     name: profile
   datasource:
-    url: ${PROFILE_DB_URL:jdbc:postgresql://64.188.97.232:5432/tramplin}
-    username: ${PROFILE_DB_USERNAME:tramplin_adm}
-    password: ${PROFILE_DB_PASSWORD:tramplin_adm}
+    url: ${PROFILE_DB_URL}
+    username: ${PROFILE_DB_USERNAME}
+    password: ${PROFILE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: ProfileHikariPool
+      maximum-pool-size: 8
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 540000
+      keepalive-time: 240000
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
   servlet:
     multipart:
@@ -26,6 +40,14 @@ moderation:
   service:
     url: ${MODERATION_SERVICE_URL:http://localhost:8082}
 
+opportunity:
+  service:
+    url: ${OPPORTUNITY_SERVICE_URL:http://localhost:8081}
+
+interaction:
+  service:
+    url: ${INTERACTION_SERVICE_URL:http://localhost:8083}
+
 feign:
   client:
     config:
@@ -34,7 +56,7 @@ feign:
         readTimeout: 5000
 
 internal-api:
-  api-key: moderation-api-key
+  api-key: ${INTERNAL_API_KEY}
 
 springdoc:
   paths-to-match: /api/**

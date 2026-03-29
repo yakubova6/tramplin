@@ -6,9 +6,23 @@ spring:
     name: opportunity
 
   datasource:
-    url: jdbc:postgresql://64.188.97.232:5432/tramplin
-    username: tramplin_adm
-    password: tramplin_adm
+    url: ${PROFILE_DB_URL}
+    username: ${PROFILE_DB_USERNAME}
+    password: ${PROFILE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: OpportunityHikariPool
+      maximum-pool-size: 8
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 540000
+      keepalive-time: 240000
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
 feign:
   client:
@@ -29,8 +43,12 @@ media:
   service:
     url: ${MEDIA_SERVER_HOST:http://localhost:8091}
 
+profile:
+  service:
+    url: ${PROFILE_SERVER_HOST:http://localhost:8080}
+
 internal-api:
-  api-key: moderation-api-key
+  api-key: ${INTERNAL_API_KEY}
 
 springdoc:
   paths-to-match: /api/**

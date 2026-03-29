@@ -32,4 +32,6 @@ data class ApplicantProfilePatchRequest(
     val contactsVisibility: ContactsVisibility? = null,
     val openToWork: Boolean? = null,
     val openToEvents: Boolean? = null,
+    val skillTagIds: List<Long>? = null,
+    val interestTagIds: List<Long>? = null,
 )

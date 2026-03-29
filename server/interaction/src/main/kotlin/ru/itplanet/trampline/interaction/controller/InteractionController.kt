@@ -49,12 +49,6 @@ class InteractionController(
         @CurrentUser userId: Long,
     ): List<OpportunityResponseResponse> = interactionService.getUserApplications(userId)
 
-    @GetMapping("/opportunities/{opportunityId}/responses")
-    fun getOpportunityResponses(
-        @PathVariable opportunityId: Long,
-        @CurrentUser userId: Long,
-    ): List<OpportunityResponseResponse> = interactionService.getOpportunityApplications(opportunityId, userId)
-
     @PostMapping("/favorites/opportunities/{opportunityId}")
     fun addOpportunityToFavorites(
         @CurrentUser userId: Long,

@@ -3,11 +3,16 @@ package ru.itplanet.trampline.interaction.service
 import ru.itplanet.trampline.interaction.dao.dto.ContactStatus
 import ru.itplanet.trampline.interaction.model.request.ContactRequest
 import ru.itplanet.trampline.interaction.model.request.CreateContactRecommendationRequest
+import ru.itplanet.trampline.interaction.model.request.GetEmployerResponseListRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseStatusUpdateRequest
 import ru.itplanet.trampline.interaction.model.response.ContactRecommendationResponse
 import ru.itplanet.trampline.interaction.model.response.ContactResponse
+import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
+import ru.itplanet.trampline.interaction.model.response.EmployerResponsePage
 import ru.itplanet.trampline.interaction.model.response.FavoriteResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantApplicationResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactResponse
 import ru.itplanet.trampline.interaction.model.response.OpportunityResponseResponse
 
 interface InteractionService {
@@ -25,6 +30,20 @@ interface InteractionService {
         opportunityId: Long,
         currentUserId: Long,
     ): List<OpportunityResponseResponse>
+
+    fun getEmployerResponses(
+        currentUserId: Long,
+        request: GetEmployerResponseListRequest,
+    ): EmployerResponsePage<EmployerOpportunityResponseItem>
+
+    fun getApplicantApplicationsForPrivacy(userId: Long): List<InternalApplicantApplicationResponse>
+
+    fun getApplicantContactsForPrivacy(userId: Long): List<InternalApplicantContactResponse>
+
+    fun isAcceptedContact(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): Boolean
 
     fun addOpportunityToFavorites(
         userId: Long,

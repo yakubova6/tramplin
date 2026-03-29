@@ -5,9 +5,23 @@ spring:
   application:
     name: interaction
   datasource:
-    url: ${PROFILE_DB_URL:jdbc:postgresql://64.188.97.232:5432/tramplin}
-    username: ${PROFILE_DB_USERNAME:tramplin_adm}
-    password: ${PROFILE_DB_PASSWORD:tramplin_adm}
+    url: ${PROFILE_DB_URL}
+    username: ${PROFILE_DB_USERNAME}
+    password: ${PROFILE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: InteractionHikariPool
+      maximum-pool-size: 4
+      minimum-idle: 1
+      idle-timeout: 180000
+      max-lifetime: 540000
+      keepalive-time: 240000
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 
 auth:
   service:
@@ -31,7 +45,7 @@ feign:
         readTimeout: 5000
 
 internal-api:
-  api-key: moderation-api-key
+  api-key: ${INTERNAL_API_KEY}
 
 springdoc:
   paths-to-match: /api/**

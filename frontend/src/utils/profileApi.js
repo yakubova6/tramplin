@@ -1,4 +1,5 @@
 const API_BASE = '/api'
+
 import { CITIES } from '../constants/cities'
 import {
     archiveEmployerOpportunity,
@@ -45,6 +46,110 @@ async function apiRequest(endpoint, options = {}) {
     return response.json()
 }
 
+// ========== HELPERS ==========
+
+function normalizeProfileLinks(links) {
+    if (!links) return []
+
+    if (Array.isArray(links)) {
+        return links
+            .map((item, index) => {
+                if (typeof item === 'string') {
+                    const url = item.trim()
+                    if (!url) return null
+                    return {
+                        label: `Ссылка ${index + 1}`,
+                        url,
+                    }
+                }
+
+                if (item && typeof item === 'object') {
+                    const url = item.url?.trim?.() || ''
+                    if (!url) return null
+
+                    return {
+                        label: item.label?.trim?.() || item.title?.trim?.() || `Ссылка ${index + 1}`,
+                        url,
+                    }
+                }
+
+                return null
+            })
+            .filter(Boolean)
+    }
+
+    if (typeof links === 'object') {
+        return Object.entries(links)
+            .map(([label, url], index) => {
+                const normalizedUrl = typeof url === 'string' ? url.trim() : ''
+                if (!normalizedUrl) return null
+
+                return {
+                    label: label?.trim?.() || `Ссылка ${index + 1}`,
+                    url: normalizedUrl,
+                }
+            })
+            .filter(Boolean)
+    }
+
+    return []
+}
+
+function normalizeContactMethods(contacts) {
+    if (!contacts) return []
+
+    if (Array.isArray(contacts)) {
+        return contacts
+            .map((item, index) => {
+                if (typeof item === 'string') {
+                    const value = item.trim()
+                    if (!value) return null
+
+                    return {
+                        type: 'OTHER',
+                        value,
+                        label: `Контакт ${index + 1}`,
+                    }
+                }
+
+                if (item && typeof item === 'object') {
+                    const value =
+                        item.value?.trim?.() ||
+                        item.url?.trim?.() ||
+                        ''
+
+                    if (!value) return null
+
+                    return {
+                        type: item.type || 'OTHER',
+                        value,
+                        label: item.label?.trim?.() || item.title?.trim?.() || `Контакт ${index + 1}`,
+                    }
+                }
+
+                return null
+            })
+            .filter(Boolean)
+    }
+
+    if (typeof contacts === 'object') {
+        return Object.entries(contacts)
+            .map(([label, value], index) => {
+                const normalizedValue = typeof value === 'string' ? value.trim() : ''
+                if (!normalizedValue) return null
+
+                return {
+                    type: 'OTHER',
+                    value: normalizedValue,
+                    label: label?.trim?.() || `Контакт ${index + 1}`,
+                }
+            })
+            .filter(Boolean)
+    }
+
+    return []
+}
+
 // ========== ПОИСК ГОРОДОВ (локальная версия) ==========
 
 export async function searchCities(query) {
@@ -72,11 +177,17 @@ export async function getApplicantProfile() {
     }
 
     const url = `${API_BASE}/profile/applicant/${userId}`
+    console.log('[API] GET applicant profile:', url)
 
     try {
         const data = await apiRequest(url)
         console.log('[API] Applicant profile received:', data)
-        return data
+
+        return {
+            ...data,
+            portfolioLinks: normalizeProfileLinks(data.portfolioLinks),
+            contactLinks: normalizeContactMethods(data.contactLinks),
+        }
     } catch (error) {
         console.log('[API] Profile not found:', error.message)
         return null
@@ -85,44 +196,12 @@ export async function getApplicantProfile() {
 
 /**
  * Обновление профиля соискателя
- * PATCH /api/profile/applicant (текущий пользователь из сессии)
+ * PATCH /api/profile/applicant
  */
 export async function updateApplicantProfile(profile) {
     const user = getSessionUser()
     if (!user) {
         throw new Error('Пользователь не авторизован')
-    }
-
-    // Если приходит массив объектов, преобразуем в массив строк
-    let portfolioLinks = []
-    let contactLinks = []
-
-    if (profile.portfolioLinks) {
-        if (Array.isArray(profile.portfolioLinks)) {
-            // Если это массив строк
-            if (profile.portfolioLinks.length > 0 && typeof profile.portfolioLinks[0] === 'string') {
-                portfolioLinks = profile.portfolioLinks
-            }
-            // Если это массив объектов
-            else if (profile.portfolioLinks.length > 0 && profile.portfolioLinks[0].url) {
-                portfolioLinks = profile.portfolioLinks.map(link => link.url)
-            }
-        } else if (typeof profile.portfolioLinks === 'object') {
-            // Если это объект
-            portfolioLinks = Object.values(profile.portfolioLinks)
-        }
-    }
-
-    if (profile.contactLinks) {
-        if (Array.isArray(profile.contactLinks)) {
-            if (profile.contactLinks.length > 0 && typeof profile.contactLinks[0] === 'string') {
-                contactLinks = profile.contactLinks
-            } else if (profile.contactLinks.length > 0 && profile.contactLinks[0].url) {
-                contactLinks = profile.contactLinks.map(link => link.url)
-            }
-        } else if (typeof profile.contactLinks === 'object') {
-            contactLinks = Object.values(profile.contactLinks)
-        }
     }
 
     const payload = {
@@ -137,8 +216,8 @@ export async function updateApplicantProfile(profile) {
         cityId: profile.cityId || null,
         about: profile.about || null,
         resumeText: profile.resumeText || null,
-        portfolioLinks: portfolioLinks,
-        contactLinks: contactLinks,
+        portfolioLinks: normalizeProfileLinks(profile.portfolioLinks),
+        contactLinks: normalizeContactMethods(profile.contactLinks),
         profileVisibility: profile.profileVisibility || 'AUTHENTICATED',
         resumeVisibility: profile.resumeVisibility || 'AUTHENTICATED',
         applicationsVisibility: profile.applicationsVisibility || 'PRIVATE',
@@ -175,28 +254,10 @@ export async function getEmployerProfile() {
         const data = await apiRequest(url)
         console.log('[API] Employer profile received:', data)
 
-        // Преобразуем socialLinks (массив строк) в формат для LinksEditor
-        const socialLinksArray = data.socialLinks && Array.isArray(data.socialLinks)
-            ? data.socialLinks.map((url, index) => ({
-                id: index,
-                title: `Ссылка ${index + 1}`,
-                url: url
-            }))
-            : []
-
-        // Преобразуем publicContacts (объект) в формат для LinksEditor
-        const publicContactsArray = data.publicContacts && typeof data.publicContacts === 'object'
-            ? Object.entries(data.publicContacts).map(([title, url], index) => ({
-                id: index,
-                title: title,
-                url: url
-            }))
-            : []
-
         return {
             ...data,
-            socialLinks: socialLinksArray,
-            publicContacts: publicContactsArray,
+            socialLinks: normalizeProfileLinks(data.socialLinks),
+            publicContacts: normalizeContactMethods(data.publicContacts),
         }
     } catch (error) {
         console.log('[API] Profile not found:', error.message)
@@ -206,60 +267,12 @@ export async function getEmployerProfile() {
 
 /**
  * Обновление профиля работодателя
- * PATCH /api/profile/employer (текущий пользователь из сессии)
+ * PATCH /api/profile/employer
  */
 export async function updateEmployerProfile(profile) {
     const user = getSessionUser()
     if (!user) {
         throw new Error('Пользователь не авторизован')
-    }
-
-    // Преобразуем socialLinks - ожидается массив строк
-    let socialLinks = []
-    if (profile.socialLinks) {
-        if (Array.isArray(profile.socialLinks)) {
-            // Если это массив объектов с title/url
-            if (profile.socialLinks.length > 0 && profile.socialLinks[0].title !== undefined) {
-                socialLinks = profile.socialLinks
-                    .filter(link => link.url?.trim())
-                    .map(link => link.url.trim())
-            }
-            // Если это уже массив строк
-            else if (profile.socialLinks.length > 0 && typeof profile.socialLinks[0] === 'string') {
-                socialLinks = profile.socialLinks.filter(url => url?.trim())
-            }
-        } else if (typeof profile.socialLinks === 'object') {
-            // Если это объект, преобразуем в массив значений
-            socialLinks = Object.values(profile.socialLinks).filter(url => url?.trim())
-        }
-    }
-
-    // Преобразуем publicContacts - ожидается объект Map<String, String>
-    let publicContacts = {}
-    if (profile.publicContacts) {
-        if (Array.isArray(profile.publicContacts)) {
-            // Если это массив объектов с title/url
-            if (profile.publicContacts.length > 0 && profile.publicContacts[0].title !== undefined) {
-                profile.publicContacts.forEach(contact => {
-                    const title = contact.title?.trim()
-                    const url = contact.url?.trim()
-                    if (title && url) {
-                        publicContacts[title] = url
-                    }
-                })
-            }
-            // Если это массив строк
-            else if (profile.publicContacts.length > 0 && typeof profile.publicContacts[0] === 'string') {
-                profile.publicContacts.forEach((url, index) => {
-                    if (url?.trim()) {
-                        publicContacts[`contact_${index + 1}`] = url.trim()
-                    }
-                })
-            }
-        } else if (typeof profile.publicContacts === 'object') {
-            // Если это уже объект
-            publicContacts = profile.publicContacts
-        }
     }
 
     const payload = {
@@ -273,8 +286,8 @@ export async function updateEmployerProfile(profile) {
         locationId: profile.locationId || null,
         companySize: profile.companySize || null,
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
-        socialLinks: socialLinks,
-        publicContacts: publicContacts,
+        socialLinks: normalizeProfileLinks(profile.socialLinks),
+        publicContacts: normalizeContactMethods(profile.publicContacts),
         verificationStatus: profile.verificationStatus || 'PENDING',
     }
 
@@ -430,17 +443,21 @@ export async function getSeekerSaved() {
 export async function addToSaved(opportunity) {
     const opportunityId = typeof opportunity === 'object' ? opportunity.id : opportunity
     const result = await addToFavorites(opportunityId)
+
     window.dispatchEvent(new CustomEvent('favorites-updated', {
         detail: { action: 'added', opportunityId }
     }))
+
     return result
 }
 
 export async function removeFromSaved(opportunityId) {
     const result = await removeFromFavorites(opportunityId)
+
     window.dispatchEvent(new CustomEvent('favorites-updated', {
         detail: { action: 'removed', opportunityId }
     }))
+
     return result
 }
 
@@ -506,6 +523,7 @@ export async function deleteOpportunity(opportunityId) {
 export async function getEmployerApplications() {
     const user = getSessionUser()
     if (!user) return []
+
     const key = `employer_applications_${user.email}`
     const saved = localStorage.getItem(key)
     return saved ? JSON.parse(saved) : []
@@ -514,12 +532,15 @@ export async function getEmployerApplications() {
 export async function updateApplicationStatus(applicationId, status) {
     const user = getSessionUser()
     if (!user) throw new Error('Пользователь не авторизован')
+
     const key = `employer_applications_${user.email}`
     const saved = localStorage.getItem(key)
     const applications = saved ? JSON.parse(saved) : []
+
     const updated = applications.map(app =>
         app.id === applicationId ? { ...app, status } : app
     )
+
     localStorage.setItem(key, JSON.stringify(updated))
     return { success: true }
 }

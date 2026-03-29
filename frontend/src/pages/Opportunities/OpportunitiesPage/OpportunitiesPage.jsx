@@ -4,7 +4,7 @@ import Button from '../../../components/Button'
 import Input from '../../../components/Input'
 import CustomSelect from '../../../components/CustomSelect'
 import Navbar from '../../../layouts/Navbar'
-import YandexOpportunityMap from '../../../components/map/YandexOpportunityMap'
+import YandexOpportunityMap from '../../../components/Map/YandexOpportunityMap'
 import { useToast } from '../../../hooks/use-toast'
 import {
     listOpportunityMap,

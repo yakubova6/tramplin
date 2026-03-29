@@ -23,6 +23,7 @@ import ru.itplanet.trampline.interaction.client.ProfileServiceClient
 import ru.itplanet.trampline.interaction.dao.ContactDao
 import ru.itplanet.trampline.interaction.dao.ContactInfoApplicantProfileDao
 import ru.itplanet.trampline.interaction.dao.ContactRecommendationDao
+import ru.itplanet.trampline.interaction.dao.EmployerResponseQueryDao
 import ru.itplanet.trampline.interaction.dao.FavoriteDao
 import ru.itplanet.trampline.interaction.dao.OpportunityResponseDao
 import ru.itplanet.trampline.interaction.dao.dto.ContactDto
@@ -35,11 +36,16 @@ import ru.itplanet.trampline.interaction.dao.dto.FavoriteTargetType
 import ru.itplanet.trampline.interaction.dao.dto.OpportunityResponseDto
 import ru.itplanet.trampline.interaction.model.request.ContactRequest
 import ru.itplanet.trampline.interaction.model.request.CreateContactRecommendationRequest
+import ru.itplanet.trampline.interaction.model.request.GetEmployerResponseListRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseStatusUpdateRequest
 import ru.itplanet.trampline.interaction.model.response.ContactRecommendationResponse
 import ru.itplanet.trampline.interaction.model.response.ContactResponse
+import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
+import ru.itplanet.trampline.interaction.model.response.EmployerResponsePage
 import ru.itplanet.trampline.interaction.model.response.FavoriteResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantApplicationResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactResponse
 import ru.itplanet.trampline.interaction.model.response.OpportunityResponseResponse
 import java.time.OffsetDateTime
 
@@ -47,6 +53,7 @@ import java.time.OffsetDateTime
 @Transactional
 class InteractionServiceImpl(
     private val opportunityResponseDao: OpportunityResponseDao,
+    private val employerResponseQueryDao: EmployerResponseQueryDao,
     private val favoriteDao: FavoriteDao,
     private val contactRepository: ContactDao,
     private val contactInfoApplicantProfileDao: ContactInfoApplicantProfileDao,
@@ -109,10 +116,15 @@ class InteractionServiceImpl(
     }
 
     override fun getUserApplications(userId: Long): List<OpportunityResponseResponse> {
-        return opportunityResponseDao.findByApplicantUserId(userId).map { app ->
-            val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
-            toOpportunityResponseResponse(app, opportunity.title)
-        }
+        return opportunityResponseDao.findByApplicantUserId(userId)
+            .sortedWith(
+                compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+            )
+            .map { app ->
+                val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
+                toOpportunityResponseResponse(app, opportunity.title)
+            }
     }
 
     override fun getOpportunityApplications(
@@ -128,6 +140,72 @@ class InteractionServiceImpl(
         return opportunityResponseDao.findByOpportunityId(opportunityId).map { app ->
             toOpportunityResponseResponse(app, opportunity.title)
         }
+    }
+
+    override fun getEmployerResponses(
+        currentUserId: Long,
+        request: GetEmployerResponseListRequest,
+    ): EmployerResponsePage<EmployerOpportunityResponseItem> {
+        request.opportunityId?.let { opportunityId ->
+            val ownerUserId = employerResponseQueryDao.findOpportunityEmployerUserId(opportunityId)
+                ?: throw EntityNotFoundException("Opportunity not found")
+
+            if (ownerUserId != currentUserId) {
+                throw AccessDeniedException("You are not the owner of this opportunity")
+            }
+        }
+
+        return employerResponseQueryDao.findResponses(currentUserId, request)
+    }
+
+    override fun getApplicantApplicationsForPrivacy(
+        userId: Long,
+    ): List<InternalApplicantApplicationResponse> {
+        return opportunityResponseDao.findByApplicantUserId(userId)
+            .sortedWith(
+                compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+            )
+            .map { app ->
+                val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
+                InternalApplicantApplicationResponse(
+                    id = app.id!!,
+                    opportunityId = app.opportunityId,
+                    opportunityTitle = opportunity.title,
+                    status = app.status,
+                    createdAt = app.createdAt,
+                )
+            }
+    }
+
+    override fun getApplicantContactsForPrivacy(
+        userId: Long,
+    ): List<InternalApplicantContactResponse> {
+        return getUserContacts(userId)
+            .sortedWith(
+                compareByDescending<ContactResponse> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.contactUserId },
+            )
+            .map { contact ->
+                InternalApplicantContactResponse(
+                    contactUserId = contact.contactUserId,
+                    contactName = contact.contactName,
+                    createdAt = contact.createdAt,
+                )
+            }
+    }
+
+    override fun isAcceptedContact(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): Boolean {
+        val (low, high) = orderedPair(firstUserId, secondUserId)
+
+        return contactRepository.existsByIdUserLowIdAndIdUserHighIdAndStatus(
+            userLowId = low,
+            userHighId = high,
+            status = ContactStatus.ACCEPTED,
+        )
     }
 
     override fun addOpportunityToFavorites(
