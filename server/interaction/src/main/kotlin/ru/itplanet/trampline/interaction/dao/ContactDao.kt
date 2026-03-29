@@ -10,4 +10,9 @@ interface ContactDao : JpaRepository<ContactDto, ContactDtoId> {
     fun findByIdUserLowIdAndStatus(userLowId: Long, status: ContactStatus): List<ContactDto>
     fun existsByIdUserLowIdAndIdUserHighId(userLowId: Long, userHighId: Long): Boolean
     fun findByIdUserLowIdAndIdUserHighId(userLowId: Long, userHighId: Long): ContactDto?
+    fun existsByIdUserLowIdAndIdUserHighIdAndStatus(
+        userLowId: Long,
+        userHighId: Long,
+        status: ContactStatus,
+    ): Boolean
 }
