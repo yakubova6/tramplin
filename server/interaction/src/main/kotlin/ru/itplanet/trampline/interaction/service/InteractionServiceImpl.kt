@@ -44,6 +44,8 @@ import ru.itplanet.trampline.interaction.model.response.ContactResponse
 import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
 import ru.itplanet.trampline.interaction.model.response.EmployerResponsePage
 import ru.itplanet.trampline.interaction.model.response.FavoriteResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantApplicationResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactResponse
 import ru.itplanet.trampline.interaction.model.response.OpportunityResponseResponse
 import java.time.OffsetDateTime
 
@@ -114,8 +116,28 @@ class InteractionServiceImpl(
     }
 
     override fun getUserApplications(userId: Long): List<OpportunityResponseResponse> {
-        return opportunityResponseDao.findByApplicantUserId(userId).map { app ->
-            val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
+        return opportunityResponseDao.findByApplicantUserId(userId)
+            .sortedWith(
+                compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+            )
+            .map { app ->
+                val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
+                toOpportunityResponseResponse(app, opportunity.title)
+            }
+    }
+
+    override fun getOpportunityApplications(
+        opportunityId: Long,
+        currentUserId: Long,
+    ): List<OpportunityResponseResponse> {
+        val opportunity = opportunityServiceClient.getPublicOpportunity(opportunityId)
+
+        if (opportunity.employerUserId != currentUserId) {
+            throw AccessDeniedException("You are not the owner of this opportunity")
+        }
+
+        return opportunityResponseDao.findByOpportunityId(opportunityId).map { app ->
             toOpportunityResponseResponse(app, opportunity.title)
         }
     }
@@ -134,6 +156,56 @@ class InteractionServiceImpl(
         }
 
         return employerResponseQueryDao.findResponses(currentUserId, request)
+    }
+
+    override fun getApplicantApplicationsForPrivacy(
+        userId: Long,
+    ): List<InternalApplicantApplicationResponse> {
+        return opportunityResponseDao.findByApplicantUserId(userId)
+            .sortedWith(
+                compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+            )
+            .map { app ->
+                val opportunity = opportunityServiceClient.getPublicOpportunity(app.opportunityId)
+                InternalApplicantApplicationResponse(
+                    id = app.id!!,
+                    opportunityId = app.opportunityId,
+                    opportunityTitle = opportunity.title,
+                    status = app.status,
+                    createdAt = app.createdAt,
+                )
+            }
+    }
+
+    override fun getApplicantContactsForPrivacy(
+        userId: Long,
+    ): List<InternalApplicantContactResponse> {
+        return getUserContacts(userId)
+            .sortedWith(
+                compareByDescending<ContactResponse> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.contactUserId },
+            )
+            .map { contact ->
+                InternalApplicantContactResponse(
+                    contactUserId = contact.contactUserId,
+                    contactName = contact.contactName,
+                    createdAt = contact.createdAt,
+                )
+            }
+    }
+
+    override fun isAcceptedContact(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): Boolean {
+        val (low, high) = orderedPair(firstUserId, secondUserId)
+
+        return contactRepository.existsByIdUserLowIdAndIdUserHighIdAndStatus(
+            userLowId = low,
+            userHighId = high,
+            status = ContactStatus.ACCEPTED,
+        )
     }
 
     override fun addOpportunityToFavorites(

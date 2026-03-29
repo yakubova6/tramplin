@@ -11,6 +11,8 @@ import ru.itplanet.trampline.interaction.model.response.ContactResponse
 import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
 import ru.itplanet.trampline.interaction.model.response.EmployerResponsePage
 import ru.itplanet.trampline.interaction.model.response.FavoriteResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantApplicationResponse
+import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactResponse
 import ru.itplanet.trampline.interaction.model.response.OpportunityResponseResponse
 
 interface InteractionService {
@@ -24,10 +26,24 @@ interface InteractionService {
 
     fun getUserApplications(userId: Long): List<OpportunityResponseResponse>
 
+    fun getOpportunityApplications(
+        opportunityId: Long,
+        currentUserId: Long,
+    ): List<OpportunityResponseResponse>
+
     fun getEmployerResponses(
         currentUserId: Long,
         request: GetEmployerResponseListRequest,
     ): EmployerResponsePage<EmployerOpportunityResponseItem>
+
+    fun getApplicantApplicationsForPrivacy(userId: Long): List<InternalApplicantApplicationResponse>
+
+    fun getApplicantContactsForPrivacy(userId: Long): List<InternalApplicantContactResponse>
+
+    fun isAcceptedContact(
+        firstUserId: Long,
+        secondUserId: Long,
+    ): Boolean
 
     fun addOpportunityToFavorites(
         userId: Long,

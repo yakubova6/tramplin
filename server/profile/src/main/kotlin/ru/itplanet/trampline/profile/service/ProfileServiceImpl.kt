@@ -20,6 +20,7 @@ import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequ
 import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
+import ru.itplanet.trampline.profile.client.InteractionPrivacyClient
 import ru.itplanet.trampline.profile.client.MediaServiceClient
 import ru.itplanet.trampline.profile.client.OpportunityTagClient
 import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
@@ -30,6 +31,8 @@ import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.ApplicantTagDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
+import ru.itplanet.trampline.profile.model.ApplicantApplicationSummary
+import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.EmployerProfile
 import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
@@ -50,6 +53,8 @@ class ProfileServiceImpl(
     private val locationDao: LocationDao,
     private val mediaServiceClient: MediaServiceClient,
     private val opportunityTagClient: OpportunityTagClient,
+    private val interactionPrivacyClient: InteractionPrivacyClient,
+    private val applicantProfileVisibilityService: ApplicantProfileVisibilityService,
 ) : ProfileService {
 
     @Transactional
@@ -278,32 +283,61 @@ class ProfileServiceImpl(
     }
 
     override fun getApplicantProfile(
-        currentUserId: Long,
+        currentUserId: Long?,
         targetUserId: Long,
     ): ApplicantProfile {
         val profileDto = loadApplicantProfileDto(targetUserId)
+        val fullProfile = buildApplicantProfile(profileDto)
 
-        if (targetUserId == currentUserId) {
-            return buildApplicantProfile(profileDto)
+        return applicantProfileVisibilityService.sanitizeApplicantProfile(
+            profile = fullProfile,
+            currentUserId = currentUserId,
+        )
+    }
+
+    override fun getApplicantContacts(
+        currentUserId: Long?,
+        targetUserId: Long,
+    ): List<ApplicantContactSummary> {
+        val profileDto = loadApplicantProfileDto(targetUserId)
+
+        if (
+            !applicantProfileVisibilityService.canViewApplicantContacts(
+                visibility = profileDto.contactsVisibility,
+                currentUserId = currentUserId,
+                targetUserId = targetUserId,
+            )
+        ) {
+            throw AccessDeniedException("This contacts section is private")
         }
 
-        return when (profileDto.profileVisibility) {
-            ProfileVisibility.PUBLIC -> buildApplicantProfile(profileDto)
-            ProfileVisibility.AUTHENTICATED -> buildApplicantProfile(profileDto)
-            ProfileVisibility.PRIVATE -> throw AccessDeniedException("This profile is private")
+        return interactionPrivacyClient.getApplicantContacts(targetUserId)
+    }
+
+    override fun getApplicantApplications(
+        currentUserId: Long?,
+        targetUserId: Long,
+    ): List<ApplicantApplicationSummary> {
+        val profileDto = loadApplicantProfileDto(targetUserId)
+
+        if (
+            !applicantProfileVisibilityService.canViewApplicantApplications(
+                visibility = profileDto.applicationsVisibility,
+                currentUserId = currentUserId,
+                targetUserId = targetUserId,
+            )
+        ) {
+            throw AccessDeniedException("This applications section is private")
         }
+
+        return interactionPrivacyClient.getApplicantApplications(targetUserId)
     }
 
     override fun getEmployerProfile(
-        currentUserId: Long,
+        currentUserId: Long?,
         targetUserId: Long,
     ): EmployerProfile {
         val profileDto = loadEmployerProfileDto(targetUserId)
-
-        if (targetUserId == currentUserId) {
-            return buildEmployerProfile(profileDto)
-        }
-
         return buildEmployerProfile(profileDto)
     }
 

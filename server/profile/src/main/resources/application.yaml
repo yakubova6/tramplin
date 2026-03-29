@@ -44,6 +44,10 @@ opportunity:
   service:
     url: ${OPPORTUNITY_SERVICE_URL:http://localhost:8081}
 
+interaction:
+  service:
+    url: ${INTERACTION_SERVICE_URL:http://localhost:8083}
+
 feign:
   client:
     config:

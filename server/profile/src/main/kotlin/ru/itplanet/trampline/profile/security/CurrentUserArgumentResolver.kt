@@ -29,17 +29,23 @@ class CurrentUserArgumentResolver : HandlerMethodArgumentResolver {
         parameter: MethodParameter,
         mavContainer: ModelAndViewContainer?,
         webRequest: NativeWebRequest,
-        binderFactory: WebDataBinderFactory?
-    ): Any {
+        binderFactory: WebDataBinderFactory?,
+    ): Any? {
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AuthenticatedUser
-            ?: throw AccessDeniedException("Current user is not authenticated")
+
+        if (principal == null) {
+            if (parameter.parameterType == Long::class.javaPrimitiveType) {
+                throw AccessDeniedException("Current user is not authenticated")
+            }
+            return null
+        }
 
         return when (parameter.parameterType) {
             AuthenticatedUser::class.java -> principal
             java.lang.Long::class.java,
             Long::class.javaPrimitiveType -> principal.userId
             else -> throw IllegalStateException(
-                "Unsupported @CurrentUser parameter type: ${parameter.parameterType.name}"
+                "Unsupported @CurrentUser parameter type: ${parameter.parameterType.name}",
             )
         }
     }
