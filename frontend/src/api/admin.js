@@ -6,7 +6,7 @@ const API_BASE = '/api'
 
 /**
  * Получение CSRF токена
- * GET /api/auth/csrf
+ * GET /api/Auth/csrf
  */
 async function getCsrfToken() {
     try {

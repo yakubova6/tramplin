@@ -10,7 +10,7 @@ import {
     CardTitle,
 } from '../../../components/Card'
 import Label from '../../../components/Label'
-import PasswordField from '../../../components/auth/PasswordField'
+import PasswordField from '../../../components/Auth/PasswordField'
 import AuthLayout from '../../../layouts/AuthLayout'
 import { useToast } from '../../../hooks/use-toast'
 import { loginUser, getCurrentUserInfo } from '../../../api/auth'
