@@ -8,7 +8,7 @@ import Textarea from '../../../components/Textarea'
 import CustomSelect from '../../../components/CustomSelect'
 import CustomCheckbox from '../../../components/CustomCheckbox'
 import LinksEditor from '../../../components/LinksEditor'
-import { getCurrentUser } from '../../../utils/userHelpers'
+import { clearSessionUser, getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
 import {
     getApplicantProfile,
     updateApplicantProfile,
@@ -139,11 +139,22 @@ function SeekerDashboard() {
     }
 
     useEffect(() => {
+        const unsubscribe = subscribeSessionChange((nextUser) => {
+            setUser(nextUser)
+        })
+
         const loadData = async () => {
             setIsLoading(true)
             try {
-                const currentUser = getCurrentUser()
+                const currentUser = getSessionUser()
                 setUser(currentUser)
+
+                if (!currentUser) {
+                    setApplications([])
+                    setSavedOpportunities([])
+                    setContacts([])
+                    return
+                }
 
                 const profileData = await getApplicantProfile()
                 if (profileData) {
@@ -170,11 +181,11 @@ function SeekerDashboard() {
                         openToWork: profileData.openToWork ?? true,
                         openToEvents: profileData.openToEvents ?? true,
                     }))
+
                     if (profileData.cityName) {
                         setCitySearchQuery(profileData.cityName)
                     }
 
-                    // Инициализируем временные массивы для ссылок
                     setTempPortfolioLinks(linksToArray(profileData.portfolioLinks || []))
                     setTempContactLinks(linksToArray(profileData.contactLinks || []))
                 }
@@ -187,7 +198,16 @@ function SeekerDashboard() {
 
                 const contactsList = await getSeekerContacts()
                 setContacts(contactsList)
-            } catch {
+            } catch (error) {
+                if ([401, 403, 500, 503].includes(error?.status)) {
+                    clearSessionUser()
+                    setUser(null)
+                    setApplications([])
+                    setSavedOpportunities([])
+                    setContacts([])
+                    return
+                }
+
                 toast({
                     title: 'Ошибка',
                     description: 'Не удалось загрузить профиль',
@@ -197,7 +217,10 @@ function SeekerDashboard() {
                 setIsLoading(false)
             }
         }
+
         loadData()
+
+        return unsubscribe
     }, [toast])
 
     const validateProfile = () => {

@@ -7,7 +7,7 @@ import Textarea from '../../../components/Textarea'
 import Label from '../../../components/Label'
 import CustomSelect from '../../../components/CustomSelect'
 import CustomCheckbox from '../../../components/CustomCheckbox'
-import { getCurrentUser } from '../../../utils/userHelpers'
+import { getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
 import { createCurator } from '../../../api/admin'
 import {
     getModerationDashboard,
@@ -242,8 +242,13 @@ function CuratorDashboard() {
 
     // Загрузка текущего пользователя
     useEffect(() => {
-        const user = getCurrentUser()
-        setCurrentUser(user)
+        setCurrentUser(getSessionUser())
+
+        const unsubscribe = subscribeSessionChange((nextUser) => {
+            setCurrentUser(nextUser)
+        })
+
+        return unsubscribe
     }, [])
 
     // ========== ФУНКЦИИ ЗАГРУЗКИ ДАННЫХ ==========
@@ -1063,7 +1068,7 @@ function CuratorDashboard() {
                                     Взять в работу
                                 </Button>
                             )}
-                            {selectedTask.status === 'IN_PROGRESS' && selectedTask.assignee?.id === currentUser?.userId && (
+                            {selectedTask.status === 'IN_PROGRESS' && selectedTask.assignee?.id === currentUser?.id && (
                                 <>
                                     <Button className="button--primary" onClick={() => setIsApproveModalOpen(true)}>
                                         Одобрить

@@ -7,7 +7,7 @@ import Label from '../../../components/Label'
 import Textarea from '../../../components/Textarea'
 import CustomSelect from '../../../components/CustomSelect'
 import LinksEditor from '../../../components/LinksEditor'
-import { getCurrentUser } from '../../../utils/userHelpers'
+import { clearSessionUser, getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
 import {
     getEmployerProfile,
     updateEmployerProfile,
@@ -225,11 +225,22 @@ function EmployerDashboard() {
 
     // Загрузка данных с бэкенда
     useEffect(() => {
+        const unsubscribe = subscribeSessionChange((nextUser) => {
+            setUser(nextUser)
+        })
+
         const loadData = async () => {
             setIsLoading(true)
             try {
-                const currentUser = getCurrentUser()
+                const currentUser = getSessionUser()
                 setUser(currentUser)
+
+                if (!currentUser) {
+                    setOpportunities([])
+                    setApplicants([])
+                    return
+                }
+
                 const profileData = await getEmployerProfile()
                 if (profileData) {
                     setProfile(prev => ({
@@ -250,7 +261,6 @@ function EmployerDashboard() {
                         verificationStatus: profileData.verificationStatus || 'PENDING',
                     }))
 
-                    // Инициализируем ссылки для редактора из данных с бэкенда
                     setSocialRows(socialLinksToRows(profileData.socialLinks || []))
                     setContactRows(contactsToRows(profileData.publicContacts || {}))
 
@@ -258,18 +268,36 @@ function EmployerDashboard() {
                         setCitySearchQuery(profileData.cityName)
                     }
                 }
+
                 const opportunitiesData = await getEmployerOpportunities()
                 setOpportunities(opportunitiesData)
+
                 const applicantsData = await getEmployerApplications()
                 setApplicants(applicantsData)
             } catch (error) {
                 console.error('Load error:', error)
-                toast({ title: 'Ошибка', description: 'Не удалось загрузить профиль', variant: 'destructive' })
+
+                if ([401, 403, 500, 503].includes(error?.status)) {
+                    clearSessionUser()
+                    setUser(null)
+                    setOpportunities([])
+                    setApplicants([])
+                    return
+                }
+
+                toast({
+                    title: 'Ошибка',
+                    description: 'Не удалось загрузить профиль',
+                    variant: 'destructive'
+                })
             } finally {
                 setIsLoading(false)
             }
         }
+
         loadData()
+
+        return unsubscribe
     }, [toast])
 
     useEffect(() => {
