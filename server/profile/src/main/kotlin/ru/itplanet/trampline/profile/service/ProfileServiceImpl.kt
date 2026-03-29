@@ -6,10 +6,12 @@ import org.springframework.context.annotation.Primary
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.dao.LocationDao
+import ru.itplanet.trampline.commons.model.Tag
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
@@ -19,14 +21,18 @@ import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
 import ru.itplanet.trampline.profile.client.MediaServiceClient
+import ru.itplanet.trampline.profile.client.OpportunityTagClient
 import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
 import ru.itplanet.trampline.profile.converter.EmployerProfileConverter
 import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
+import ru.itplanet.trampline.profile.dao.ApplicantTagDao
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
+import ru.itplanet.trampline.profile.dao.dto.ApplicantTagDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.EmployerProfile
+import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
 import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
@@ -36,14 +42,17 @@ import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
 @Service
 class ProfileServiceImpl(
     private val applicantProfileDao: ApplicantProfileDao,
+    private val applicantTagDao: ApplicantTagDao,
     private val employerProfileDao: EmployerProfileDao,
     private val applicantProfileConverter: ApplicantProfileConverter,
     private val employerProfileConverter: EmployerProfileConverter,
     private val cityDao: CityDao,
     private val locationDao: LocationDao,
     private val mediaServiceClient: MediaServiceClient,
+    private val opportunityTagClient: OpportunityTagClient,
 ) : ProfileService {
 
+    @Transactional
     override fun patchApplicantProfile(
         userId: Long,
         request: ApplicantProfilePatchRequest,
@@ -72,6 +81,37 @@ class ProfileServiceImpl(
         request.contactsVisibility?.let { profile.contactsVisibility = it }
         request.openToWork?.let { profile.openToWork = it }
         request.openToEvents?.let { profile.openToEvents = it }
+
+        val requestedSkillTagIds = request.skillTagIds?.distinct()
+        val requestedInterestTagIds = request.interestTagIds?.distinct()
+
+        if (requestedSkillTagIds != null || requestedInterestTagIds != null) {
+            val tagIdsToValidate = buildSet {
+                requestedSkillTagIds?.let(::addAll)
+                requestedInterestTagIds?.let(::addAll)
+            }
+
+            val activeTagsById = requireActiveTagsByIds(tagIdsToValidate)
+                .associateBy { it.id }
+
+            requestedSkillTagIds?.let {
+                replaceApplicantTags(
+                    applicantUserId = userId,
+                    relationType = ApplicantTagRelationType.SKILL,
+                    tagIds = it,
+                    activeTagsById = activeTagsById,
+                )
+            }
+
+            requestedInterestTagIds?.let {
+                replaceApplicantTags(
+                    applicantUserId = userId,
+                    relationType = ApplicantTagRelationType.INTEREST,
+                    tagIds = it,
+                    activeTagsById = activeTagsById,
+                )
+            }
+        }
 
         val savedProfile = applicantProfileDao.save(profile)
         return buildApplicantProfile(savedProfile)
@@ -158,8 +198,8 @@ class ProfileServiceImpl(
         val attachment = mediaServiceClient.getAttachments(
             entityType = FileAttachmentEntityType.APPLICANT_PROFILE,
             entityId = userId,
-        ).firstOrNull { attachment ->
-            attachment.fileId == fileId && attachment.attachmentRole in applicantDownloadRoles
+        ).firstOrNull { currentAttachment ->
+            currentAttachment.fileId == fileId && currentAttachment.attachmentRole in applicantDownloadRoles
         } ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Applicant file not found")
 
         mediaServiceClient.deleteAttachment(attachment.attachmentId)
@@ -228,8 +268,8 @@ class ProfileServiceImpl(
         val attachment = mediaServiceClient.getAttachments(
             entityType = FileAttachmentEntityType.EMPLOYER_PROFILE,
             entityId = userId,
-        ).firstOrNull { attachment ->
-            attachment.fileId == fileId && attachment.attachmentRole in employerDownloadRoles
+        ).firstOrNull { currentAttachment ->
+            currentAttachment.fileId == fileId && currentAttachment.attachmentRole in employerDownloadRoles
         } ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Employer file not found")
 
         mediaServiceClient.deleteAttachment(attachment.attachmentId)
@@ -333,11 +373,14 @@ class ProfileServiceImpl(
             logSubject = "applicant resume",
         ),
         portfolioFiles: List<InternalFileMetadataResponse> = loadApplicantPortfolioFiles(profileDto),
+        applicantTags: ApplicantTagsView = loadApplicantTags(profileDto.userId),
     ): ApplicantProfile {
         return applicantProfileConverter.fromDto(profileDto).copy(
             avatar = avatar,
             resumeFile = resumeFile,
             portfolioFiles = portfolioFiles,
+            skills = applicantTags.skills,
+            interests = applicantTags.interests,
         )
     }
 
@@ -352,6 +395,95 @@ class ProfileServiceImpl(
     ): EmployerProfile {
         return employerProfileConverter.fromDto(profileDto).copy(
             logo = logo,
+        )
+    }
+
+    private fun loadApplicantTags(
+        applicantUserId: Long,
+    ): ApplicantTagsView {
+        val relations = applicantTagDao.findAllByApplicantUserId(applicantUserId)
+        if (relations.isEmpty()) {
+            return ApplicantTagsView()
+        }
+
+        return try {
+            val tagsById = opportunityTagClient.getActiveTagsByIds(
+                relations.map { it.tagId }.distinct(),
+            ).associateBy { it.id }
+
+            val skills = relations.asSequence()
+                .filter { it.relationType == ApplicantTagRelationType.SKILL }
+                .mapNotNull { tagsById[it.tagId] }
+                .sortedBy { it.name.lowercase() }
+                .toList()
+
+            val interests = relations.asSequence()
+                .filter { it.relationType == ApplicantTagRelationType.INTEREST }
+                .mapNotNull { tagsById[it.tagId] }
+                .sortedBy { it.name.lowercase() }
+                .toList()
+
+            ApplicantTagsView(
+                skills = skills,
+                interests = interests,
+            )
+        } catch (ex: Exception) {
+            logger.warn("Failed to load applicant tags for user {}", applicantUserId, ex)
+            ApplicantTagsView()
+        }
+    }
+
+    private fun requireActiveTagsByIds(
+        tagIds: Set<Long>,
+    ): List<Tag> {
+        if (tagIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return try {
+            opportunityTagClient.getActiveTagsByIds(tagIds.toList())
+        } catch (ex: Exception) {
+            logger.warn("Failed to validate applicant tags: {}", tagIds, ex)
+            throw ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                "Failed to validate applicant tags",
+            )
+        }
+    }
+
+    private fun replaceApplicantTags(
+        applicantUserId: Long,
+        relationType: ApplicantTagRelationType,
+        tagIds: List<Long>,
+        activeTagsById: Map<Long, Tag>,
+    ) {
+        val normalizedTagIds = tagIds.distinct()
+
+        val invalidTagIds = normalizedTagIds.filterNot { activeTagsById.containsKey(it) }
+        if (invalidTagIds.isNotEmpty()) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Unknown, inactive or unapproved ${relationType.name.lowercase()} tags: $invalidTagIds",
+            )
+        }
+
+        applicantTagDao.deleteAllByApplicantUserIdAndRelationType(
+            applicantUserId = applicantUserId,
+            relationType = relationType,
+        )
+
+        if (normalizedTagIds.isEmpty()) {
+            return
+        }
+
+        applicantTagDao.saveAll(
+            normalizedTagIds.map { tagId ->
+                ApplicantTagDto(
+                    applicantUserId = applicantUserId,
+                    tagId = tagId,
+                    relationType = relationType,
+                )
+            },
         )
     }
 
@@ -601,6 +733,11 @@ class ProfileServiceImpl(
             ResumeVisibility.PRIVATE -> FileAssetVisibility.PRIVATE
         }
     }
+
+    private data class ApplicantTagsView(
+        val skills: List<Tag> = emptyList(),
+        val interests: List<Tag> = emptyList(),
+    )
 
     private companion object {
         private val logger = LoggerFactory.getLogger(ProfileServiceImpl::class.java)

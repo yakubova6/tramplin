@@ -1,6 +1,7 @@
 package ru.itplanet.trampline.profile.model
 
 import ru.itplanet.trampline.commons.model.City
+import ru.itplanet.trampline.commons.model.Tag
 import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
@@ -31,4 +32,6 @@ data class ApplicantProfile(
     val avatar: InternalFileMetadataResponse? = null,
     val resumeFile: InternalFileMetadataResponse? = null,
     val portfolioFiles: List<InternalFileMetadataResponse> = emptyList(),
+    val skills: List<Tag> = emptyList(),
+    val interests: List<Tag> = emptyList(),
 )
