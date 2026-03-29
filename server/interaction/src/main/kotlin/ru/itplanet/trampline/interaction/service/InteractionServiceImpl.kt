@@ -23,6 +23,7 @@ import ru.itplanet.trampline.interaction.client.ProfileServiceClient
 import ru.itplanet.trampline.interaction.dao.ContactDao
 import ru.itplanet.trampline.interaction.dao.ContactInfoApplicantProfileDao
 import ru.itplanet.trampline.interaction.dao.ContactRecommendationDao
+import ru.itplanet.trampline.interaction.dao.EmployerResponseQueryDao
 import ru.itplanet.trampline.interaction.dao.FavoriteDao
 import ru.itplanet.trampline.interaction.dao.OpportunityResponseDao
 import ru.itplanet.trampline.interaction.dao.dto.ContactDto
@@ -35,10 +36,13 @@ import ru.itplanet.trampline.interaction.dao.dto.FavoriteTargetType
 import ru.itplanet.trampline.interaction.dao.dto.OpportunityResponseDto
 import ru.itplanet.trampline.interaction.model.request.ContactRequest
 import ru.itplanet.trampline.interaction.model.request.CreateContactRecommendationRequest
+import ru.itplanet.trampline.interaction.model.request.GetEmployerResponseListRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseStatusUpdateRequest
 import ru.itplanet.trampline.interaction.model.response.ContactRecommendationResponse
 import ru.itplanet.trampline.interaction.model.response.ContactResponse
+import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
+import ru.itplanet.trampline.interaction.model.response.EmployerResponsePage
 import ru.itplanet.trampline.interaction.model.response.FavoriteResponse
 import ru.itplanet.trampline.interaction.model.response.OpportunityResponseResponse
 import java.time.OffsetDateTime
@@ -47,6 +51,7 @@ import java.time.OffsetDateTime
 @Transactional
 class InteractionServiceImpl(
     private val opportunityResponseDao: OpportunityResponseDao,
+    private val employerResponseQueryDao: EmployerResponseQueryDao,
     private val favoriteDao: FavoriteDao,
     private val contactRepository: ContactDao,
     private val contactInfoApplicantProfileDao: ContactInfoApplicantProfileDao,
@@ -115,19 +120,20 @@ class InteractionServiceImpl(
         }
     }
 
-    override fun getOpportunityApplications(
-        opportunityId: Long,
+    override fun getEmployerResponses(
         currentUserId: Long,
-    ): List<OpportunityResponseResponse> {
-        val opportunity = opportunityServiceClient.getPublicOpportunity(opportunityId)
+        request: GetEmployerResponseListRequest,
+    ): EmployerResponsePage<EmployerOpportunityResponseItem> {
+        request.opportunityId?.let { opportunityId ->
+            val ownerUserId = employerResponseQueryDao.findOpportunityEmployerUserId(opportunityId)
+                ?: throw EntityNotFoundException("Opportunity not found")
 
-        if (opportunity.employerUserId != currentUserId) {
-            throw AccessDeniedException("You are not the owner of this opportunity")
+            if (ownerUserId != currentUserId) {
+                throw AccessDeniedException("You are not the owner of this opportunity")
+            }
         }
 
-        return opportunityResponseDao.findByOpportunityId(opportunityId).map { app ->
-            toOpportunityResponseResponse(app, opportunity.title)
-        }
+        return employerResponseQueryDao.findResponses(currentUserId, request)
     }
 
     override fun addOpportunityToFavorites(
