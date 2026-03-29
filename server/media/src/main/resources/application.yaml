@@ -6,9 +6,9 @@ spring:
     name: media
 
   datasource:
-    url: jdbc:postgresql://64.188.97.232:5432/tramplin
-    username: tramplin_adm
-    password: tramplin_adm
+    url: ${PROFILE_DB_URL}
+    username: ${PROFILE_DB_USERNAME}
+    password: ${PROFILE_DB_PASSWORD}
 
   servlet:
     multipart:
@@ -42,7 +42,7 @@ storage:
     presigned-url-ttl: ${TWC_S3_PRESIGNED_URL_TTL:15m}
 
 internal-api:
-  api-key: moderation-api-key
+  api-key: ${INTERNAL_API_KEY}
 
 media:
   cleanup:

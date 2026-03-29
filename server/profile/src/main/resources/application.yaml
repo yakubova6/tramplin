@@ -5,9 +5,9 @@ spring:
   application:
     name: profile
   datasource:
-    url: ${PROFILE_DB_URL:jdbc:postgresql://64.188.97.232:5432/tramplin}
-    username: ${PROFILE_DB_USERNAME:tramplin_adm}
-    password: ${PROFILE_DB_PASSWORD:tramplin_adm}
+    url: ${PROFILE_DB_URL}
+    username: ${PROFILE_DB_USERNAME}
+    password: ${PROFILE_DB_PASSWORD}
 
   servlet:
     multipart:
@@ -34,7 +34,7 @@ feign:
         readTimeout: 5000
 
 internal-api:
-  api-key: moderation-api-key
+  api-key: ${INTERNAL_API_KEY}
 
 springdoc:
   paths-to-match: /api/**
