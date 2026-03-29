@@ -14,7 +14,7 @@ export async function getContacts() {
 }
 
 /**
- * Добавление пользователя в контакты
+ * Отправка запроса на добавление в контакты
  * POST /api/interaction/contacts
  * Body: { "contactUserId": userId }
  */
@@ -28,22 +28,22 @@ export async function addContact(contactUserId) {
 
 /**
  * Принять запрос в контакты
- * PATCH /api/interaction/contacts/{requestId}/accept
+ * PATCH /api/interaction/contacts/{contactUserId}/accept
  */
-export async function acceptContactRequest(requestId) {
-    console.log('[API] acceptContactRequest:', `${API_BASE}/contacts/${requestId}/accept`)
-    return httpJson(`${API_BASE}/contacts/${requestId}/accept`, {
+export async function acceptContactRequest(contactUserId) {
+    console.log('[API] acceptContactRequest:', `${API_BASE}/contacts/${contactUserId}/accept`)
+    return httpJson(`${API_BASE}/contacts/${contactUserId}/accept`, {
         method: 'PATCH'
     })
 }
 
 /**
  * Отклонить запрос в контакты
- * PATCH /api/interaction/contacts/{requestId}/decline
+ * PATCH /api/interaction/contacts/{contactUserId}/decline
  */
-export async function declineContactRequest(requestId) {
-    console.log('[API] declineContactRequest:', `${API_BASE}/contacts/${requestId}/decline`)
-    return httpJson(`${API_BASE}/contacts/${requestId}/decline`, {
+export async function declineContactRequest(contactUserId) {
+    console.log('[API] declineContactRequest:', `${API_BASE}/contacts/${contactUserId}/decline`)
+    return httpJson(`${API_BASE}/contacts/${contactUserId}/decline`, {
         method: 'PATCH'
     })
 }
@@ -71,7 +71,7 @@ export async function getMyResponses() {
 }
 
 /**
- * Получение откликов на вакансию
+ * Получение откликов на вакансию (для работодателя)
  * GET /api/interaction/opportunities/{opportunityId}/responses
  */
 export async function getOpportunityResponses(opportunityId) {
@@ -80,22 +80,22 @@ export async function getOpportunityResponses(opportunityId) {
 }
 
 /**
- * Сделать отклик на вакансию
+ * Создать отклик на вакансию
  * POST /api/interaction/responses
- * Body: { "opportunityId": id }
+ * Body: { "opportunityId": id, "applicantComment": "", "coverLetter": "" }
  */
-export async function createResponse(opportunityId) {
-    console.log('[API] createResponse:', `${API_BASE}/responses`, { opportunityId })
+export async function createResponse(opportunityId, applicantComment = '', coverLetter = '') {
+    console.log('[API] createResponse:', `${API_BASE}/responses`, { opportunityId, applicantComment, coverLetter })
     return httpJson(`${API_BASE}/responses`, {
         method: 'POST',
-        body: JSON.stringify({ opportunityId })
+        body: JSON.stringify({ opportunityId, applicantComment, coverLetter })
     })
 }
 
 /**
- * Изменить статус отклика (одобрение/отказ)
- * PATCH /api/interaction/responses/{responseId}/status
- * Body: { "status": "APPROVED|REJECTED", "employerComment": "string" }
+ * Обновить статус отклика
+ * PATCH /api/interaction/responses/{id}/status
+ * Body: { "status": "ACCEPTED|REJECTED|...", "employerComment": "" }
  */
 export async function updateResponseStatus(responseId, status, employerComment = '') {
     console.log('[API] updateResponseStatus:', `${API_BASE}/responses/${responseId}/status`, { status, employerComment })

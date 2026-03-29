@@ -56,13 +56,22 @@ function getCurrentUser() {
     }
 }
 
+// User-specific storage keys
+function getStorageKey(key) {
+    const user = getCurrentUser()
+    if (!user || !user.userId) return key
+    return `${key}_user_${user.userId}`
+}
+
 function setStorageSet(key, setValue) {
-    localStorage.setItem(key, JSON.stringify(Array.from(setValue)))
+    const storageKey = getStorageKey(key)
+    localStorage.setItem(storageKey, JSON.stringify(Array.from(setValue)))
 }
 
 function getStorageSet(key) {
+    const storageKey = getStorageKey(key)
     try {
-        const raw = localStorage.getItem(key)
+        const raw = localStorage.getItem(storageKey)
         if (!raw) return new Set()
         return new Set(JSON.parse(raw))
     } catch {
@@ -91,8 +100,8 @@ function OpportunitiesPage() {
     const [focusedOpportunityId, setFocusedOpportunityId] = useState(null)
     const [tags, setTags] = useState([])
 
-    const [favoriteCompanies, setFavoriteCompanies] = useState(() => getStorageSet('tramplin_favorite_companies'))
-    const [favoriteOpportunities, setFavoriteOpportunities] = useState(() => getStorageSet('tramplin_favorite_opportunities'))
+    const [favoriteCompanies, setFavoriteCompanies] = useState(() => getStorageSet('favorite_companies'))
+    const [favoriteOpportunities, setFavoriteOpportunities] = useState(() => getStorageSet('favorite_opportunities'))
 
     const currentUser = useMemo(() => getCurrentUser(), [])
     const isApplicant = currentUser?.role === 'APPLICANT'
@@ -179,7 +188,7 @@ function OpportunitiesPage() {
         if (next.has(companyName)) next.delete(companyName)
         else next.add(companyName)
         setFavoriteCompanies(next)
-        setStorageSet('tramplin_favorite_companies', next)
+        setStorageSet('favorite_companies', next)
 
         toast({
             title: next.has(companyName) ? 'Компания добавлена в избранное' : 'Компания удалена из избранного',
@@ -206,7 +215,7 @@ function OpportunitiesPage() {
                 const next = new Set(favoriteOpportunities)
                 next.delete(opportunity.id)
                 setFavoriteOpportunities(next)
-                setStorageSet('tramplin_favorite_opportunities', next)
+                setStorageSet('favorite_opportunities', next)
                 toast({
                     title: 'Удалено из избранного',
                     description: `"${opportunity.title}" удалено из избранного`,
@@ -216,7 +225,7 @@ function OpportunitiesPage() {
                 const next = new Set(favoriteOpportunities)
                 next.add(opportunity.id)
                 setFavoriteOpportunities(next)
-                setStorageSet('tramplin_favorite_opportunities', next)
+                setStorageSet('favorite_opportunities', next)
                 toast({
                     title: 'Добавлено в избранное',
                     description: `"${opportunity.title}" сохранено в избранное`,
@@ -224,6 +233,20 @@ function OpportunitiesPage() {
             }
         } catch (error) {
             console.error('Favorite error:', error)
+
+            // Если ошибка дубликата — всё равно считаем что добавилось
+            if (error.message?.includes('already exists') || error.message?.includes('duplicate')) {
+                const next = new Set(favoriteOpportunities)
+                next.add(opportunity.id)
+                setFavoriteOpportunities(next)
+                setStorageSet('favorite_opportunities', next)
+                toast({
+                    title: 'В избранном',
+                    description: `"${opportunity.title}" уже в избранном`,
+                })
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error.message || 'Не удалось изменить избранное',

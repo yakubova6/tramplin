@@ -5,6 +5,7 @@ import Button from '../../../components/Button'
 import { useToast } from '../../../hooks/use-toast'
 import YandexOpportunityMap from '../../../components/map/YandexOpportunityMap'
 import { getOpportunity, OPPORTUNITY_LABELS } from '../../../api/opportunities'
+import { applyToOpportunity } from '../../../utils/profileApi'
 import './OpportunityDetailPage.scss'
 
 // Импорт SVG иконок
@@ -37,34 +38,6 @@ function getCurrentUser() {
     }
 }
 
-function saveApplicationToLocal(opportunity) {
-    const user = getCurrentUser()
-    if (!user?.email) {
-        throw new Error('Чтобы откликнуться, необходимо войти в аккаунт соискателя')
-    }
-
-    const key = `seeker_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    const items = saved ? JSON.parse(saved) : []
-    if (items.some((item) => item.opportunityId === opportunity.id)) {
-        return { alreadyApplied: true }
-    }
-
-    const nextItem = {
-        id: Date.now(),
-        opportunityId: opportunity.id,
-        position: opportunity.title,
-        companyName: opportunity.companyName,
-        status: 'PENDING',
-        message: 'Отклик отправлен',
-        appliedAt: new Date().toISOString(),
-    }
-
-    const next = [nextItem, ...items]
-    localStorage.setItem(key, JSON.stringify(next))
-    return { alreadyApplied: false }
-}
-
 export default function OpportunityDetailPage() {
     const [, navigate] = useLocation()
     const [, params] = useRoute('/opportunities/:id')
@@ -72,6 +45,7 @@ export default function OpportunityDetailPage() {
     const [item, setItem] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState('')
+    const [isApplying, setIsApplying] = useState(false)
 
     const currentUser = useMemo(() => getCurrentUser(), [])
     const role = currentUser?.role || 'GUEST'
@@ -112,7 +86,7 @@ export default function OpportunityDetailPage() {
         }]
     }, [item])
 
-    const handleApply = () => {
+    const handleApply = async () => {
         if (!item) return
 
         if (!currentUser) {
@@ -134,9 +108,19 @@ export default function OpportunityDetailPage() {
             return
         }
 
+        setIsApplying(true)
         try {
-            const result = saveApplicationToLocal(item)
-            if (result.alreadyApplied) {
+            console.log('[DetailPage] Applying to opportunity:', item.id)
+            await applyToOpportunity(item.id)
+            toast({
+                title: 'Отклик отправлен',
+                description: `Ваш отклик на "${item.title}" успешно отправлен`,
+                variant: 'default'
+            })
+        } catch (applyError) {
+            console.error('[DetailPage] Apply error:', applyError)
+
+            if (applyError.message?.includes('already') || applyError.message?.includes('уже')) {
                 toast({
                     title: 'Уже откликались',
                     description: 'Вы уже откликались на эту возможность',
@@ -144,17 +128,14 @@ export default function OpportunityDetailPage() {
                 })
                 return
             }
-            toast({
-                title: 'Отклик отправлен',
-                description: 'Ваш отклик успешно сохранён',
-                variant: 'default'
-            })
-        } catch (applyError) {
+
             toast({
                 title: 'Ошибка',
                 description: applyError.message || 'Не удалось отправить отклик',
                 variant: 'destructive'
             })
+        } finally {
+            setIsApplying(false)
         }
     }
 
@@ -333,8 +314,12 @@ export default function OpportunityDetailPage() {
 
                             <div className="opportunity-detail-page__actions">
                                 {isApplicant && (
-                                    <Button className="button--primary button--full" onClick={handleApply}>
-                                        Откликнуться на вакансию
+                                    <Button
+                                        className="button--primary button--full"
+                                        onClick={handleApply}
+                                        disabled={isApplying}
+                                    >
+                                        {isApplying ? 'Отправка...' : 'Откликнуться на вакансию'}
                                     </Button>
                                 )}
                                 {role === 'EMPLOYER' && (

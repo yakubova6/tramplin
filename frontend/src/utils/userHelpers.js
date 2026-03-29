@@ -1,5 +1,3 @@
-// utils/userHelpers.js
-
 /**
  * Получение текущего пользователя из localStorage
  */

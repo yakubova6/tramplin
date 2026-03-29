@@ -1,7 +1,9 @@
 export async function httpJson(url, options = {}) {
-    console.log('[HTTP]', options.method || 'GET', url)
+    const fullUrl = url.startsWith('http') ? url : url
 
-    const response = await fetch(url, {
+    console.log('[HTTP]', options.method || 'GET', fullUrl)
+
+    const response = await fetch(fullUrl, {
         credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
@@ -9,6 +11,12 @@ export async function httpJson(url, options = {}) {
         },
         ...options,
     })
+
+    // Для 204 No Content — возвращаем null, не пытаемся парсить JSON
+    if (response.status === 204) {
+        console.log('[HTTP] No content (204)')
+        return null
+    }
 
     if (!response.ok) {
         let message = 'Ошибка запроса'
@@ -21,9 +29,17 @@ export async function httpJson(url, options = {}) {
         throw new Error(message)
     }
 
-    if (response.status === 204) return null
+    // Проверяем, есть ли тело ответа
+    const text = await response.text()
+    if (!text) {
+        return null
+    }
 
-    return response.json()
+    try {
+        return JSON.parse(text)
+    } catch {
+        return null
+    }
 }
 
 export function toQuery(params = {}) {
