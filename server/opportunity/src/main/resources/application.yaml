@@ -25,6 +25,10 @@ moderation:
   service:
     url: ${MODERATION_SERVICE_URL:http://localhost:8082}
 
+media:
+  service:
+    url: ${MEDIA_SERVICE_URL:http://localhost:8091}
+
 internal-api:
   api-key: moderation-api-key
 
