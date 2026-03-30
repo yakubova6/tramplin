@@ -87,6 +87,61 @@
   animation: login-spin 0.8s linear infinite;
 }
 
+.login-page__note {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background-color: var(--color-primary-soft);
+  border: 1px solid rgba(31, 182, 170, 0.18);
+  border-radius: 16px;
+}
+
+.login-page__note-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.login-page__note-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.login-page__email {
+  font-weight: 700;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.login-page__actions {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.login-page__secondary-action {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  @include hover {
+    color: var(--color-primary-dark);
+  }
+}
+
 .login-page__bottom {
   margin-top: 22px;
   font-size: 14px;
@@ -125,5 +180,10 @@
   .login-page__logo-image {
     width: 42px;
     height: 42px;
+  }
+
+  .login-page__actions {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
