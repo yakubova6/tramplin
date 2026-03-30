@@ -7,4 +7,5 @@ data class User(
     val displayName: String,
     val email: String,
     val role: Role,
+    val twoFactorEnabled: Boolean = false,
 )
