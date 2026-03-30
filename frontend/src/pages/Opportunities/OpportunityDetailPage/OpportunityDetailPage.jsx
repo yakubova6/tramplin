@@ -5,10 +5,18 @@ import Button from '../../../components/Button'
 import { useToast } from '../../../hooks/use-toast'
 import YandexOpportunityMap from '../../../components/Map/YandexOpportunityMap'
 import { getOpportunity, OPPORTUNITY_LABELS } from '../../../api/opportunities'
-import { applyToOpportunity } from '../../../api/profile'
+import {
+    applyToOpportunity,
+    addToSaved,
+    removeFromSaved,
+    addGuestFavoriteOpportunity,
+    removeGuestFavoriteOpportunity,
+    isGuestFavoriteOpportunity,
+    migrateGuestFavoritesToAccount,
+} from '../../../api/profile'
+import { getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
 import './OpportunityDetailPage.scss'
 
-// Импорт SVG иконок
 import locationIcon from '../../../assets/icons/location.svg'
 import briefcaseIcon from '../../../assets/icons/briefcase.svg'
 import calendarIcon from '../../../assets/icons/calendar.svg'
@@ -18,7 +26,11 @@ import companyIcon from '../../../assets/icons/company.svg'
 
 function formatDate(date) {
     if (!date) return '—'
-    return new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    return new Date(date).toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    })
 }
 
 function formatMoney(from, to, currency) {
@@ -29,45 +41,119 @@ function formatMoney(from, to, currency) {
     return `${values.join(' ')} ${currency || ''}`.trim()
 }
 
-function getCurrentUser() {
-    try {
-        const stored = localStorage.getItem('tramplin_current_user')
-        return stored ? JSON.parse(stored) : null
-    } catch {
-        return null
-    }
+function normalizeResourceLinks(links) {
+    if (!Array.isArray(links)) return []
+
+    return links
+        .map((item, index) => {
+            if (typeof item === 'string') {
+                const url = item.trim()
+                if (!url) return null
+                return {
+                    label: `Ссылка ${index + 1}`,
+                    url,
+                }
+            }
+
+            if (item && typeof item === 'object') {
+                const url = item.url?.trim?.() || ''
+                if (!url) return null
+
+                return {
+                    label: item.label?.trim?.() || `Ссылка ${index + 1}`,
+                    url,
+                }
+            }
+
+            return null
+        })
+        .filter(Boolean)
 }
 
 export default function OpportunityDetailPage() {
     const [, navigate] = useLocation()
     const [, params] = useRoute('/opportunities/:id')
     const { toast } = useToast()
+
     const [item, setItem] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState('')
     const [isApplying, setIsApplying] = useState(false)
+    const [currentUser, setCurrentUser] = useState(getSessionUser())
+    const [isFavorite, setIsFavorite] = useState(false)
 
-    const currentUser = useMemo(() => getCurrentUser(), [])
+    useEffect(() => {
+        const unsubscribe = subscribeSessionChange(async (nextUser) => {
+            setCurrentUser(nextUser)
+
+            if (nextUser) {
+                await migrateGuestFavoritesToAccount()
+            }
+
+            if (params?.id) {
+                setIsFavorite(
+                    nextUser
+                        ? false
+                        : isGuestFavoriteOpportunity(Number(params.id))
+                )
+            }
+        })
+
+        return unsubscribe
+    }, [params?.id])
+
+    useEffect(() => {
+        const handleFavoritesUpdated = (event) => {
+            const updatedId = Number(event.detail?.opportunityId)
+            if (!params?.id || Number(params.id) !== updatedId) return
+
+            if (event.detail?.action === 'added') {
+                setIsFavorite(true)
+            }
+
+            if (event.detail?.action === 'removed') {
+                setIsFavorite(false)
+            }
+        }
+
+        window.addEventListener('favorites-updated', handleFavoritesUpdated)
+        return () => window.removeEventListener('favorites-updated', handleFavoritesUpdated)
+    }, [params?.id])
+
     const role = currentUser?.role || 'GUEST'
     const isApplicant = role === 'APPLICANT'
 
     useEffect(() => {
         if (!params?.id) return
+
         setIsLoading(true)
+        setError('')
+
         getOpportunity(params.id)
-            .then(setItem)
+            .then((data) => setItem(data))
             .catch((err) => setError(err?.message || 'Не удалось загрузить карточку'))
             .finally(() => setIsLoading(false))
-    }, [params?.id])
+
+        setIsFavorite(
+            currentUser
+                ? false
+                : isGuestFavoriteOpportunity(Number(params.id))
+        )
+    }, [params?.id, currentUser])
+
+    const resourceLinks = useMemo(() => normalizeResourceLinks(item?.resourceLinks), [item?.resourceLinks])
 
     const mapPoints = useMemo(() => {
         if (!item) return []
+
         const lat = item.location?.latitude || item.city?.latitude
         const lng = item.location?.longitude || item.city?.longitude
         if (!lat || !lng) return []
+
         return [{
             id: item.id,
             type: item.type,
+            workFormat: item.workFormat,
             title: item.title,
             companyName: item.companyName,
             cityName: item.city?.name,
@@ -93,9 +179,9 @@ export default function OpportunityDetailPage() {
             toast({
                 title: 'Требуется авторизация',
                 description: 'Войдите в аккаунт, чтобы откликнуться',
-                variant: 'destructive'
+                variant: 'destructive',
             })
-            setTimeout(() => navigate('/auth/login'), 1500)
+            setTimeout(() => navigate('/login'), 1500)
             return
         }
 
@@ -103,28 +189,24 @@ export default function OpportunityDetailPage() {
             toast({
                 title: 'Доступ ограничен',
                 description: 'Отклик доступен только для роли соискателя',
-                variant: 'destructive'
+                variant: 'destructive',
             })
             return
         }
 
         setIsApplying(true)
         try {
-            console.log('[DetailPage] Applying to opportunity:', item.id)
             await applyToOpportunity(item.id)
             toast({
                 title: 'Отклик отправлен',
-                description: `Ваш отклик на "${item.title}" успешно отправлен`,
-                variant: 'default'
+                description: `Ваш отклик на «${item.title}» успешно отправлен`,
             })
         } catch (applyError) {
-            console.error('[DetailPage] Apply error:', applyError)
-
             if (applyError.message?.includes('already') || applyError.message?.includes('уже')) {
                 toast({
                     title: 'Уже откликались',
                     description: 'Вы уже откликались на эту возможность',
-                    variant: 'destructive'
+                    variant: 'destructive',
                 })
                 return
             }
@@ -132,10 +214,53 @@ export default function OpportunityDetailPage() {
             toast({
                 title: 'Ошибка',
                 description: applyError.message || 'Не удалось отправить отклик',
-                variant: 'destructive'
+                variant: 'destructive',
             })
         } finally {
             setIsApplying(false)
+        }
+    }
+
+    const handleToggleFavorite = async () => {
+        if (!item) return
+
+        try {
+            if (!currentUser) {
+                if (isFavorite) {
+                    removeGuestFavoriteOpportunity(item.id)
+                    toast({
+                        title: 'Удалено из избранного',
+                        description: `«${item.title}» удалено из избранного браузера`,
+                    })
+                } else {
+                    addGuestFavoriteOpportunity(item.id)
+                    toast({
+                        title: 'Добавлено в избранное',
+                        description: `«${item.title}» сохранено в браузере`,
+                    })
+                }
+                return
+            }
+
+            if (isFavorite) {
+                await removeFromSaved(item.id)
+                toast({
+                    title: 'Удалено из избранного',
+                    description: `«${item.title}» удалено из избранного`,
+                })
+            } else {
+                await addToSaved(item.id)
+                toast({
+                    title: 'Добавлено в избранное',
+                    description: `«${item.title}» добавлено в избранное`,
+                })
+            }
+        } catch (toggleError) {
+            toast({
+                title: 'Ошибка',
+                description: toggleError.message || 'Не удалось изменить избранное',
+                variant: 'destructive',
+            })
         }
     }
 
@@ -180,7 +305,6 @@ export default function OpportunityDetailPage() {
 
                 {item && (
                     <div className="opportunity-detail-page__grid">
-                        {/* Левая колонка - основная информация */}
                         <div className="opportunity-detail-page__content">
                             <div className="opportunity-detail-page__badges">
                                 <span className="badge badge--type">
@@ -196,7 +320,16 @@ export default function OpportunityDetailPage() {
                                 )}
                             </div>
 
-                            <h1>{item.title}</h1>
+                            <div className="opportunity-detail-page__title-row">
+                                <h1>{item.title}</h1>
+                                <button
+                                    type="button"
+                                    className={`opportunity-detail-page__fav-star ${isFavorite ? 'is-favorite' : ''}`}
+                                    onClick={handleToggleFavorite}
+                                >
+                                    ★
+                                </button>
+                            </div>
 
                             <div className="opportunity-detail-page__company-row">
                                 <img src={companyIcon} alt="" className="icon" />
@@ -214,19 +347,17 @@ export default function OpportunityDetailPage() {
                             </div>
 
                             <section className="opportunity-detail-page__section">
-                                <h3>О вакансии</h3>
+                                <h3>О возможности</h3>
                                 <p className="description-text">{item.fullDescription || item.shortDescription || '—'}</p>
                             </section>
 
                             <section className="opportunity-detail-page__section">
-                                <h3>Требования к кандидату</h3>
-                                <div className="requirements-list">
-                                    {item.requirements ? (
-                                        <p>{item.requirements}</p>
-                                    ) : (
-                                        <p className="text-muted">Специфические требования не указаны</p>
-                                    )}
-                                </div>
+                                <h3>Требования</h3>
+                                {item.requirements ? (
+                                    <p>{item.requirements}</p>
+                                ) : (
+                                    <p className="text-muted">Специфические требования не указаны</p>
+                                )}
                             </section>
 
                             <div className="opportunity-detail-page__info-grid">
@@ -237,13 +368,15 @@ export default function OpportunityDetailPage() {
                                         <p>{formatDate(item.publishedAt)}</p>
                                     </div>
                                 </div>
+
                                 <div className="info-item">
                                     <img src={calendarIcon} alt="" className="icon" />
                                     <div>
-                                        <strong>Действует до</strong>
-                                        <p>{formatDate(item.expiresAt || item.eventDate)}</p>
+                                        <strong>{item.type === 'EVENT' ? 'Дата проведения' : 'Действует до'}</strong>
+                                        <p>{formatDate(item.eventDate || item.expiresAt)}</p>
                                     </div>
                                 </div>
+
                                 {item.employmentType && (
                                     <div className="info-item">
                                         <img src={briefcaseIcon} alt="" className="icon" />
@@ -253,50 +386,88 @@ export default function OpportunityDetailPage() {
                                         </div>
                                     </div>
                                 )}
+
                                 {item.workFormat && (
                                     <div className="info-item">
                                         <img src={locationIcon} alt="" className="icon" />
                                         <div>
-                                            <strong>Формат работы</strong>
+                                            <strong>Формат</strong>
                                             <p>{OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat}</p>
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            {item.contactInfo && (item.contactInfo.email || item.contactInfo.phone || item.contactInfo.telegram) && (
+                            {(item.contactInfo?.email ||
+                                item.contactInfo?.phone ||
+                                item.contactInfo?.telegram ||
+                                item.contactInfo?.contactPerson ||
+                                item.contactInfo?.websiteUrl) && (
                                 <section className="opportunity-detail-page__contacts">
                                     <h3>Контакты работодателя</h3>
                                     <div className="contacts-list">
-                                        {item.contactInfo.email && (
+                                        {item.contactInfo?.email && (
                                             <a href={`mailto:${item.contactInfo.email}`} className="contact-link">
                                                 <img src={mailIcon} alt="" className="icon" />
                                                 <span>{item.contactInfo.email}</span>
                                             </a>
                                         )}
-                                        {item.contactInfo.phone && (
+
+                                        {item.contactInfo?.phone && (
                                             <a href={`tel:${item.contactInfo.phone}`} className="contact-link">
                                                 <img src={phoneIcon} alt="" className="icon" />
                                                 <span>{item.contactInfo.phone}</span>
                                             </a>
                                         )}
-                                        {item.contactInfo.telegram && (
-                                            <a href={`https://t.me/${item.contactInfo.telegram}`} target="_blank" rel="noopener noreferrer" className="contact-link">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                    <path d="M20.5 4.5L2.5 12L8.5 14.5L12.5 20.5L20.5 4.5Z" />
-                                                </svg>
-                                                <span>@{item.contactInfo.telegram}</span>
+
+                                        {item.contactInfo?.telegram && (
+                                            <a
+                                                href={`https://t.me/${String(item.contactInfo.telegram).replace(/^@/, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="contact-link"
+                                            >
+                                                <span>@{String(item.contactInfo.telegram).replace(/^@/, '')}</span>
                                             </a>
                                         )}
-                                        {item.contactInfo.contactPerson && (
+
+                                        {item.contactInfo?.websiteUrl && (
+                                            <a
+                                                href={item.contactInfo.websiteUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="contact-link"
+                                            >
+                                                <img src={mailIcon} alt="" className="icon" />
+                                                <span>{item.contactInfo.websiteUrl}</span>
+                                            </a>
+                                        )}
+
+                                        {item.contactInfo?.contactPerson && (
                                             <div className="contact-person">
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                    <circle cx="12" cy="8" r="4" />
-                                                    <path d="M5 20V19C5 15.1 8.1 12 12 12C15.9 12 19 15.1 19 19V20" />
-                                                </svg>
                                                 <span>{item.contactInfo.contactPerson}</span>
                                             </div>
                                         )}
+                                    </div>
+                                </section>
+                            )}
+
+                            {resourceLinks.length > 0 && (
+                                <section className="opportunity-detail-page__contacts">
+                                    <h3>Полезные ссылки / Ресурсы</h3>
+                                    <div className="contacts-list">
+                                        {resourceLinks.map((link, index) => (
+                                            <a
+                                                key={`${link.url}-${index}`}
+                                                href={link.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="contact-link"
+                                            >
+                                                <img src={mailIcon} alt="" className="icon" />
+                                                <span>{link.label || link.url}</span>
+                                            </a>
+                                        ))}
                                     </div>
                                 </section>
                             )}
@@ -314,33 +485,19 @@ export default function OpportunityDetailPage() {
 
                             <div className="opportunity-detail-page__actions">
                                 {isApplicant && (
-                                    <Button
-                                        className="button--primary button--full"
-                                        onClick={handleApply}
-                                        disabled={isApplying}
-                                    >
-                                        {isApplying ? 'Отправка...' : 'Откликнуться на вакансию'}
+                                    <Button className="button--primary button--full" onClick={handleApply} disabled={isApplying}>
+                                        {isApplying ? 'Отправка...' : 'Откликнуться'}
                                     </Button>
                                 )}
-                                {role === 'EMPLOYER' && (
-                                    <Link href="/employer">
-                                        <Button className="button--outline button--full">В кабинет работодателя</Button>
-                                    </Link>
-                                )}
-                                {(role === 'CURATOR' || role === 'ADMIN') && (
-                                    <Link href="/curator">
-                                        <Button className="button--outline button--full">В кабинет куратора</Button>
-                                    </Link>
-                                )}
+
                                 {role === 'GUEST' && (
-                                    <Link href="/auth/login">
+                                    <Link href="/login">
                                         <Button className="button--primary button--full">Войти для отклика</Button>
                                     </Link>
                                 )}
                             </div>
                         </div>
 
-                        {/* Правая колонка - карта */}
                         <aside className="opportunity-detail-page__sidebar">
                             {mapPoints.length > 0 && (
                                 <div className="opportunity-detail-page__map-card">
@@ -351,7 +508,6 @@ export default function OpportunityDetailPage() {
                                             favoriteCompanies={new Set()}
                                             focusedOpportunityId={item.id}
                                             onOpenCard={() => {}}
-                                            isDetailPage={true}
                                         />
                                     </div>
                                     <div className="opportunity-detail-page__address">

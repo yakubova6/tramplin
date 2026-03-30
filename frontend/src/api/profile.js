@@ -17,6 +17,11 @@ import {
     getFavorites,
     addToFavorites,
     removeFromFavorites,
+    createRecommendation,
+    getIncomingRecommendations,
+    getOutgoingRecommendations,
+    deleteRecommendation,
+    getEmployerResponses,
 } from './interaction'
 import { clearSessionUser, getSessionUser, getSessionUserId } from '../utils/sessionStore'
 
@@ -188,6 +193,109 @@ function normalizeContactMethods(contacts) {
     return []
 }
 
+function getContactDirectionStorageKey() {
+    const user = getSessionUser()
+    return user?.id ? `tramplin_contact_directions_${user.id}` : 'tramplin_contact_directions_guest'
+}
+
+function readContactDirections() {
+    try {
+        const raw = localStorage.getItem(getContactDirectionStorageKey())
+        return raw ? JSON.parse(raw) : {}
+    } catch {
+        return {}
+    }
+}
+
+function writeContactDirections(value) {
+    localStorage.setItem(getContactDirectionStorageKey(), JSON.stringify(value))
+}
+
+function markContactDirection(contactUserId, direction) {
+    const map = readContactDirections()
+    map[String(contactUserId)] = direction
+    writeContactDirections(map)
+}
+
+function removeContactDirection(contactUserId) {
+    const map = readContactDirections()
+    delete map[String(contactUserId)]
+    writeContactDirections(map)
+}
+
+function getContactDirection(contactUserId) {
+    const map = readContactDirections()
+    return map[String(contactUserId)] || null
+}
+
+// guest favorites
+function getGuestFavoritesStorageKey() {
+    return 'tramplin_guest_favorite_opportunities'
+}
+
+function readGuestFavorites() {
+    try {
+        const raw = localStorage.getItem(getGuestFavoritesStorageKey())
+        return raw ? JSON.parse(raw) : []
+    } catch {
+        return []
+    }
+}
+
+function writeGuestFavorites(items) {
+    localStorage.setItem(getGuestFavoritesStorageKey(), JSON.stringify(items))
+}
+
+export function getGuestFavoriteOpportunityIds() {
+    return readGuestFavorites()
+}
+
+export function isGuestFavoriteOpportunity(opportunityId) {
+    return readGuestFavorites().includes(Number(opportunityId))
+}
+
+export function addGuestFavoriteOpportunity(opportunityId) {
+    const id = Number(opportunityId)
+    const current = readGuestFavorites()
+    if (!current.includes(id)) {
+        const next = [...current, id]
+        writeGuestFavorites(next)
+        window.dispatchEvent(new CustomEvent('favorites-updated', {
+            detail: { action: 'added', opportunityId: id, scope: 'guest' }
+        }))
+    }
+}
+
+export function removeGuestFavoriteOpportunity(opportunityId) {
+    const id = Number(opportunityId)
+    const next = readGuestFavorites().filter((item) => item !== id)
+    writeGuestFavorites(next)
+    window.dispatchEvent(new CustomEvent('favorites-updated', {
+        detail: { action: 'removed', opportunityId: id, scope: 'guest' }
+    }))
+}
+
+export async function migrateGuestFavoritesToAccount() {
+    const user = getSessionUser()
+    if (!user?.id) return
+
+    const guestIds = readGuestFavorites()
+    if (!guestIds.length) return
+
+    for (const opportunityId of guestIds) {
+        try {
+            await addToFavorites(opportunityId)
+        } catch {
+            // не прерываем миграцию
+        }
+    }
+
+    writeGuestFavorites([])
+    window.dispatchEvent(new CustomEvent('favorites-updated', {
+        detail: { action: 'migrated', opportunityIds: guestIds, scope: 'guest' }
+    }))
+}
+
 // ========== ПОИСК ГОРОДОВ (локальная версия) ==========
 
 export async function searchCities(query) {
@@ -260,8 +368,6 @@ export async function updateApplicantProfile(profile) {
         openToEvents: profile.openToEvents ?? true,
     }
 
-    console.log('[API] Saving applicant profile with PATCH:', payload)
-
     return apiRequest(`${API_BASE}/profile/applicant`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -280,8 +386,6 @@ export async function getEmployerProfile() {
 
     try {
         const data = await apiRequest(url)
-        console.log('[API] Employer profile received:', data)
-
         return {
             ...data,
             socialLinks: normalizeProfileLinks(data.socialLinks),
@@ -289,7 +393,6 @@ export async function getEmployerProfile() {
         }
     } catch (error) {
         if ([401, 403, 404, 500, 503].includes(error.status)) {
-            console.log('[API] Employer profile unavailable:', error.message)
             return null
         }
 
@@ -319,8 +422,6 @@ export async function updateEmployerProfile(profile) {
         verificationStatus: profile.verificationStatus || 'PENDING',
     }
 
-    console.log('[API] Saving employer profile with PATCH:', JSON.stringify(payload, null, 2))
-
     return apiRequest(`${API_BASE}/profile/employer`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -328,13 +429,6 @@ export async function updateEmployerProfile(profile) {
 }
 
 export async function submitVerification(payload) {
-    const user = getSessionUser()
-    if (!user) {
-        throw createApiError('Пользователь не авторизован', 401)
-    }
-
-    console.log('[API] Submitting verification:', payload)
-
     return apiRequest(`${API_BASE}/employer/verification`, {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -348,16 +442,23 @@ export async function getSeekerContacts() {
         const contacts = await getContacts()
         if (!Array.isArray(contacts)) return []
 
-        return contacts.map((c) => ({
-            id: c.contactUserId,
-            firstName: c.contactName?.split(' ')[0] || '',
-            lastName: c.contactName?.split(' ').slice(1).join(' ') || '',
-            status: c.status,
-            createdAt: c.createdAt,
-        }))
+        return contacts.map((c) => {
+            const direction = getContactDirection(c.contactUserId)
+
+            return {
+                id: c.contactUserId,
+                firstName: c.contactName?.split(' ')[0] || '',
+                lastName: c.contactName?.split(' ').slice(1).join(' ') || '',
+                fullName: c.contactName || '',
+                status: c.status,
+                createdAt: c.createdAt,
+                direction: c.status === 'ACCEPTED'
+                    ? 'confirmed'
+                    : (direction || 'incoming'),
+            }
+        })
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load contacts:', error.message)
             return []
         }
 
@@ -366,19 +467,27 @@ export async function getSeekerContacts() {
 }
 
 export async function addContact(contactUserId) {
-    return addContactApi(contactUserId)
+    const result = await addContactApi(contactUserId)
+    markContactDirection(contactUserId, 'outgoing')
+    return result
 }
 
 export async function acceptContact(contactUserId) {
-    return acceptContactRequest(contactUserId)
+    const result = await acceptContactRequest(contactUserId)
+    markContactDirection(contactUserId, 'confirmed')
+    return result
 }
 
 export async function declineContact(contactUserId) {
-    return declineContactRequest(contactUserId)
+    const result = await declineContactRequest(contactUserId)
+    removeContactDirection(contactUserId)
+    return result
 }
 
 export async function removeContact(contactUserId) {
-    return removeContactApi(contactUserId)
+    const result = await removeContactApi(contactUserId)
+    removeContactDirection(contactUserId)
+    return result
 }
 
 export async function getSeekerApplications() {
@@ -404,7 +513,6 @@ export async function getSeekerApplications() {
         })
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load applications:', error.message)
             return []
         }
 
@@ -460,7 +568,6 @@ export async function getSeekerSaved() {
             .filter((item) => item.id !== null && item.id !== undefined)
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load favorites:', error.message)
             return []
         }
 
@@ -487,6 +594,34 @@ export async function removeFromSaved(opportunityId) {
     }))
 
     return result
+}
+
+export async function getSeekerRecommendations() {
+    try {
+        const [incoming, outgoing] = await Promise.all([
+            getIncomingRecommendations(),
+            getOutgoingRecommendations(),
+        ])
+
+        return {
+            incoming: Array.isArray(incoming) ? incoming : [],
+            outgoing: Array.isArray(outgoing) ? outgoing : [],
+        }
+    } catch (error) {
+        if ([401, 403, 500, 503].includes(error.status)) {
+            return { incoming: [], outgoing: [] }
+        }
+
+        throw error
+    }
+}
+
+export async function sendSeekerRecommendation(data) {
+    return createRecommendation(data)
+}
+
+export async function removeSeekerRecommendation(recommendationId) {
+    return deleteRecommendation(recommendationId)
 }
 
 export async function getEmployerOpportunities(params = {}) {
@@ -548,13 +683,29 @@ export async function deleteOpportunity(opportunityId) {
     return { success: true }
 }
 
-export async function getEmployerApplications() {
-    const user = getSessionUser()
-    if (!user) return []
+export async function getEmployerApplications(params = {}) {
+    try {
+        const page = await getEmployerResponses({
+            limit: params.limit || 50,
+            offset: params.offset || 0,
+            sortBy: params.sortBy || 'CREATED_AT',
+            sortDirection: params.sortDirection || 'DESC',
+            opportunityId: params.opportunityId,
+            status: params.status,
+            search: params.search,
+        })
 
-    const key = `employer_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
+        return {
+            ...page,
+            items: Array.isArray(page?.items) ? page.items : [],
+        }
+    } catch (error) {
+        if ([401, 403, 500, 503].includes(error.status)) {
+            return { items: [], total: 0, limit: params.limit || 50, offset: params.offset || 0 }
+        }
+
+        throw error
+    }
 }
 
 export async function updateApplicationStatus(applicationId, status) {
@@ -564,11 +715,9 @@ export async function updateApplicationStatus(applicationId, status) {
     const key = `employer_applications_${user.email}`
     const saved = localStorage.getItem(key)
     const applications = saved ? JSON.parse(saved) : []
-
     const updated = applications.map(app =>
         app.id === applicationId ? { ...app, status } : app
     )
-
     localStorage.setItem(key, JSON.stringify(updated))
     return { success: true }
 }

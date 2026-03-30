@@ -8,20 +8,20 @@ import SeekerDashboard from './pages/Dashboard/SeekerDashboard/SeekerDashboard'
 import EmployerDashboard from './pages/Dashboard/EmployerDashboard/EmployerDashboard'
 import CuratorDashboard from './pages/Dashboard/CuratorDashboard/CuratorDashboard'
 import ProfileEdit from './pages/ProfileEdit/ProfileEdit'
+import ApplicantPublicProfile from './pages/ApplicantPublicProfile/ApplicantPublicProfile'
 import ProtectedRoute from './components/ProtectedRoute'
 import './styles/main.scss'
 
 function App() {
     return (
         <Switch>
-            {/* Публичные маршруты */}
             <Route path="/" component={OpportunitiesPage} />
             <Route path="/opportunities/:id" component={OpportunityDetailPage} />
+            <Route path="/seekers/:id" component={ApplicantPublicProfile} />
             <Route path="/login" component={Login} />
             <Route path="/register" component={Register} />
             <Route path="/forgot-password" component={ForgotPassword} />
 
-            {/* Защищённые маршруты */}
             <Route path="/seeker">
                 <ProtectedRoute allowedRoles={['APPLICANT']}>
                     <SeekerDashboard />
@@ -46,7 +46,6 @@ function App() {
                 </ProtectedRoute>
             </Route>
 
-            {/* 404 - перенаправляем на главную */}
             <Route>
                 <Redirect to="/" />
             </Route>
