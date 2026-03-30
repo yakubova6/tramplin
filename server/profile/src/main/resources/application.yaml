@@ -34,19 +34,19 @@ auth:
 
 media:
   service:
-    url: ${MEDIA_SERVICE_URL:http://localhost:8091}
+    url: ${MEDIA_SERVER_URL:http://localhost:8091}
 
 moderation:
   service:
-    url: ${MODERATION_SERVICE_URL:http://localhost:8082}
+    url: ${MODERATION_SERVER_URL:http://localhost:8082}
 
 opportunity:
   service:
-    url: ${OPPORTUNITY_SERVICE_URL:http://localhost:8081}
+    url: ${OPPORTUNITY_SERVER_URL:http://localhost:8081}
 
 interaction:
   service:
-    url: ${INTERACTION_SERVICE_URL:http://localhost:8083}
+    url: ${INTERACTION_SERVER_URL:http://localhost:8083}
 
 feign:
   client:
