@@ -4,13 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import feign.FeignException
 import jakarta.persistence.EntityNotFoundException
-import org.apache.coyote.BadRequestException
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.model.OpportunityCard
 import ru.itplanet.trampline.commons.model.enums.OpportunityStatus
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
@@ -34,6 +31,7 @@ import ru.itplanet.trampline.interaction.dao.dto.ContactStatus
 import ru.itplanet.trampline.interaction.dao.dto.FavoriteDto
 import ru.itplanet.trampline.interaction.dao.dto.FavoriteTargetType
 import ru.itplanet.trampline.interaction.dao.dto.OpportunityResponseDto
+import ru.itplanet.trampline.interaction.exception.InteractionException
 import ru.itplanet.trampline.interaction.model.request.ContactRequest
 import ru.itplanet.trampline.interaction.model.request.CreateContactRecommendationRequest
 import ru.itplanet.trampline.interaction.model.request.GetEmployerResponseListRequest
@@ -75,7 +73,7 @@ class InteractionServiceImpl(
         }
 
         if (opportunity.status != OpportunityStatus.PUBLISHED) {
-            throw BadRequestException("This opportunity is not open for applications")
+            throw InteractionException.BadRequest("This opportunity is not open for applications")
         }
 
         val resumeFile = validateResumeFile(userId, request.resumeFileId)
@@ -181,7 +179,8 @@ class InteractionServiceImpl(
     override fun getApplicantContactsForPrivacy(
         userId: Long,
     ): List<InternalApplicantContactResponse> {
-        return getUserContacts(userId)
+        return getAcceptedContactDtos(userId)
+            .map { toContactResponse(userId, it) }
             .sortedWith(
                 compareByDescending<ContactResponse> { it.createdAt ?: OffsetDateTime.MIN }
                     .thenByDescending { it.contactUserId },
@@ -295,7 +294,7 @@ class InteractionServiceImpl(
 
     override fun addContact(userId: Long, request: ContactRequest): ContactResponse {
         if (userId == request.contactUserId) {
-            throw BadRequestException("You cannot add yourself as a contact")
+            throw InteractionException.BadRequest("You cannot add yourself as a contact")
         }
 
         val (low, high) = orderedPair(userId, request.contactUserId)
@@ -342,10 +341,10 @@ class InteractionServiceImpl(
     }
 
     override fun getUserContacts(userId: Long): List<ContactResponse> {
-        val asLow = contactRepository.findByIdUserLowIdAndStatus(userId, ContactStatus.ACCEPTED)
-        val asHigh = contactRepository.findByIdUserHighIdAndStatus(userId, ContactStatus.ACCEPTED)
+        val acceptedContacts = getAcceptedContactDtos(userId)
+        val incomingPendingContacts = getIncomingPendingContactDtos(userId)
 
-        return (asLow + asHigh)
+        return (acceptedContacts + incomingPendingContacts)
             .map { toContactResponse(userId, it) }
             .distinctBy { it.contactUserId }
     }
@@ -355,8 +354,7 @@ class InteractionServiceImpl(
         request: CreateContactRecommendationRequest,
     ): ContactRecommendationResponse {
         if (userId == request.toApplicantUserId) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
+            throw InteractionException.BadRequest(
                 "You cannot recommend an opportunity to yourself",
             )
         }
@@ -368,8 +366,7 @@ class InteractionServiceImpl(
 
         val opportunity = opportunityServiceClient.getPublicOpportunity(request.opportunityId)
         if (opportunity.status != OpportunityStatus.PUBLISHED) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
+            throw InteractionException.Conflict(
                 "Only published opportunity can be recommended",
             )
         }
@@ -383,8 +380,7 @@ class InteractionServiceImpl(
                 toApplicantUserId = request.toApplicantUserId,
             )
         ) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
+            throw InteractionException.Conflict(
                 "You have already recommended this opportunity to this contact",
             )
         }
@@ -399,8 +395,7 @@ class InteractionServiceImpl(
                 ),
             )
         } catch (_: DataIntegrityViolationException) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
+            throw InteractionException.Conflict(
                 "You have already recommended this opportunity to this contact",
             )
         }
@@ -480,7 +475,7 @@ class InteractionServiceImpl(
         val file = try {
             mediaServiceClient.getMetadata(resumeFileId)
         } catch (ex: FeignException.NotFound) {
-            throw BadRequestException("Resume file not found")
+            throw InteractionException.BadRequest("Resume file not found")
         }
 
         if (file.ownerUserId != userId) {
@@ -488,11 +483,11 @@ class InteractionServiceImpl(
         }
 
         if (file.kind != FileAssetKind.RESUME) {
-            throw BadRequestException("Provided file is not a resume")
+            throw InteractionException.BadRequest("Provided file is not a resume")
         }
 
         if (file.status != FileAssetStatus.READY) {
-            throw BadRequestException("Resume file is not ready")
+            throw InteractionException.BadRequest("Resume file is not ready")
         }
 
         return file
@@ -560,6 +555,25 @@ class InteractionServiceImpl(
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun getAcceptedContactDtos(
+        userId: Long,
+    ): List<ContactDto> {
+        val asLow = contactRepository.findByIdUserLowIdAndStatus(userId, ContactStatus.ACCEPTED)
+        val asHigh = contactRepository.findByIdUserHighIdAndStatus(userId, ContactStatus.ACCEPTED)
+
+        return asLow + asHigh
+    }
+
+    private fun getIncomingPendingContactDtos(
+        userId: Long,
+    ): List<ContactDto> {
+        val asLow = contactRepository.findByIdUserLowIdAndStatus(userId, ContactStatus.PENDING)
+        val asHigh = contactRepository.findByIdUserHighIdAndStatus(userId, ContactStatus.PENDING)
+
+        return (asLow + asHigh)
+            .filter { it.initiatedByUserId != userId }
     }
 
     private fun orderedPair(
@@ -653,12 +667,7 @@ class InteractionServiceImpl(
         currentUserId: Long,
         contact: ContactDto,
     ): ContactResponse {
-        val contactUserId =
-            if (contact.initiatedByUserId == currentUserId && contact.id.userLowId == currentUserId) {
-                contact.id.userHighId
-            } else {
-                contact.id.userLowId
-            }
+        val contactUserId = resolveContactUserId(currentUserId, contact)
 
         val userDto = contactInfoApplicantProfileDao.findById(contactUserId)
             .orElseThrow { EntityNotFoundException("User $contactUserId not found") }
@@ -671,6 +680,17 @@ class InteractionServiceImpl(
             contact.status,
             contact.createdAt,
         )
+    }
+
+    private fun resolveContactUserId(
+        currentUserId: Long,
+        contact: ContactDto,
+    ): Long {
+        return when (currentUserId) {
+            contact.id.userLowId -> contact.id.userHighId
+            contact.id.userHighId -> contact.id.userLowId
+            else -> throw AccessDeniedException("Current user is not a participant of this contact")
+        }
     }
 
     private fun toContactRecommendationResponse(
