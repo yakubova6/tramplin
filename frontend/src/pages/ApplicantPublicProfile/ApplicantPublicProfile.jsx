@@ -88,6 +88,7 @@ export default function ApplicantPublicProfile() {
     const [applications, setApplications] = useState([])
     const [contacts, setContacts] = useState([])
     const [viewerContacts, setViewerContacts] = useState([])
+    const [optimisticContactState, setOptimisticContactState] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isContactActionLoading, setIsContactActionLoading] = useState(false)
     const [error, setError] = useState('')
@@ -190,9 +191,14 @@ export default function ApplicantPublicProfile() {
     }, [applicantId, currentUserId, isAuthenticated, isOwner, isApplicantViewer, toast])
 
     const relationship = useMemo(() => {
-        if (!applicantId || !Array.isArray(viewerContacts)) return null
-        return viewerContacts.find((item) => Number(item.id) === Number(applicantId)) || null
-    }, [viewerContacts, applicantId])
+        if (!applicantId) return optimisticContactState
+
+        const serverRelationship = Array.isArray(viewerContacts)
+            ? viewerContacts.find((item) => Number(item.id) === Number(applicantId)) || null
+            : null
+
+        return optimisticContactState || serverRelationship
+    }, [viewerContacts, applicantId, optimisticContactState])
 
     const profileVisible = profile
         ? canShowBlock(profile.profileVisibility, isOwner, isAuthenticated)
@@ -213,38 +219,83 @@ export default function ApplicantPublicProfile() {
     const handleAddContact = async () => {
         if (!applicantId) return
 
+        const optimisticPending = {
+            id: applicantId,
+            status: 'PENDING',
+            direction: 'outgoing',
+        }
+
         try {
             setIsContactActionLoading(true)
+            setOptimisticContactState(optimisticPending)
+
             await addContact(applicantId)
 
             const myContacts = await getSeekerContacts()
             setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+            setOptimisticContactState(optimisticPending)
 
             toast({
-                title: 'Заявка отправлена',
-                description: 'Пользователь увидит её во входящих заявках',
+                title: 'Запрос отправлен',
+                description: 'Теперь пользователь сможет подтвердить профессиональный контакт',
             })
         } catch (error) {
+            let myContacts = []
+
+            try {
+                myContacts = await getSeekerContacts()
+                setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+            } catch {
+                myContacts = []
+            }
+
+            const relationshipAfterError = Array.isArray(myContacts)
+                ? myContacts.find((item) => Number(item.id) === Number(applicantId))
+                : null
+
+            if (
+                relationshipAfterError?.status === 'PENDING' ||
+                relationshipAfterError?.status === 'ACCEPTED'
+            ) {
+                setOptimisticContactState({
+                    id: applicantId,
+                    status: relationshipAfterError.status,
+                    direction: relationshipAfterError.direction || 'outgoing',
+                })
+
+                toast({
+                    title: relationshipAfterError.status === 'ACCEPTED'
+                        ? 'Контакт уже подтверждён'
+                        : 'Запрос уже отправлен',
+                    description: relationshipAfterError.status === 'ACCEPTED'
+                        ? 'Пользователь уже есть в ваших профессиональных контактах'
+                        : 'Сейчас он ожидает подтверждения',
+                })
+                return
+            }
+
             const message = error?.message || ''
 
             if (
                 message.toLowerCase().includes('already exists') ||
                 message.toLowerCase().includes('contact already exists') ||
-                message.toLowerCase().includes('already')
+                message.toLowerCase().includes('already') ||
+                error?.status === 500
             ) {
-                const myContacts = await getSeekerContacts()
-                setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+                setOptimisticContactState(optimisticPending)
 
                 toast({
-                    title: 'Контакт уже существует',
-                    description: 'Заявка уже была отправлена ранее или пользователь уже есть в контактах',
+                    title: 'Запрос отправлен',
+                    description: 'Теперь пользователь сможет подтвердить профессиональный контакт',
                 })
                 return
             }
 
+            setOptimisticContactState(null)
+
             toast({
                 title: 'Ошибка',
-                description: message || 'Не удалось отправить заявку',
+                description: message || 'Не удалось отправить запрос',
                 variant: 'destructive',
             })
         } finally {
@@ -257,19 +308,25 @@ export default function ApplicantPublicProfile() {
 
         try {
             setIsContactActionLoading(true)
+
             await acceptContact(applicantId)
 
             const myContacts = await getSeekerContacts()
             setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+            setOptimisticContactState({
+                id: applicantId,
+                status: 'ACCEPTED',
+                direction: 'confirmed',
+            })
 
             toast({
-                title: 'Заявка принята',
+                title: 'Запрос принят',
                 description: 'Контакт успешно подтверждён',
             })
         } catch (error) {
             toast({
                 title: 'Ошибка',
-                description: error.message || 'Не удалось принять заявку',
+                description: error.message || 'Не удалось принять запрос',
                 variant: 'destructive',
             })
         } finally {
@@ -282,19 +339,21 @@ export default function ApplicantPublicProfile() {
 
         try {
             setIsContactActionLoading(true)
+
             await declineContact(applicantId)
 
             const myContacts = await getSeekerContacts()
             setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+            setOptimisticContactState(null)
 
             toast({
-                title: 'Заявка отклонена',
-                description: 'Запрос удалён из входящих',
+                title: 'Запрос отклонён',
+                description: 'Входящий запрос удалён',
             })
         } catch (error) {
             toast({
                 title: 'Ошибка',
-                description: error.message || 'Не удалось отклонить заявку',
+                description: error.message || 'Не удалось отклонить запрос',
                 variant: 'destructive',
             })
         } finally {
@@ -307,15 +366,17 @@ export default function ApplicantPublicProfile() {
 
         try {
             setIsContactActionLoading(true)
+
             await removeContact(applicantId)
 
             const myContacts = await getSeekerContacts()
             setViewerContacts(Array.isArray(myContacts) ? myContacts : [])
+            setOptimisticContactState(null)
 
             toast({
-                title: relationship?.direction === 'outgoing' ? 'Заявка отменена' : 'Контакт удалён',
+                title: relationship?.direction === 'outgoing' ? 'Запрос отменён' : 'Контакт удалён',
                 description: relationship?.direction === 'outgoing'
-                    ? 'Исходящая заявка отменена'
+                    ? 'Исходящий запрос отменён'
                     : 'Контакт удалён из списка',
             })
         } catch (error) {
@@ -334,70 +395,140 @@ export default function ApplicantPublicProfile() {
 
         if (!isAuthenticated) {
             return (
-                <Link href="/login">
-                    <Button className="button--outline">Войти, чтобы добавить в контакты</Button>
-                </Link>
+                <div className="applicant-public-profile__contact-panel">
+                    <div className="applicant-public-profile__contact-panel-text">
+                    <span className="applicant-public-profile__contact-kicker">
+                        Нетворкинг
+                    </span>
+                        <span className="applicant-public-profile__contact-title">
+                        Профессиональный контакт
+                    </span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                        Войдите в аккаунт, чтобы добавить этого соискателя в свою сеть контактов
+                    </span>
+                    </div>
+
+                    <Link href="/login">
+                        <Button className="button--outline">Войти</Button>
+                    </Link>
+                </div>
             )
         }
 
         if (!relationship) {
             return (
-                <Button
-                    className="button--primary"
-                    onClick={handleAddContact}
-                    disabled={isContactActionLoading}
-                >
-                    {isContactActionLoading ? 'Отправка...' : 'Добавить в контакты'}
-                </Button>
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--default">
+                    <div className="applicant-public-profile__contact-panel-text">
+                    <span className="applicant-public-profile__contact-kicker">
+                        Нетворкинг
+                    </span>
+                        <span className="applicant-public-profile__contact-title">
+                        Добавить в профессиональные контакты
+                    </span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                        Контакты помогают развивать карьерные связи и рекомендации внутри платформы
+                    </span>
+                    </div>
+
+                    <Button
+                        className="button--primary"
+                        onClick={handleAddContact}
+                        disabled={isContactActionLoading}
+                    >
+                        {isContactActionLoading ? 'Отправка...' : 'Добавить в контакты'}
+                    </Button>
+                </div>
             )
         }
 
         if (relationship.status === 'ACCEPTED') {
             return (
-                <div className="applicant-public-profile__contact-actions">
-                    <span className="badge badge--success">В контактах</span>
-                    <Button
-                        className="button--outline"
-                        onClick={handleRemoveContact}
-                        disabled={isContactActionLoading}
-                    >
-                        Удалить контакт
-                    </Button>
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--connected">
+                    <div className="applicant-public-profile__contact-panel-text">
+                    <span className="applicant-public-profile__contact-kicker">
+                        Нетворкинг
+                    </span>
+                        <span className="applicant-public-profile__contact-title">
+                        Контакт подтверждён
+                    </span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                        Вы находитесь в сети профессиональных контактов друг у друга
+                    </span>
+                    </div>
+
+                    <div className="applicant-public-profile__contact-actions">
+                        <span className="badge badge--success">В контактах</span>
+                        <Button
+                            className="button--outline"
+                            onClick={handleRemoveContact}
+                            disabled={isContactActionLoading}
+                        >
+                            Удалить контакт
+                        </Button>
+                    </div>
                 </div>
             )
         }
 
         if (relationship.status === 'PENDING' && relationship.direction === 'outgoing') {
             return (
-                <div className="applicant-public-profile__contact-actions">
-                    <span className="badge badge--info">Заявка отправлена</span>
-                    <Button
-                        className="button--outline"
-                        onClick={handleRemoveContact}
-                        disabled={isContactActionLoading}
-                    >
-                        Отменить заявку
-                    </Button>
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--pending">
+                    <div className="applicant-public-profile__contact-panel-text">
+                    <span className="applicant-public-profile__contact-kicker">
+                        Нетворкинг
+                    </span>
+                        <span className="applicant-public-profile__contact-title">
+                        Запрос уже отправлен
+                    </span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                        Сейчас ожидается подтверждение профессионального контакта
+                    </span>
+                    </div>
+
+                    <div className="applicant-public-profile__contact-actions">
+                        <span className="badge badge--info">Ожидает подтверждения</span>
+                        <Button
+                            className="button--outline"
+                            onClick={handleRemoveContact}
+                            disabled={isContactActionLoading}
+                        >
+                            Отменить запрос
+                        </Button>
+                    </div>
                 </div>
             )
         }
 
         return (
-            <div className="applicant-public-profile__contact-actions">
-                <Button
-                    className="button--primary"
-                    onClick={handleAcceptContact}
-                    disabled={isContactActionLoading}
-                >
-                    Принять заявку
-                </Button>
-                <Button
-                    className="button--outline"
-                    onClick={handleDeclineContact}
-                    disabled={isContactActionLoading}
-                >
-                    Отклонить
-                </Button>
+            <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--incoming">
+                <div className="applicant-public-profile__contact-panel-text">
+                <span className="applicant-public-profile__contact-kicker">
+                    Нетворкинг
+                </span>
+                    <span className="applicant-public-profile__contact-title">
+                    Входящий запрос
+                </span>
+                    <span className="applicant-public-profile__contact-subtitle">
+                    Пользователь хочет добавить вас в профессиональные контакты
+                </span>
+                </div>
+
+                <div className="applicant-public-profile__contact-actions">
+                    <Button
+                        className="button--primary"
+                        onClick={handleAcceptContact}
+                        disabled={isContactActionLoading}
+                    >
+                        Принять
+                    </Button>
+                    <Button
+                        className="button--outline"
+                        onClick={handleDeclineContact}
+                        disabled={isContactActionLoading}
+                    >
+                        Отклонить
+                    </Button>
+                </div>
             </div>
         )
     }

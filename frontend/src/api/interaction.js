@@ -22,44 +22,61 @@ function getCurrentUserQueryValue() {
 export async function getContacts() {
     const user = getSessionUser()
     if (!user?.id) return []
-    return httpJson(`${API_BASE}/contacts?${toQuery({ userId: user.id })}`)
+
+    const result = await httpJson(`${API_BASE}/contacts`)
+    console.log('[interaction] getContacts raw response:', result)
+    return result
 }
 
 export async function addContact(contactUserId) {
     const user = getSessionUser()
     if (!user?.id) throw new Error('Пользователь не авторизован')
 
-    return httpJson(`${API_BASE}/contacts?${toQuery({ userId: user.id })}`, {
+    console.log('[interaction] addContact request body:', { contactUserId })
+
+    const result = await httpJson(`${API_BASE}/contacts`, {
         method: 'POST',
         body: JSON.stringify({ contactUserId }),
     })
+
+    console.log('[interaction] addContact response:', result)
+    return result
 }
 
 export async function acceptContactRequest(contactUserId) {
     const user = getSessionUser()
     if (!user?.id) throw new Error('Пользователь не авторизован')
 
-    return httpJson(`${API_BASE}/contacts/${contactUserId}/accept?${toQuery({ userId: user.id })}`, {
+    const result = await httpJson(`${API_BASE}/contacts/${contactUserId}/accept`, {
         method: 'PATCH',
     })
+
+    console.log('[interaction] acceptContactRequest response:', result)
+    return result
 }
 
 export async function declineContactRequest(contactUserId) {
     const user = getSessionUser()
     if (!user?.id) throw new Error('Пользователь не авторизован')
 
-    return httpJson(`${API_BASE}/contacts/${contactUserId}/decline?${toQuery({ userId: user.id })}`, {
+    const result = await httpJson(`${API_BASE}/contacts/${contactUserId}/decline`, {
         method: 'PATCH',
     })
+
+    console.log('[interaction] declineContactRequest response:', result)
+    return result
 }
 
 export async function removeContact(contactUserId) {
     const user = getSessionUser()
     if (!user?.id) throw new Error('Пользователь не авторизован')
 
-    return httpJson(`${API_BASE}/contacts/${contactUserId}?${toQuery({ userId: user.id })}`, {
+    const result = await httpJson(`${API_BASE}/contacts/${contactUserId}`, {
         method: 'DELETE',
     })
+
+    console.log('[interaction] removeContact response:', result)
+    return result
 }
 
 export async function getMyResponses() {

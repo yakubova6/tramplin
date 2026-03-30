@@ -13,6 +13,7 @@ import {
     removeGuestFavoriteOpportunity,
     isGuestFavoriteOpportunity,
     migrateGuestFavoritesToAccount,
+    getSeekerSaved,
 } from '../../../api/profile'
 import { getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
 import './OpportunityDetailPage.scss'
@@ -81,6 +82,7 @@ export default function OpportunityDetailPage() {
     const [isApplying, setIsApplying] = useState(false)
     const [currentUser, setCurrentUser] = useState(getSessionUser())
     const [isFavorite, setIsFavorite] = useState(false)
+    const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
 
     useEffect(() => {
         const unsubscribe = subscribeSessionChange(async (nextUser) => {
@@ -126,19 +128,50 @@ export default function OpportunityDetailPage() {
     useEffect(() => {
         if (!params?.id) return
 
-        setIsLoading(true)
-        setError('')
+        let isMounted = true
 
-        getOpportunity(params.id)
-            .then((data) => setItem(data))
-            .catch((err) => setError(err?.message || 'Не удалось загрузить карточку'))
-            .finally(() => setIsLoading(false))
+        async function loadOpportunityData() {
+            setIsLoading(true)
+            setError('')
 
-        setIsFavorite(
-            currentUser
-                ? false
-                : isGuestFavoriteOpportunity(Number(params.id))
-        )
+            try {
+                const data = await getOpportunity(params.id)
+                if (!isMounted) return
+                setItem(data)
+
+                if (!currentUser) {
+                    setIsFavorite(isGuestFavoriteOpportunity(Number(params.id)))
+                    return
+                }
+
+                try {
+                    const savedItems = await getSeekerSaved()
+                    if (!isMounted) return
+
+                    const existsInSaved = Array.isArray(savedItems)
+                        ? savedItems.some((saved) => Number(saved.id) === Number(params.id))
+                        : false
+
+                    setIsFavorite(existsInSaved)
+                } catch {
+                    if (!isMounted) return
+                    setIsFavorite(false)
+                }
+            } catch (err) {
+                if (!isMounted) return
+                setError(err?.message || 'Не удалось загрузить карточку')
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false)
+                }
+            }
+        }
+
+        loadOpportunityData()
+
+        return () => {
+            isMounted = false
+        }
     }, [params?.id, currentUser])
 
     const resourceLinks = useMemo(() => normalizeResourceLinks(item?.resourceLinks), [item?.resourceLinks])
@@ -222,45 +255,53 @@ export default function OpportunityDetailPage() {
     }
 
     const handleToggleFavorite = async () => {
-        if (!item) return
+        if (!item || isFavoriteLoading) return
+
+        const nextFavoriteState = !isFavorite
+        setIsFavorite(nextFavoriteState)
+        setIsFavoriteLoading(true)
 
         try {
             if (!currentUser) {
-                if (isFavorite) {
-                    removeGuestFavoriteOpportunity(item.id)
-                    toast({
-                        title: 'Удалено из избранного',
-                        description: `«${item.title}» удалено из избранного браузера`,
-                    })
-                } else {
+                if (nextFavoriteState) {
                     addGuestFavoriteOpportunity(item.id)
                     toast({
                         title: 'Добавлено в избранное',
                         description: `«${item.title}» сохранено в браузере`,
                     })
+                } else {
+                    removeGuestFavoriteOpportunity(item.id)
+                    toast({
+                        title: 'Удалено из избранного',
+                        description: `«${item.title}» удалено из избранного браузера`,
+                    })
                 }
                 return
             }
 
-            if (isFavorite) {
-                await removeFromSaved(item.id)
-                toast({
-                    title: 'Удалено из избранного',
-                    description: `«${item.title}» удалено из избранного`,
-                })
-            } else {
+            if (nextFavoriteState) {
                 await addToSaved(item.id)
                 toast({
                     title: 'Добавлено в избранное',
                     description: `«${item.title}» добавлено в избранное`,
                 })
+            } else {
+                await removeFromSaved(item.id)
+                toast({
+                    title: 'Удалено из избранного',
+                    description: `«${item.title}» удалено из избранного`,
+                })
             }
         } catch (toggleError) {
+            setIsFavorite(!nextFavoriteState)
+
             toast({
                 title: 'Ошибка',
                 description: toggleError.message || 'Не удалось изменить избранное',
                 variant: 'destructive',
             })
+        } finally {
+            setIsFavoriteLoading(false)
         }
     }
 
@@ -321,28 +362,36 @@ export default function OpportunityDetailPage() {
                             </div>
 
                             <div className="opportunity-detail-page__title-row">
-                                <h1>{item.title}</h1>
-                                <button
-                                    type="button"
-                                    className={`opportunity-detail-page__fav-star ${isFavorite ? 'is-favorite' : ''}`}
-                                    onClick={handleToggleFavorite}
-                                >
-                                    ★
-                                </button>
+                                <div className="opportunity-detail-page__title-wrap">
+                                    <h1>{item.title}</h1>
+                                </div>
+
+                                <div className="opportunity-detail-page__title-actions">
+                                    <button
+                                        type="button"
+                                        className={`opportunity-detail-page__fav-star ${isFavorite ? 'is-favorite' : ''} ${isFavoriteLoading ? 'is-loading' : ''}`}
+                                        onClick={handleToggleFavorite}
+                                        disabled={isFavoriteLoading}
+                                        aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                                        title={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
+                                    >
+                                        ★
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="opportunity-detail-page__company-row">
-                                <img src={companyIcon} alt="" className="icon" />
+                                <img src={companyIcon} alt="" className="icon"/>
                                 <span>{item.companyName}</span>
                             </div>
 
                             <div className="opportunity-detail-page__location-row">
-                                <img src={locationIcon} alt="" className="icon" />
+                                <img src={locationIcon} alt="" className="icon"/>
                                 <span>{item.city?.name || item.location?.addressLine || 'Местоположение не указано'}</span>
                             </div>
 
                             <div className="opportunity-detail-page__salary-row">
-                                <img src={briefcaseIcon} alt="" className="icon" />
+                                <img src={briefcaseIcon} alt="" className="icon"/>
                                 <span>{formatMoney(item.salaryFrom, item.salaryTo, item.salaryCurrency)}</span>
                             </div>
 
@@ -362,7 +411,7 @@ export default function OpportunityDetailPage() {
 
                             <div className="opportunity-detail-page__info-grid">
                                 <div className="info-item">
-                                    <img src={calendarIcon} alt="" className="icon" />
+                                    <img src={calendarIcon} alt="" className="icon"/>
                                     <div>
                                         <strong>Опубликовано</strong>
                                         <p>{formatDate(item.publishedAt)}</p>
@@ -370,7 +419,7 @@ export default function OpportunityDetailPage() {
                                 </div>
 
                                 <div className="info-item">
-                                    <img src={calendarIcon} alt="" className="icon" />
+                                    <img src={calendarIcon} alt="" className="icon"/>
                                     <div>
                                         <strong>{item.type === 'EVENT' ? 'Дата проведения' : 'Действует до'}</strong>
                                         <p>{formatDate(item.eventDate || item.expiresAt)}</p>
@@ -379,7 +428,7 @@ export default function OpportunityDetailPage() {
 
                                 {item.employmentType && (
                                     <div className="info-item">
-                                        <img src={briefcaseIcon} alt="" className="icon" />
+                                        <img src={briefcaseIcon} alt="" className="icon"/>
                                         <div>
                                             <strong>Занятость</strong>
                                             <p>{OPPORTUNITY_LABELS.employmentType[item.employmentType] || item.employmentType}</p>
@@ -389,7 +438,7 @@ export default function OpportunityDetailPage() {
 
                                 {item.workFormat && (
                                     <div className="info-item">
-                                        <img src={locationIcon} alt="" className="icon" />
+                                        <img src={locationIcon} alt="" className="icon"/>
                                         <div>
                                             <strong>Формат</strong>
                                             <p>{OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat}</p>
@@ -408,7 +457,7 @@ export default function OpportunityDetailPage() {
                                     <div className="contacts-list">
                                         {item.contactInfo?.email && (
                                             <a href={`mailto:${item.contactInfo.email}`} className="contact-link">
-                                                <img src={mailIcon} alt="" className="icon" />
+                                                <img src={mailIcon} alt="" className="icon"/>
                                                 <span>{item.contactInfo.email}</span>
                                             </a>
                                         )}
@@ -438,7 +487,7 @@ export default function OpportunityDetailPage() {
                                                 rel="noopener noreferrer"
                                                 className="contact-link"
                                             >
-                                                <img src={mailIcon} alt="" className="icon" />
+                                                <img src={mailIcon} alt="" className="icon"/>
                                                 <span>{item.contactInfo.websiteUrl}</span>
                                             </a>
                                         )}
@@ -464,7 +513,7 @@ export default function OpportunityDetailPage() {
                                                 rel="noopener noreferrer"
                                                 className="contact-link"
                                             >
-                                                <img src={mailIcon} alt="" className="icon" />
+                                                <img src={mailIcon} alt="" className="icon"/>
                                                 <span>{link.label || link.url}</span>
                                             </a>
                                         ))}
@@ -485,7 +534,8 @@ export default function OpportunityDetailPage() {
 
                             <div className="opportunity-detail-page__actions">
                                 {isApplicant && (
-                                    <Button className="button--primary button--full" onClick={handleApply} disabled={isApplying}>
+                                    <Button className="button--primary button--full" onClick={handleApply}
+                                            disabled={isApplying}>
                                         {isApplying ? 'Отправка...' : 'Откликнуться'}
                                     </Button>
                                 )}
