@@ -77,6 +77,60 @@ class GlobalExceptionHandler {
         )
     }
 
+    @ExceptionHandler(InvalidPasswordResetCodeException::class)
+    fun handleInvalidPasswordResetCode(ex: InvalidPasswordResetCodeException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.UNAUTHORIZED,
+            code = "invalid_password_reset_code",
+            message = ex.message ?: "Invalid password reset code"
+        )
+    }
+
+    @ExceptionHandler(InvalidPasswordResetTokenException::class)
+    fun handleInvalidPasswordResetToken(ex: InvalidPasswordResetTokenException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.UNAUTHORIZED,
+            code = "invalid_password_reset_token",
+            message = ex.message ?: "Invalid password reset token"
+        )
+    }
+
+    @ExceptionHandler(InvalidTwoFactorCodeException::class)
+    fun handleInvalidTwoFactorCode(ex: InvalidTwoFactorCodeException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.UNAUTHORIZED,
+            code = "invalid_two_factor_code",
+            message = ex.message ?: "Invalid two-factor code"
+        )
+    }
+
+    @ExceptionHandler(InvalidTwoFactorPendingTokenException::class)
+    fun handleInvalidTwoFactorPendingToken(ex: InvalidTwoFactorPendingTokenException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.UNAUTHORIZED,
+            code = "invalid_two_factor_pending_token",
+            message = ex.message ?: "Invalid or expired two-factor challenge"
+        )
+    }
+
+    @ExceptionHandler(TwoFactorAlreadyEnabledException::class)
+    fun handleTwoFactorAlreadyEnabled(ex: TwoFactorAlreadyEnabledException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.CONFLICT,
+            code = "two_factor_already_enabled",
+            message = ex.message ?: "Two-factor authentication is already enabled"
+        )
+    }
+
+    @ExceptionHandler(TwoFactorAlreadyDisabledException::class)
+    fun handleTwoFactorAlreadyDisabled(ex: TwoFactorAlreadyDisabledException): ResponseEntity<ErrorResponse> {
+        return build(
+            status = HttpStatus.CONFLICT,
+            code = "two_factor_already_disabled",
+            message = ex.message ?: "Two-factor authentication is already disabled"
+        )
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleValidation(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
         val message = ex.bindingResult.fieldErrors.firstOrNull()?.defaultMessage ?: "Validation failed"

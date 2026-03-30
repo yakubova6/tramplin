@@ -35,6 +35,9 @@ open class UserDto {
     @Column(name = "email_verified", nullable = false)
     open var emailVerified: Boolean = true
 
+    @Column(name = "two_factor_enabled", nullable = false)
+    open var twoFactorEnabled: Boolean = false
+
     @Column(name = "last_login_at")
     open var lastLoginAt: Instant? = null
 

@@ -10,17 +10,26 @@ import ru.itplanet.trampline.auth.exception.InvalidCredentialsException
 import ru.itplanet.trampline.auth.exception.InvalidPasswordResetCodeException
 import ru.itplanet.trampline.auth.exception.InvalidPasswordResetTokenException
 import ru.itplanet.trampline.auth.exception.InvalidSessionException
+import ru.itplanet.trampline.auth.exception.InvalidTwoFactorPendingTokenException
 import ru.itplanet.trampline.auth.exception.RegistrationRoleNotAllowedException
+import ru.itplanet.trampline.auth.exception.TwoFactorAlreadyDisabledException
+import ru.itplanet.trampline.auth.exception.TwoFactorAlreadyEnabledException
 import ru.itplanet.trampline.auth.exception.UserAlreadyExistsException
+import ru.itplanet.trampline.auth.exception.UserNotFoundException
 import ru.itplanet.trampline.auth.model.request.Authorization
 import ru.itplanet.trampline.auth.model.request.PasswordResetConfirmRequest
 import ru.itplanet.trampline.auth.model.request.PasswordResetRequest
 import ru.itplanet.trampline.auth.model.request.PasswordResetVerifyRequest
 import ru.itplanet.trampline.auth.model.request.Registration
+import ru.itplanet.trampline.auth.model.request.TwoFactorConfirmRequest
+import ru.itplanet.trampline.auth.model.request.TwoFactorPasswordRequest
+import ru.itplanet.trampline.auth.model.request.TwoFactorResendRequest
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.model.response.CurrentSessionResponse
+import ru.itplanet.trampline.auth.model.response.LoginResponse
 import ru.itplanet.trampline.auth.model.response.PasswordResetVerifyResponse
 import ru.itplanet.trampline.auth.model.response.SessionInfoResponse
+import ru.itplanet.trampline.auth.model.response.TwoFactorChallengeResponse
 import ru.itplanet.trampline.auth.util.EmailNormalizer
 import ru.itplanet.trampline.auth.util.PasswordResetCodeGenerator
 import ru.itplanet.trampline.commons.dao.UserDao
@@ -41,6 +50,7 @@ class AuthServiceImpl(
     private val passwordResetCodeGenerator: PasswordResetCodeGenerator,
     private val passwordResetMailService: PasswordResetMailService,
     private val passwordResetProperties: PasswordResetProperties,
+    private val twoFactorChallengeService: TwoFactorChallengeService,
 ) : AuthService {
 
     @Transactional
@@ -81,7 +91,7 @@ class AuthServiceImpl(
     }
 
     @Transactional
-    override fun login(request: Authorization): AuthResponse {
+    override fun login(request: Authorization): LoginResponse {
         val normalizedEmail = emailNormalizer.normalize(request.email)
 
         val userDto = userDao.findByEmail(normalizedEmail)
@@ -91,13 +101,125 @@ class AuthServiceImpl(
             throw InvalidCredentialsException()
         }
 
+        if (userDto.twoFactorEnabled) {
+            val challenge = twoFactorChallengeService.createLoginChallenge(userDto)
+
+            return LoginResponse(
+                requiresTwoFactor = true,
+                pendingToken = challenge.pendingToken,
+                pendingTokenExpiresAt = challenge.expiresAt
+            )
+        }
+
         userDto.lastLoginAt = Instant.now()
         val savedUser = userDao.save(userDto)
+
+        return LoginResponse(
+            requiresTwoFactor = false,
+            sessionId = sessionService.createSession(savedUser.id!!),
+            user = userConverter.fromDtoToUser(savedUser)
+        )
+    }
+
+    @Transactional
+    override fun verifyLoginTwoFactor(request: TwoFactorConfirmRequest): AuthResponse {
+        val userId = twoFactorChallengeService.verifyLoginChallenge(
+            pendingToken = request.pendingToken,
+            code = request.code
+        )
+
+        val user = userDao.findById(userId).orElse(null)
+            ?: throw InvalidTwoFactorPendingTokenException()
+
+        user.lastLoginAt = Instant.now()
+        val savedUser = userDao.save(user)
 
         return AuthResponse(
             sessionId = sessionService.createSession(savedUser.id!!),
             user = userConverter.fromDtoToUser(savedUser)
         )
+    }
+
+    override fun resendLoginTwoFactorCode(request: TwoFactorResendRequest) {
+        twoFactorChallengeService.resendLoginChallenge(request.pendingToken)
+    }
+
+    @Transactional
+    override fun requestEnableTwoFactor(
+        userId: Long,
+        request: TwoFactorPasswordRequest
+    ): TwoFactorChallengeResponse {
+        val user = userDao.findByIdForUpdate(userId)
+            ?: throw UserNotFoundException()
+
+        if (user.twoFactorEnabled) {
+            throw TwoFactorAlreadyEnabledException()
+        }
+
+        validateCurrentPassword(user, request.password)
+
+        return twoFactorChallengeService.createEnableChallenge(user)
+    }
+
+    @Transactional
+    override fun confirmEnableTwoFactor(
+        userId: Long,
+        request: TwoFactorConfirmRequest
+    ) {
+        val verifiedUserId = twoFactorChallengeService.verifyEnableChallenge(
+            pendingToken = request.pendingToken,
+            code = request.code,
+            userId = userId
+        )
+
+        val user = userDao.findByIdForUpdate(verifiedUserId)
+            ?: throw UserNotFoundException()
+
+        if (user.twoFactorEnabled) {
+            throw TwoFactorAlreadyEnabledException()
+        }
+
+        user.twoFactorEnabled = true
+        userDao.saveAndFlush(user)
+    }
+
+    @Transactional
+    override fun requestDisableTwoFactor(
+        userId: Long,
+        request: TwoFactorPasswordRequest
+    ): TwoFactorChallengeResponse {
+        val user = userDao.findByIdForUpdate(userId)
+            ?: throw UserNotFoundException()
+
+        if (!user.twoFactorEnabled) {
+            throw TwoFactorAlreadyDisabledException()
+        }
+
+        validateCurrentPassword(user, request.password)
+
+        return twoFactorChallengeService.createDisableChallenge(user)
+    }
+
+    @Transactional
+    override fun confirmDisableTwoFactor(
+        userId: Long,
+        request: TwoFactorConfirmRequest
+    ) {
+        val verifiedUserId = twoFactorChallengeService.verifyDisableChallenge(
+            pendingToken = request.pendingToken,
+            code = request.code,
+            userId = userId
+        )
+
+        val user = userDao.findByIdForUpdate(verifiedUserId)
+            ?: throw UserNotFoundException()
+
+        if (!user.twoFactorEnabled) {
+            throw TwoFactorAlreadyDisabledException()
+        }
+
+        user.twoFactorEnabled = false
+        userDao.saveAndFlush(user)
     }
 
     @Transactional
@@ -238,6 +360,12 @@ class AuthServiceImpl(
             user = user,
             tokenPayload = extendedPayload
         )
+    }
+
+    private fun validateCurrentPassword(user: UserDto, password: String) {
+        if (!passwordEncoder.matches(password, user.passwordHash)) {
+            throw InvalidCredentialsException()
+        }
     }
 
     private fun clearPasswordResetState(user: UserDto) {

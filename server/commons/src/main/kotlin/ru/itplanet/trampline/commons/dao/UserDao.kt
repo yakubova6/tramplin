@@ -14,5 +14,8 @@ interface UserDao : JpaRepository<UserDto, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from UserDto u where u.email = :email")
     fun findByEmailForUpdate(@Param("email") email: String): UserDto?
-}
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from UserDto u where u.id = :id")
+    fun findByIdForUpdate(@Param("id") id: Long): UserDto?
+}

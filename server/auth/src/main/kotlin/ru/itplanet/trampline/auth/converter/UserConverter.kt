@@ -1,10 +1,10 @@
 package ru.itplanet.trampline.auth.converter
 
 import org.springframework.stereotype.Component
-import ru.itplanet.trampline.commons.dao.dto.UserDto
 import ru.itplanet.trampline.auth.model.User
 import ru.itplanet.trampline.auth.model.request.CreateCuratorRequest
 import ru.itplanet.trampline.auth.model.request.Registration
+import ru.itplanet.trampline.commons.dao.dto.UserDto
 import ru.itplanet.trampline.commons.model.Role
 
 @Component
@@ -42,6 +42,7 @@ class UserConverter {
             displayName = source.displayName,
             email = source.email,
             role = source.role,
+            twoFactorEnabled = source.twoFactorEnabled,
         )
     }
 }
