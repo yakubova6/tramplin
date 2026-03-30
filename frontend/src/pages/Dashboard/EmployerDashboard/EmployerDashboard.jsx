@@ -217,7 +217,6 @@ function EmployerDashboard() {
 
     const verificationState = profile.verificationStatus || 'NOT_STARTED'
     const isVerified = verificationState === 'APPROVED'
-    const isVerificationPending = verificationState === 'PENDING'
     const isVerificationRejected = verificationState === 'REJECTED'
 
     const resetOpportunityForm = () => {
@@ -354,6 +353,7 @@ function EmployerDashboard() {
                 setVerificationData((prev) => ({
                     ...prev,
                     inn: profileData.inn || '',
+                    corporateEmail: prev.corporateEmail || currentUser?.email || '',
                 }))
             }
 
@@ -768,7 +768,7 @@ function EmployerDashboard() {
                         </span>
                     </div>
                     <button className="verification-banner__button" onClick={() => setShowVerificationModal(true)}>
-                        {verificationState === 'PENDING' ? 'Посмотреть заявку' : 'Пройти верификацию'}
+                        {verificationState === 'PENDING' ? 'Проверить статус' : 'Пройти верификацию'}
                     </button>
                 </div>
             )}
@@ -1418,8 +1418,7 @@ function EmployerDashboard() {
                     <div className="modal">
                         <h3>Верификация компании</h3>
                         <p className="field-hint">
-                            Для публикации вакансий и мероприятий подготовьте один из способов подтверждения:
-                            корпоративную почту, ИНН или профессиональные ссылки.
+                            Подтвердите статус компании, чтобы получить доступ к публикации вакансий и мероприятий.
                         </p>
 
                         <div className="modal__field">

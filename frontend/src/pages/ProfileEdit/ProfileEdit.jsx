@@ -363,17 +363,29 @@ function ProfileEdit() {
                     locationId: cityIdEmployer ? Number(cityIdEmployer) : null,
                     companySize: companySize || null,
                     foundedYear: foundedYear ? toShort(foundedYear) : null,
-                    socialLinks: [],
-                    publicContacts: [],
-                    verificationStatus: 'PENDING',
+                    socialLinks: socialRows
+                        .filter((row) => row.url?.trim())
+                        .map((row, index) => ({
+                            label: row.title?.trim() || `Ссылка ${index + 1}`,
+                            url: row.url.trim(),
+                        })),
+                    publicContacts: publicContactRows
+                        .filter((row) => row.url?.trim())
+                        .map((row, index) => ({
+                            type: 'OTHER',
+                            label: row.title?.trim() || `Контакт ${index + 1}`,
+                            value: row.url.trim(),
+                        })),
                 }
 
                 await updateEmployerProfile(employerProfileData)
 
                 toast({
-                    title: 'Заявка отправлена',
-                    description: 'Профиль компании отправлен на проверку. Обычно это занимает до 2 рабочих дней.',
+                    title: 'Профиль компании сохранён',
+                    description: 'Следующий шаг — пройти верификацию компании в кабинете работодателя.',
                 })
+
+                setLocation('/employer')
             } else {
                 const finalCityId = cityId ? Number(cityId) : 1
 
@@ -405,9 +417,9 @@ function ProfileEdit() {
                     title: 'Профиль сохранён',
                     description: 'Ваши данные успешно обновлены',
                 })
-            }
 
-            setLocation(isEmployer ? '/employer' : '/seeker')
+                setLocation('/seeker')
+            }
         } catch (error) {
             console.error('[ProfileEdit] Ошибка сохранения:', error)
 
@@ -437,11 +449,11 @@ function ProfileEdit() {
             <Card className="profile-edit__card">
                 <CardHeader>
                     <CardTitle>
-                        {isEmployer ? 'Карточка компании' : 'Личная информация'}
+                        {isEmployer ? 'Профиль компании' : 'Личная информация'}
                     </CardTitle>
                     <CardDescription>
                         {isEmployer
-                            ? 'Заполните информацию о компании. После проверки профиль станет доступен соискателям.'
+                            ? 'Заполните основную информацию о компании. Верификацию вы сможете пройти следующим шагом в кабинете работодателя.'
                             : 'Расскажите о себе — это поможет работодателям найти вас'}
                     </CardDescription>
                 </CardHeader>
@@ -875,7 +887,7 @@ function ProfileEdit() {
                             {isSubmitting
                                 ? 'Сохранение...'
                                 : isEmployer
-                                    ? 'Сохранить и отправить на проверку'
+                                    ? 'Сохранить и перейти в кабинет'
                                     : 'Сохранить профиль'}
                         </Button>
                     </form>
