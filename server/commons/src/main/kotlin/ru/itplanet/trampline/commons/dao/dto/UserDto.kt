@@ -38,6 +38,24 @@ open class UserDto {
     @Column(name = "last_login_at")
     open var lastLoginAt: Instant? = null
 
+    @Column(name = "password_reset_code_hash")
+    open var passwordResetCodeHash: String? = null
+
+    @Column(name = "password_reset_code_expires_at")
+    open var passwordResetCodeExpiresAt: Instant? = null
+
+    @Column(name = "password_reset_code_sent_at")
+    open var passwordResetCodeSentAt: Instant? = null
+
+    @Column(name = "password_reset_code_attempts", nullable = false)
+    open var passwordResetCodeAttempts: Int = 0
+
+    @Column(name = "password_reset_token_hash")
+    open var passwordResetTokenHash: String? = null
+
+    @Column(name = "password_reset_token_expires_at")
+    open var passwordResetTokenExpiresAt: Instant? = null
+
     constructor()
 
     constructor(

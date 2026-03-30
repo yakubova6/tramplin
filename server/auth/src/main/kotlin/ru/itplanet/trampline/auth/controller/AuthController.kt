@@ -12,14 +12,18 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import ru.itplanet.trampline.commons.model.TokenPayload
 import ru.itplanet.trampline.auth.model.request.Authorization
+import ru.itplanet.trampline.auth.model.request.PasswordResetConfirmRequest
+import ru.itplanet.trampline.auth.model.request.PasswordResetRequest
+import ru.itplanet.trampline.auth.model.request.PasswordResetVerifyRequest
 import ru.itplanet.trampline.auth.model.request.Registration
 import ru.itplanet.trampline.auth.model.response.AuthResponse
 import ru.itplanet.trampline.auth.model.response.CsrfResponse
 import ru.itplanet.trampline.auth.model.response.CurrentSessionResponse
+import ru.itplanet.trampline.auth.model.response.PasswordResetVerifyResponse
 import ru.itplanet.trampline.auth.service.AuthService
 import ru.itplanet.trampline.auth.service.SessionCookieService
+import ru.itplanet.trampline.commons.model.TokenPayload
 
 @Validated
 @RestController
@@ -47,6 +51,29 @@ class AuthController(
         val authResponse = authService.login(request)
         sessionCookieService.writeSessionCookie(response, authResponse.sessionId)
         return authResponse
+    }
+
+    @PostMapping("/password-reset/request")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun requestPasswordReset(
+        @Valid @RequestBody request: PasswordResetRequest
+    ) {
+        authService.requestPasswordReset(request)
+    }
+
+    @PostMapping("/password-reset/verify")
+    fun verifyPasswordResetCode(
+        @Valid @RequestBody request: PasswordResetVerifyRequest
+    ): PasswordResetVerifyResponse {
+        return authService.verifyPasswordResetCode(request)
+    }
+
+    @PostMapping("/password-reset/confirm")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun confirmPasswordReset(
+        @Valid @RequestBody request: PasswordResetConfirmRequest
+    ) {
+        authService.confirmPasswordReset(request)
     }
 
     @GetMapping("/validateSession")

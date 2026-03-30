@@ -37,12 +37,39 @@ spring:
           max-idle: 8
           min-idle: 0
 
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+management:
+  health:
+    email:
+      enabled: false
 auth:
   session:
     cookie-name: sessionId
     ttl-seconds: 86400
     secure-cookie: false
     same-site: Lax
+
+  password-reset:
+    code-ttl-minutes: ${PASSWORD_RESET_CODE_TTL_MINUTES:10}
+    reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:10}
+    resend-cooldown-seconds: ${PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:60}
+    max-verify-attempts: ${PASSWORD_RESET_MAX_VERIFY_ATTEMPTS:5}
+    mail-from: ${PASSWORD_RESET_MAIL_FROM:no-reply@trampline.local}
+    subject: "${PASSWORD_RESET_MAIL_SUBJECT:Код сброса пароля Trampline}"
 
 internal-api:
   api-key: ${INTERNAL_API_KEY}

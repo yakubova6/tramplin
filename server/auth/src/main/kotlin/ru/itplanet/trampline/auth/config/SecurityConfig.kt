@@ -6,12 +6,12 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.config.web.PathPatternRequestMatcherBuilderFactoryBean
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.logout.LogoutFilter
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
+import org.springframework.security.config.web.PathPatternRequestMatcherBuilderFactoryBean
 import ru.itplanet.trampline.auth.security.ApiAccessDeniedHandler
 import ru.itplanet.trampline.auth.security.ApiAuthenticationEntryPoint
 import ru.itplanet.trampline.auth.security.InternalApiRequestFilter
@@ -22,7 +22,8 @@ import ru.itplanet.trampline.auth.security.SessionAuthenticationFilter
 @EnableConfigurationProperties(
     value = [
         SessionProperties::class,
-        InternalApiProperties::class
+        InternalApiProperties::class,
+        PasswordResetProperties::class
     ]
 )
 class SecurityConfig(
@@ -49,6 +50,9 @@ class SecurityConfig(
                         request.matcher("/api/auth/register"),
                         request.matcher("/api/auth/login"),
                         request.matcher("/api/auth/validateSession"),
+                        request.matcher("/api/auth/password-reset/request"),
+                        request.matcher("/api/auth/password-reset/verify"),
+                        request.matcher("/api/auth/password-reset/confirm"),
                         request.matcher("/internal/**")
                     )
             }
@@ -66,6 +70,9 @@ class SecurityConfig(
                         request.matcher("/api/auth/register"),
                         request.matcher("/api/auth/login"),
                         request.matcher("/api/auth/validateSession"),
+                        request.matcher("/api/auth/password-reset/request"),
+                        request.matcher("/api/auth/password-reset/verify"),
+                        request.matcher("/api/auth/password-reset/confirm"),
                         request.matcher("/v3/api-docs/**"),
                         request.matcher("/swagger-ui.html"),
                         request.matcher("/swagger-ui/**"),
