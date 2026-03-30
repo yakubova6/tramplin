@@ -56,6 +56,7 @@ management:
   health:
     email:
       enabled: false
+
 auth:
   session:
     cookie-name: sessionId
@@ -68,8 +69,17 @@ auth:
     reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:10}
     resend-cooldown-seconds: ${PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:60}
     max-verify-attempts: ${PASSWORD_RESET_MAX_VERIFY_ATTEMPTS:5}
-    mail-from: ${PASSWORD_RESET_MAIL_FROM:no-reply@trampline.local}
-    subject: "${PASSWORD_RESET_MAIL_SUBJECT:Код сброса пароля Trampline}"
+    mail-from: ${PASSWORD_RESET_MAIL_FROM:no-reply@tramplin.local}
+    subject: "${PASSWORD_RESET_MAIL_SUBJECT:Код сброса пароля Tramplin}"
+
+  two-factor:
+    code-ttl-minutes: ${TWO_FACTOR_CODE_TTL_MINUTES:10}
+    resend-cooldown-seconds: ${TWO_FACTOR_RESEND_COOLDOWN_SECONDS:60}
+    max-verify-attempts: ${TWO_FACTOR_MAX_VERIFY_ATTEMPTS:5}
+    mail-from: ${TWO_FACTOR_MAIL_FROM:no-reply@tramplin.local}
+    login-subject: "${TWO_FACTOR_LOGIN_MAIL_SUBJECT:Код входа Tramplin}"
+    enable-subject: "${TWO_FACTOR_ENABLE_MAIL_SUBJECT:Подтверждение включения 2FA Tramplin}"
+    disable-subject: "${TWO_FACTOR_DISABLE_MAIL_SUBJECT:Подтверждение отключения 2FA Tramplin}"
 
 internal-api:
   api-key: ${INTERNAL_API_KEY}
