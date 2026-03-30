@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation } from 'wouter'
 import { useToast } from '../../../hooks/use-toast'
 import DashboardLayout from '../DashboardLayout'
@@ -8,7 +8,11 @@ import Textarea from '../../../components/Textarea'
 import CustomSelect from '../../../components/CustomSelect'
 import CustomCheckbox from '../../../components/CustomCheckbox'
 import LinksEditor from '../../../components/LinksEditor'
-import { clearSessionUser, getSessionUser, subscribeSessionChange } from '../../../utils/sessionStore'
+import {
+    clearSessionUser,
+    getSessionUser,
+    subscribeSessionChange,
+} from '../../../utils/sessionStore'
 import {
     getApplicantProfile,
     updateApplicantProfile,
@@ -17,7 +21,12 @@ import {
     getSeekerContacts,
     removeFromSaved,
     removeContact,
-    searchCities
+    acceptContact,
+    declineContact,
+    searchCities,
+    getSeekerRecommendations,
+    sendSeekerRecommendation,
+    removeSeekerRecommendation,
 } from '../../../api/profile'
 import '../DashboardBase.scss'
 import './SeekerDashboard.scss'
@@ -38,6 +47,8 @@ const VISIBILITY_OPTIONS = [
 
 function SeekerDashboard() {
     const [activeTab, setActiveTab] = useState('profile')
+    const [contactsTab, setContactsTab] = useState('confirmed')
+    const [recommendationsTab, setRecommendationsTab] = useState('incoming')
     const [user, setUser] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
     const [isEditingAbout, setIsEditingAbout] = useState(false)
@@ -45,6 +56,8 @@ function SeekerDashboard() {
     const [isEditingPortfolio, setIsEditingPortfolio] = useState(false)
     const [isEditingContacts, setIsEditingContacts] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
+    const [isContactsLoading, setIsContactsLoading] = useState(false)
+    const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false)
     const [errors, setErrors] = useState({})
     const { toast } = useToast()
 
@@ -71,15 +84,21 @@ function SeekerDashboard() {
         openToEvents: true,
     })
 
-    // Временные состояния для редактирования ссылок
     const [tempPortfolioLinks, setTempPortfolioLinks] = useState([])
     const [tempContactLinks, setTempContactLinks] = useState([])
 
     const [applications, setApplications] = useState([])
     const [savedOpportunities, setSavedOpportunities] = useState([])
     const [contacts, setContacts] = useState([])
+    const [recommendations, setRecommendations] = useState({ incoming: [], outgoing: [] })
 
-    // Состояние для городов
+    const [recommendationModal, setRecommendationModal] = useState({
+        isOpen: false,
+        selectedOpportunityId: '',
+        selectedContactId: '',
+        message: '',
+    })
+
     const [isCitySearchOpen, setIsCitySearchOpen] = useState(false)
     const [citySearchQuery, setCitySearchQuery] = useState('')
     const [citySuggestions, setCitySuggestions] = useState([])
@@ -94,13 +113,12 @@ function SeekerDashboard() {
         return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
     }
 
-    // Преобразование массива строк в массив объектов для редактирования
     const linksToArray = (linksArray) => {
         if (!linksArray || !Array.isArray(linksArray)) return []
         return linksArray.map((url, index) => ({
             id: index,
             title: '',
-            url: url
+            url: typeof url === 'string' ? url : url?.url || '',
         }))
     }
 
@@ -114,7 +132,6 @@ function SeekerDashboard() {
         setIsEditingContacts(false)
     }
 
-    // Функция поиска городов
     const handleCitySearch = async (value) => {
         setCitySearchQuery(value)
         if (value.length >= 2) {
@@ -127,7 +144,6 @@ function SeekerDashboard() {
         }
     }
 
-    // Выбор города
     const handleSelectCity = (city) => {
         setProfile(prev => ({
             ...prev,
@@ -136,6 +152,38 @@ function SeekerDashboard() {
         }))
         setCitySearchQuery(city.name)
         setIsCitySearchOpen(false)
+    }
+
+    const loadContacts = async () => {
+        setIsContactsLoading(true)
+        try {
+            const contactsList = await getSeekerContacts()
+            setContacts(contactsList)
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось загрузить контакты',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsContactsLoading(false)
+        }
+    }
+
+    const loadRecommendations = async () => {
+        setIsRecommendationsLoading(true)
+        try {
+            const data = await getSeekerRecommendations()
+            setRecommendations(data)
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось загрузить рекомендации',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsRecommendationsLoading(false)
+        }
     }
 
     useEffect(() => {
@@ -153,6 +201,7 @@ function SeekerDashboard() {
                     setApplications([])
                     setSavedOpportunities([])
                     setContacts([])
+                    setRecommendations({ incoming: [], outgoing: [] })
                     return
                 }
 
@@ -198,6 +247,9 @@ function SeekerDashboard() {
 
                 const contactsList = await getSeekerContacts()
                 setContacts(contactsList)
+
+                const recommendationsData = await getSeekerRecommendations()
+                setRecommendations(recommendationsData)
             } catch (error) {
                 if ([401, 403, 500, 503].includes(error?.status)) {
                     clearSessionUser()
@@ -205,6 +257,7 @@ function SeekerDashboard() {
                     setApplications([])
                     setSavedOpportunities([])
                     setContacts([])
+                    setRecommendations({ incoming: [], outgoing: [] })
                     return
                 }
 
@@ -249,7 +302,6 @@ function SeekerDashboard() {
             setIsEditing(false)
             setErrors({})
 
-            // Диспатчим событие обновления профиля
             window.dispatchEvent(new CustomEvent('profile-updated', {
                 detail: {
                     firstName: profile.firstName,
@@ -262,8 +314,7 @@ function SeekerDashboard() {
                 title: 'Профиль обновлён',
                 description: 'Ваши данные успешно сохранены',
             })
-        } catch (error) {
-            console.error('Save error:', error)
+        } catch {
             toast({
                 title: 'Ошибка',
                 description: 'Не удалось сохранить профиль',
@@ -329,8 +380,7 @@ function SeekerDashboard() {
                 title: 'Обновлено',
                 description: 'Портфолио сохранено',
             })
-        } catch (error) {
-            console.error('Save portfolio error:', error)
+        } catch {
             toast({
                 title: 'Ошибка',
                 description: 'Не удалось сохранить портфолио',
@@ -356,8 +406,7 @@ function SeekerDashboard() {
                 title: 'Обновлено',
                 description: 'Контакты сохранены',
             })
-        } catch (error) {
-            console.error('Save contacts error:', error)
+        } catch {
             toast({
                 title: 'Ошибка',
                 description: 'Не удалось сохранить контакты',
@@ -381,7 +430,7 @@ function SeekerDashboard() {
             setSavedOpportunities(prev => prev.filter(opp => opp.id !== id))
             toast({
                 title: 'Удалено из избранного',
-                description: `"${title}" удалено из избранного`,
+                description: `«${title}» удалено из избранного`,
             })
         } catch {
             toast({
@@ -392,13 +441,49 @@ function SeekerDashboard() {
         }
     }
 
-    const handleRemoveContact = async (userId) => {
+    const handleAcceptContact = async (userId) => {
+        try {
+            await acceptContact(userId)
+            await loadContacts()
+            toast({
+                title: 'Заявка принята',
+                description: 'Контакт добавлен в подтверждённые',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось принять заявку',
+                variant: 'destructive',
+            })
+        }
+    }
+
+    const handleDeclineContact = async (userId) => {
+        try {
+            await declineContact(userId)
+            await loadContacts()
+            toast({
+                title: 'Заявка отклонена',
+                description: 'Контакт удалён из списка ожидания',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось отклонить заявку',
+                variant: 'destructive',
+            })
+        }
+    }
+
+    const handleRemoveContact = async (userId, direction = 'confirmed') => {
         try {
             await removeContact(userId)
             setContacts(prev => prev.filter(c => c.id !== userId))
             toast({
-                title: 'Контакт удалён',
-                description: 'Пользователь удалён из ваших контактов',
+                title: direction === 'outgoing' ? 'Заявка отменена' : 'Контакт удалён',
+                description: direction === 'outgoing'
+                    ? 'Исходящая заявка отменена'
+                    : 'Пользователь удалён из ваших контактов',
             })
         } catch (error) {
             toast({
@@ -409,7 +494,71 @@ function SeekerDashboard() {
         }
     }
 
-    // Открытие редактирования портфолио
+    const handleSendRecommendation = async () => {
+        if (!canSendRecommendation) {
+            toast({
+                title: 'Недостаточно данных',
+                description: 'Нужен хотя бы один подтверждённый контакт и одна возможность для рекомендации',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        if (!recommendationModal.selectedOpportunityId || !recommendationModal.selectedContactId) {
+            toast({
+                title: 'Ошибка',
+                description: 'Выберите контакт и возможность',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        try {
+            await sendSeekerRecommendation({
+                opportunityId: Number(recommendationModal.selectedOpportunityId),
+                toApplicantUserId: Number(recommendationModal.selectedContactId),
+                message: recommendationModal.message.trim(),
+            })
+
+            toast({
+                title: 'Рекомендация отправлена',
+                description: 'Контакт увидит её в своём кабинете',
+            })
+
+            setRecommendationModal({
+                isOpen: false,
+                selectedOpportunityId: '',
+                selectedContactId: '',
+                message: '',
+            })
+
+            await loadRecommendations()
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось отправить рекомендацию',
+                variant: 'destructive',
+            })
+        }
+    }
+
+    const handleDeleteRecommendation = async (recommendationId) => {
+        try {
+            await removeSeekerRecommendation(recommendationId)
+            await loadRecommendations()
+            toast({
+                title: 'Удалено',
+                description: 'Рекомендация удалена',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось удалить рекомендацию',
+                variant: 'destructive',
+            })
+        }
+    }
+
     const handleOpenPortfolioEdit = () => {
         if (!isEditingPortfolio) {
             if (tempPortfolioLinks.length === 0) {
@@ -421,7 +570,6 @@ function SeekerDashboard() {
         }
     }
 
-    // Открытие редактирования контактов
     const handleOpenContactsEdit = () => {
         if (!isEditingContacts) {
             if (tempContactLinks.length === 0) {
@@ -433,19 +581,6 @@ function SeekerDashboard() {
         }
     }
 
-    if (isLoading && !profile.firstName) {
-        return (
-            <DashboardLayout title="Мой профиль">
-                <div className="dashboard-loading">
-                    <div className="loading-spinner"></div>
-                    <p>Загрузка профиля...</p>
-                </div>
-            </DashboardLayout>
-        )
-    }
-
-    // ===== ФУНКЦИИ ДЛЯ ОТОБРАЖЕНИЯ ИМЕНИ =====
-
     const getInitials = () => {
         if (profile.firstName || profile.lastName) {
             return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
@@ -455,7 +590,6 @@ function SeekerDashboard() {
         }
         return '?'
     }
-
 
     const getFullNameWithPatronymic = () => {
         const parts = []
@@ -473,8 +607,6 @@ function SeekerDashboard() {
         return user?.email?.split('@')[0] || 'Пользователь'
     }
 
-
-    // Функция для отображения ссылок
     const renderLinks = (links, title) => {
         if (!links || links.length === 0) return null
 
@@ -483,21 +615,142 @@ function SeekerDashboard() {
                 <h4>{title}</h4>
                 <div className="links-list">
                     {links.map((url, idx) => {
-                        let displayName = url
+                        const linkUrl = typeof url === 'string' ? url : url?.url || ''
+                        let displayName = linkUrl
                         try {
-                            const urlObj = new URL(url)
+                            const urlObj = new URL(linkUrl)
                             displayName = urlObj.hostname
                         } catch {
-                            displayName = url
+                            displayName = linkUrl
                         }
                         return (
-                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="link-item">
+                            <a key={idx} href={linkUrl} target="_blank" rel="noopener noreferrer" className="link-item">
                                 <img src={linkIcon} alt="" className="icon-small" />
                                 <span>{displayName}</span>
                             </a>
                         )
                     })}
                 </div>
+            </div>
+        )
+    }
+
+    const confirmedContacts = useMemo(
+        () => contacts.filter((contact) => contact.status === 'ACCEPTED'),
+        [contacts]
+    )
+
+    const incomingContacts = useMemo(
+        () => contacts.filter((contact) => contact.status === 'PENDING' && contact.direction !== 'outgoing'),
+        [contacts]
+    )
+
+    const outgoingContacts = useMemo(
+        () => contacts.filter((contact) => contact.status === 'PENDING' && contact.direction === 'outgoing'),
+        [contacts]
+    )
+
+    const currentContacts = useMemo(() => {
+        if (contactsTab === 'incoming') return incomingContacts
+        if (contactsTab === 'outgoing') return outgoingContacts
+        return confirmedContacts
+    }, [contactsTab, incomingContacts, outgoingContacts, confirmedContacts])
+
+    const contactTabCount = useMemo(() => ({
+        incoming: incomingContacts.length,
+        outgoing: outgoingContacts.length,
+        confirmed: confirmedContacts.length,
+    }), [incomingContacts.length, outgoingContacts.length, confirmedContacts.length])
+
+    useEffect(() => {
+        console.log('[SeekerDashboard] contacts raw state:', contacts)
+        console.log('[SeekerDashboard] contacts counts:', {
+            total: contacts.length,
+            incoming: incomingContacts.length,
+            outgoing: outgoingContacts.length,
+            confirmed: confirmedContacts.length,
+            activeTab: contactsTab,
+            currentContacts,
+        })
+    }, [contacts, incomingContacts, outgoingContacts, confirmedContacts, currentContacts, contactsTab])
+
+    const currentRecommendations = useMemo(() => {
+        return recommendationsTab === 'incoming'
+            ? recommendations.incoming
+            : recommendations.outgoing
+    }, [recommendations, recommendationsTab])
+
+    const recommendationContactsOptions = useMemo(() => {
+        return confirmedContacts.map((contact) => ({
+            value: String(contact.id),
+            label: contact.fullName || `${contact.firstName} ${contact.lastName}`.trim() || `Пользователь #${contact.id}`,
+        }))
+    }, [confirmedContacts])
+
+    const recommendationOpportunityOptions = useMemo(() => {
+        const fromSaved = savedOpportunities
+            .filter((item) => item.id)
+            .map((item) => ({
+                value: String(item.id),
+                label: `${item.title} — ${item.companyName}`,
+            }))
+
+        const fromApplications = applications
+            .filter((item) => item.opportunityId)
+            .map((item) => ({
+                value: String(item.opportunityId),
+                label: `${item.title || item.position} — ${item.companyName}`,
+            }))
+
+        const unique = new Map()
+
+        for (const option of [...fromSaved, ...fromApplications]) {
+            if (!unique.has(option.value)) {
+                unique.set(option.value, option)
+            }
+        }
+
+        return Array.from(unique.values())
+    }, [savedOpportunities, applications])
+
+    const canSendRecommendation =
+        recommendationContactsOptions.length > 0 &&
+        recommendationOpportunityOptions.length > 0
+
+    if (isLoading && !profile.firstName) {
+        return (
+            <DashboardLayout title="Мой профиль">
+                <div className="dashboard-loading">
+                    <div className="loading-spinner"></div>
+                    <p>Загрузка профиля...</p>
+                </div>
+            </DashboardLayout>
+        )
+    }
+
+    const renderContactsEmpty = () => {
+        if (contactsTab === 'incoming') {
+            return (
+                <div className="empty-state">
+                    <p>Нет входящих заявок</p>
+                    <span>Когда кто-то отправит вам запрос в контакты, он появится здесь</span>
+                </div>
+            )
+        }
+
+        if (contactsTab === 'outgoing') {
+            return (
+                <div className="empty-state">
+                    <p>Нет исходящих заявок</p>
+                    <span>Отправленные вами запросы в контакты появятся здесь</span>
+                </div>
+            )
+        }
+
+        return (
+            <div className="empty-state">
+                <p>Пока нет подтверждённых контактов</p>
+                <span>Добавляйте интересных специалистов и расширяйте сеть</span>
             </div>
         )
     }
@@ -509,74 +762,66 @@ function SeekerDashboard() {
         >
             <div className="dashboard-tabs">
                 <button className={`dashboard-tabs__btn ${activeTab === 'profile' ? 'is-active' : ''}`} onClick={() => setActiveTab('profile')}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 21V19C20 16.8 18.2 15 16 15H8C5.8 15 4 16.8 4 19V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
                     Профиль
                 </button>
                 <button className={`dashboard-tabs__btn ${activeTab === 'applications' ? 'is-active' : ''}`} onClick={() => setActiveTab('applications')}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 12H15M9 16H15M17 21H7C5.9 21 5 20.1 5 19V5C5 3.9 5.9 3 7 3H12.6C12.8 3 13 3.1 13.1 3.2L18.8 8.9C18.9 9 19 9.2 19 9.4V19C19 20.1 18.1 21 17 21Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M13 3V9H19" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
                     Отклики
                 </button>
                 <button className={`dashboard-tabs__btn ${activeTab === 'saved' ? 'is-active' : ''}`} onClick={() => setActiveTab('saved')}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 21L10.6 19.8C7.5 17.1 5 14.9 5 12.2C5 9.9 6.9 8 9.2 8C10.5 8 11.8 8.7 12 9.6C12.2 8.7 13.5 8 14.8 8C17.1 8 19 9.9 19 12.2C19 14.9 16.5 17.1 13.4 19.8L12 21Z" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
                     Избранное
                 </button>
                 <button className={`dashboard-tabs__btn ${activeTab === 'contacts' ? 'is-active' : ''}`} onClick={() => setActiveTab('contacts')}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M17 21V19C17 16.8 15.2 15 13 15H5C2.8 15 1 16.8 1 19V21" stroke="currentColor" strokeWidth="1.5"/>
-                        <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M23 21V19C22.6 17 21 15.6 19 15.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M16 3.3C18 3.6 19.6 5 20 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
                     Контакты
+                </button>
+                <button className={`dashboard-tabs__btn ${activeTab === 'recommendations' ? 'is-active' : ''}`} onClick={() => setActiveTab('recommendations')}>
+                    Рекомендации
                 </button>
             </div>
 
             <div className="dashboard-panel">
                 {activeTab === 'profile' && (
                     <div className="seeker-profile">
-                        {/* КАРТОЧКА ПРОФИЛЯ */}
                         <div className="profile-card">
                             <div className="profile-card__avatar-initials">
                                 {getInitials() !== '?' ? (
                                     getInitials()
                                 ) : (
-                                    <img src={userAvatarIcon} alt="Аватар" className="profile-card__avatar-icon"/>
+                                    <img src={userAvatarIcon} alt="Аватар" className="profile-card__avatar-icon" />
                                 )}
                             </div>
                             <div className="profile-card__info">
                                 <div className="profile-card__header">
                                     <h2>{getFullNameWithPatronymic() || user?.displayName || 'Не указано'}</h2>
-                                    <button
-                                        className="profile-card__edit-btn"
-                                        onClick={() => setIsEditing(true)}
-                                    >
-                                        <img src={editIcon} alt="" className="icon"/>
-                                        Редактировать
-                                    </button>
+                                    <div className="profile-card__header-actions">
+                                        <button className="profile-card__edit-btn" onClick={() => setIsEditing(true)}>
+                                            <img src={editIcon} alt="" className="icon" />
+                                            Редактировать
+                                        </button>
+                                        {user?.id && (
+                                            <button
+                                                className="profile-card__edit-btn"
+                                                onClick={() => navigate(`/seekers/${user.id}`)}
+                                            >
+                                                Открыть публичный профиль
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+
                                 <div className="profile-card__details">
                                     <div className="profile-card__detail">
                                         <span className="profile-card__detail-label">
-                                            <img src={briefcaseIcon} alt="" className="icon-small"/>
+                                            <img src={briefcaseIcon} alt="" className="icon-small" />
                                             Статус
                                         </span>
-                                        <span
-                                            className={`status-badge ${profile.openToWork ? 'status-active' : 'status-passive'}`}>
+                                        <span className={`status-badge ${profile.openToWork ? 'status-active' : 'status-passive'}`}>
                                             {profile.openToWork ? 'Активно ищу работу' : 'Не ищу работу'}
                                         </span>
                                     </div>
                                     {profile.universityName && (
                                         <div className="profile-card__detail">
                                             <span className="profile-card__detail-label">
-                                                <img src={calendarIcon} alt="" className="icon-small"/>
+                                                <img src={calendarIcon} alt="" className="icon-small" />
                                                 Образование
                                             </span>
                                             <span className="profile-card__detail-value">
@@ -589,7 +834,7 @@ function SeekerDashboard() {
                                     {profile.cityName && (
                                         <div className="profile-card__detail">
                                             <span className="profile-card__detail-label">
-                                                <img src={locationIcon} alt="" className="icon-small"/>
+                                                <img src={locationIcon} alt="" className="icon-small" />
                                                 Город
                                             </span>
                                             <span className="profile-card__detail-value">{profile.cityName}</span>
@@ -599,16 +844,11 @@ function SeekerDashboard() {
                             </div>
                         </div>
 
-                        {/* ФОРМА РЕДАКТИРОВАНИЯ ОСНОВНОЙ ИНФОРМАЦИИ */}
                         {isEditing && (
                             <div className="profile-edit-form">
                                 <div className="profile-edit-form__header">
                                     <h3>Редактирование профиля</h3>
-                                    <button
-                                        className="profile-edit-form__close"
-                                        onClick={() => setIsEditing(false)}
-                                        aria-label="Закрыть"
-                                    >
+                                    <button className="profile-edit-form__close" onClick={() => setIsEditing(false)} aria-label="Закрыть">
                                         ×
                                     </button>
                                 </div>
@@ -618,29 +858,17 @@ function SeekerDashboard() {
                                     <div className="form-row">
                                         <div className="form-group">
                                             <Label>Имя <span className="required-star">*</span></Label>
-                                            <Input
-                                                value={profile.firstName}
-                                                onChange={(e) => handleFieldChange('firstName', e.target.value)}
-                                                placeholder="Иван"
-                                            />
+                                            <Input value={profile.firstName} onChange={(e) => handleFieldChange('firstName', e.target.value)} />
                                             {errors.firstName && <p className="field-error">{errors.firstName}</p>}
                                         </div>
                                         <div className="form-group">
                                             <Label>Фамилия <span className="required-star">*</span></Label>
-                                            <Input
-                                                value={profile.lastName}
-                                                onChange={(e) => handleFieldChange('lastName', e.target.value)}
-                                                placeholder="Петров"
-                                            />
+                                            <Input value={profile.lastName} onChange={(e) => handleFieldChange('lastName', e.target.value)} />
                                             {errors.lastName && <p className="field-error">{errors.lastName}</p>}
                                         </div>
                                         <div className="form-group">
                                             <Label>Отчество</Label>
-                                            <Input
-                                                value={profile.middleName}
-                                                onChange={(e) => handleFieldChange('middleName', e.target.value)}
-                                                placeholder="Иванович"
-                                            />
+                                            <Input value={profile.middleName} onChange={(e) => handleFieldChange('middleName', e.target.value)} />
                                         </div>
                                     </div>
                                 </div>
@@ -649,47 +877,27 @@ function SeekerDashboard() {
                                     <h4>Образование</h4>
                                     <div className="form-group">
                                         <Label>Вуз</Label>
-                                        <Input
-                                            value={profile.universityName}
-                                            onChange={(e) => handleFieldChange('universityName', e.target.value)}
-                                            placeholder="МГУ им. Ломоносова"
-                                        />
+                                        <Input value={profile.universityName} onChange={(e) => handleFieldChange('universityName', e.target.value)} />
                                     </div>
                                     <div className="form-row">
                                         <div className="form-group">
                                             <Label>Факультет</Label>
-                                            <Input
-                                                value={profile.facultyName}
-                                                onChange={(e) => handleFieldChange('facultyName', e.target.value)}
-                                                placeholder="Введите факультет"
-                                            />
+                                            <Input value={profile.facultyName} onChange={(e) => handleFieldChange('facultyName', e.target.value)} />
                                         </div>
                                         <div className="form-group">
                                             <Label>Образовательная программа</Label>
-                                            <Input
-                                                value={profile.studyProgram}
-                                                onChange={(e) => handleFieldChange('studyProgram', e.target.value)}
-                                                placeholder="Введите программу обучения"
-                                            />
+                                            <Input value={profile.studyProgram} onChange={(e) => handleFieldChange('studyProgram', e.target.value)} />
                                         </div>
                                     </div>
                                     <div className="form-row">
                                         <div className="form-group">
                                             <Label>Курс <span className="required-star">*</span></Label>
-                                            <Input
-                                                value={profile.course || ''}
-                                                onChange={(e) => handleFieldChange('course', e.target.value)}
-                                                placeholder="4"
-                                            />
+                                            <Input value={profile.course || ''} onChange={(e) => handleFieldChange('course', e.target.value)} />
                                             {errors.course && <p className="field-error">{errors.course}</p>}
                                         </div>
                                         <div className="form-group">
                                             <Label>Год выпуска <span className="required-star">*</span></Label>
-                                            <Input
-                                                value={profile.graduationYear || ''}
-                                                onChange={(e) => handleFieldChange('graduationYear', e.target.value)}
-                                                placeholder="2025"
-                                            />
+                                            <Input value={profile.graduationYear || ''} onChange={(e) => handleFieldChange('graduationYear', e.target.value)} />
                                             {errors.graduationYear && <p className="field-error">{errors.graduationYear}</p>}
                                         </div>
                                         <div className="form-group" ref={citySearchRef}>
@@ -763,82 +971,43 @@ function SeekerDashboard() {
                                 <div className="profile-edit-form__section">
                                     <h4>Карьерные настройки</h4>
                                     <div className="checkbox-group">
-                                        <CustomCheckbox
-                                            checked={profile.openToWork}
-                                            onChange={(val) => handleFieldChange('openToWork', val)}
-                                            label="Ищу работу / стажировку"
-                                        />
-                                        <CustomCheckbox
-                                            checked={profile.openToEvents}
-                                            onChange={(val) => handleFieldChange('openToEvents', val)}
-                                            label="Интересуюсь карьерными мероприятиями"
-                                        />
+                                        <CustomCheckbox checked={profile.openToWork} onChange={(val) => handleFieldChange('openToWork', val)} label="Ищу работу / стажировку" />
+                                        <CustomCheckbox checked={profile.openToEvents} onChange={(val) => handleFieldChange('openToEvents', val)} label="Интересуюсь карьерными мероприятиями" />
                                     </div>
                                 </div>
 
                                 <div className="profile-edit-form__actions">
-                                    <button
-                                        className="btn-primary"
-                                        onClick={handleSaveProfile}
-                                        disabled={isLoading}
-                                    >
+                                    <button className="btn-primary" onClick={handleSaveProfile} disabled={isLoading}>
                                         {isLoading ? 'Сохранение...' : 'Сохранить изменения'}
                                     </button>
-                                    <button
-                                        className="btn-secondary"
-                                        onClick={() => setIsEditing(false)}
-                                    >
+                                    <button className="btn-secondary" onClick={() => setIsEditing(false)}>
                                         Отменить
                                     </button>
                                 </div>
                             </div>
                         )}
 
-                        {/* БЛОКИ КОНТЕНТА */}
                         {!isEditing && (
                             <>
                                 <div className="info-block">
                                     <div className="info-block__header">
                                         <h3>О себе</h3>
-                                        <button
-                                            className="info-block__edit-btn"
-                                            onClick={() => setIsEditingAbout(!isEditingAbout)}
-                                        >
-                                            <img src={pencilIcon} alt="" className="icon-small"/>
+                                        <button className="info-block__edit-btn" onClick={() => setIsEditingAbout(!isEditingAbout)}>
+                                            <img src={pencilIcon} alt="" className="icon-small" />
                                             {isEditingAbout ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
                                     {isEditingAbout ? (
                                         <div className="info-block__edit">
-                                            <Textarea
-                                                rows={4}
-                                                value={profile.about}
-                                                onChange={(e) => handleFieldChange('about', e.target.value)}
-                                                placeholder="Расскажите о своих навыках, увлечениях, достижениях и карьерных целях"
-                                            />
+                                            <Textarea rows={4} value={profile.about} onChange={(e) => handleFieldChange('about', e.target.value)} />
                                             <div className="info-block__actions">
-                                                <button
-                                                    className="btn-primary-small"
-                                                    onClick={handleSaveAbout}
-                                                    disabled={isLoading}
-                                                >
-                                                    Сохранить
-                                                </button>
-                                                <button
-                                                    className="btn-secondary-small"
-                                                    onClick={() => setIsEditingAbout(false)}
-                                                >
-                                                    Отменить
-                                                </button>
+                                                <button className="btn-primary-small" onClick={handleSaveAbout} disabled={isLoading}>Сохранить</button>
+                                                <button className="btn-secondary-small" onClick={() => setIsEditingAbout(false)}>Отменить</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="info-block__content">
-                                            {profile.about ? (
-                                                <p>{profile.about}</p>
-                                            ) : (
-                                                <p className="info-block__empty">Расскажите о себе — это поможет работодателям узнать вас лучше</p>
-                                            )}
+                                            {profile.about ? <p>{profile.about}</p> : <p className="info-block__empty">Расскажите о себе</p>}
                                         </div>
                                     )}
                                 </div>
@@ -846,45 +1015,22 @@ function SeekerDashboard() {
                                 <div className="info-block">
                                     <div className="info-block__header">
                                         <h3>Резюме</h3>
-                                        <button
-                                            className="info-block__edit-btn"
-                                            onClick={() => setIsEditingResume(!isEditingResume)}
-                                        >
-                                            <img src={pencilIcon} alt="" className="icon-small"/>
+                                        <button className="info-block__edit-btn" onClick={() => setIsEditingResume(!isEditingResume)}>
+                                            <img src={pencilIcon} alt="" className="icon-small" />
                                             {isEditingResume ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
                                     {isEditingResume ? (
                                         <div className="info-block__edit">
-                                            <Textarea
-                                                rows={6}
-                                                value={profile.resumeText}
-                                                onChange={(e) => handleFieldChange('resumeText', e.target.value)}
-                                                placeholder="Опишите ваш опыт работы, проекты, технологии и навыки"
-                                            />
+                                            <Textarea rows={6} value={profile.resumeText} onChange={(e) => handleFieldChange('resumeText', e.target.value)} />
                                             <div className="info-block__actions">
-                                                <button
-                                                    className="btn-primary-small"
-                                                    onClick={handleSaveResume}
-                                                    disabled={isLoading}
-                                                >
-                                                    Сохранить
-                                                </button>
-                                                <button
-                                                    className="btn-secondary-small"
-                                                    onClick={() => setIsEditingResume(false)}
-                                                >
-                                                    Отменить
-                                                </button>
+                                                <button className="btn-primary-small" onClick={handleSaveResume} disabled={isLoading}>Сохранить</button>
+                                                <button className="btn-secondary-small" onClick={() => setIsEditingResume(false)}>Отменить</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="info-block__content">
-                                            {profile.resumeText ? (
-                                                <p>{profile.resumeText}</p>
-                                            ) : (
-                                                <p className="info-block__empty">Добавьте резюме — расскажите о своих навыках, опыте и достижениях</p>
-                                            )}
+                                            {profile.resumeText ? <p>{profile.resumeText}</p> : <p className="info-block__empty">Добавьте резюме</p>}
                                         </div>
                                     )}
                                 </div>
@@ -892,11 +1038,8 @@ function SeekerDashboard() {
                                 <div className="info-block">
                                     <div className="info-block__header">
                                         <h3>Портфолио</h3>
-                                        <button
-                                            className="info-block__edit-btn"
-                                            onClick={handleOpenPortfolioEdit}
-                                        >
-                                            <img src={pencilIcon} alt="" className="icon-small"/>
+                                        <button className="info-block__edit-btn" onClick={handleOpenPortfolioEdit}>
+                                            <img src={pencilIcon} alt="" className="icon-small" />
                                             {isEditingPortfolio ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
@@ -906,32 +1049,19 @@ function SeekerDashboard() {
                                                 label=""
                                                 rows={tempPortfolioLinks}
                                                 setRows={setTempPortfolioLinks}
-                                                placeholderTitle="Название (GitHub, Portfolio...)"
+                                                placeholderTitle="Название"
                                                 placeholderUrl="https://..."
                                             />
                                             <div className="info-block__actions">
-                                                <button
-                                                    className="btn-primary-small"
-                                                    onClick={handleSavePortfolio}
-                                                    disabled={isLoading}
-                                                >
-                                                    Сохранить
-                                                </button>
-                                                <button
-                                                    className="btn-secondary-small"
-                                                    onClick={handleCancelPortfolioEdit}
-                                                >
-                                                    Отменить
-                                                </button>
+                                                <button className="btn-primary-small" onClick={handleSavePortfolio} disabled={isLoading}>Сохранить</button>
+                                                <button className="btn-secondary-small" onClick={handleCancelPortfolioEdit}>Отменить</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="info-block__content">
-                                            {profile.portfolioLinks && profile.portfolioLinks.length > 0 ? (
-                                                renderLinks(profile.portfolioLinks, 'Ссылки портфолио')
-                                            ) : (
-                                                <p className="info-block__empty">Добавьте ссылки на ваши проекты, GitHub, Behance и т.д.</p>
-                                            )}
+                                            {profile.portfolioLinks && profile.portfolioLinks.length > 0
+                                                ? renderLinks(profile.portfolioLinks, 'Ссылки портфолио')
+                                                : <p className="info-block__empty">Добавьте ссылки на проекты</p>}
                                         </div>
                                     )}
                                 </div>
@@ -939,11 +1069,8 @@ function SeekerDashboard() {
                                 <div className="info-block">
                                     <div className="info-block__header">
                                         <h3>Контакты</h3>
-                                        <button
-                                            className="info-block__edit-btn"
-                                            onClick={handleOpenContactsEdit}
-                                        >
-                                            <img src={pencilIcon} alt="" className="icon-small"/>
+                                        <button className="info-block__edit-btn" onClick={handleOpenContactsEdit}>
+                                            <img src={pencilIcon} alt="" className="icon-small" />
                                             {isEditingContacts ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
@@ -953,32 +1080,19 @@ function SeekerDashboard() {
                                                 label=""
                                                 rows={tempContactLinks}
                                                 setRows={setTempContactLinks}
-                                                placeholderTitle="Название (Telegram, LinkedIn...)"
+                                                placeholderTitle="Название"
                                                 placeholderUrl="https://..."
                                             />
                                             <div className="info-block__actions">
-                                                <button
-                                                    className="btn-primary-small"
-                                                    onClick={handleSaveContacts}
-                                                    disabled={isLoading}
-                                                >
-                                                    Сохранить
-                                                </button>
-                                                <button
-                                                    className="btn-secondary-small"
-                                                    onClick={handleCancelContactsEdit}
-                                                >
-                                                    Отменить
-                                                </button>
+                                                <button className="btn-primary-small" onClick={handleSaveContacts} disabled={isLoading}>Сохранить</button>
+                                                <button className="btn-secondary-small" onClick={handleCancelContactsEdit}>Отменить</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="info-block__content">
-                                            {profile.contactLinks && profile.contactLinks.length > 0 ? (
-                                                renderLinks(profile.contactLinks, 'Контакты для связи')
-                                            ) : (
-                                                <p className="info-block__empty">Добавьте ссылки на Telegram, LinkedIn, WhatsApp и т.д.</p>
-                                            )}
+                                            {profile.contactLinks && profile.contactLinks.length > 0
+                                                ? renderLinks(profile.contactLinks, 'Контакты для связи')
+                                                : <p className="info-block__empty">Добавьте контакты</p>}
                                         </div>
                                     )}
                                 </div>
@@ -987,7 +1101,6 @@ function SeekerDashboard() {
                     </div>
                 )}
 
-                {/* Остальные табы */}
                 {activeTab === 'applications' && (
                     <div className="seeker-applications">
                         <div className="section-header">
@@ -996,10 +1109,6 @@ function SeekerDashboard() {
                         </div>
                         {applications.length === 0 ? (
                             <div className="empty-state">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                    <path d="M9 12H15M9 16H15M17 21H7C5.9 21 5 20.1 5 19V5C5 3.9 5.9 3 7 3H12.6C12.8 3 13 3.1 13.1 3.2L18.8 8.9C18.9 9 19 9.2 19 9.4V19C19 20.1 18.1 21 17 21Z"/>
-                                    <path d="M13 3V9H19"/>
-                                </svg>
                                 <p>У вас пока нет откликов</p>
                                 <span>Начните искать вакансии на главной странице</span>
                             </div>
@@ -1020,22 +1129,23 @@ function SeekerDashboard() {
                                                 <p className="application-card__company">{app.companyName}</p>
                                                 <p className="application-card__description">{app.message || 'Отклик отправлен'}</p>
                                                 <div className="application-card__footer">
-                                                <span className={`status-badge status-${app.status?.toLowerCase() || 'pending'}`}>
-                                                    {app.status === 'SUBMITTED' && 'Отправлено'}
-                                                    {app.status === 'IN_REVIEW' && 'На рассмотрении'}
-                                                    {app.status === 'ACCEPTED' && 'Принято'}
-                                                    {app.status === 'REJECTED' && 'Отклонено'}
-                                                    {app.status === 'RESERVE' && 'В резерве'}
-                                                    {app.status === 'WITHDRAWN' && 'Отозвано'}
-                                                    {!app.status && 'Отправлено'}
-                                                </span>
+                                                    <span className={`status-badge status-${app.status?.toLowerCase() || 'pending'}`}>
+                                                        {app.status === 'SUBMITTED' && 'Отправлено'}
+                                                        {app.status === 'IN_REVIEW' && 'На рассмотрении'}
+                                                        {app.status === 'ACCEPTED' && 'Принято'}
+                                                        {app.status === 'REJECTED' && 'Отклонено'}
+                                                        {app.status === 'RESERVE' && 'В резерве'}
+                                                        {app.status === 'WITHDRAWN' && 'Отозвано'}
+                                                        {!app.status && 'Отправлено'}
+                                                    </span>
                                                     <span className="application-card__date">
-                                                    {formatDate(app.appliedAt)}
-                                                </span>
+                                                        {formatDate(app.appliedAt)}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
-                                    )})}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -1049,9 +1159,6 @@ function SeekerDashboard() {
                         </div>
                         {savedOpportunities.length === 0 ? (
                             <div className="empty-state">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                    <path d="M12 21L10.6 19.8C7.5 17.1 5 14.9 5 12.2C5 9.9 6.9 8 9.2 8C10.5 8 11.8 8.7 12 9.6C12.2 8.7 13.5 8 14.8 8C17.1 8 19 9.9 19 12.2C19 14.9 16.5 17.1 13.4 19.8L12 21Z"/>
-                                </svg>
                                 <p>У вас пока нет избранных вакансий</p>
                                 <span>Добавляйте вакансии в избранное на главной странице</span>
                             </div>
@@ -1079,13 +1186,11 @@ function SeekerDashboard() {
                                                     handleRemoveSaved(opp.id, opp.title)
                                                 }}
                                             >
-                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                    <path d="M18 6L6 18M6 6L18 18" strokeWidth="1.5" strokeLinecap="round"/>
-                                                </svg>
                                                 Удалить
                                             </button>
                                         </div>
-                                    )})}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -1097,34 +1202,206 @@ function SeekerDashboard() {
                             <h2>Профессиональные контакты</h2>
                             <span className="section-count">{contacts.length}</span>
                         </div>
-                        {contacts.length === 0 ? (
-                            <div className="empty-state">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                                    <path d="M17 21V19C17 16.8 15.2 15 13 15H5C2.8 15 1 16.8 1 19V21"/>
-                                    <circle cx="9" cy="7" r="4"/>
-                                    <path d="M23 21V19C22.6 17 21 15.6 19 15.3"/>
-                                    <path d="M16 3.3C18 3.6 19.6 5 20 7"/>
-                                </svg>
-                                <p>У вас пока нет контактов</p>
-                                <span>Добавляйте интересных специалистов в их профилях</span>
+
+                        <div className="dashboard-tabs dashboard-tabs--inner dashboard-tabs--stats">
+                            <button
+                                type="button"
+                                className={`dashboard-tabs__btn ${contactsTab === 'incoming' ? 'is-active' : ''}`}
+                                onClick={() => setContactsTab('incoming')}
+                            >
+                                <span className="dashboard-tabs__label">Входящие</span>
+                                <span className="dashboard-tabs__badge">{contactTabCount.incoming}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className={`dashboard-tabs__btn ${contactsTab === 'outgoing' ? 'is-active' : ''}`}
+                                onClick={() => setContactsTab('outgoing')}
+                            >
+                                <span className="dashboard-tabs__label">Исходящие</span>
+                                <span className="dashboard-tabs__badge">{contactTabCount.outgoing}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className={`dashboard-tabs__btn ${contactsTab === 'confirmed' ? 'is-active' : ''}`}
+                                onClick={() => setContactsTab('confirmed')}
+                            >
+                                <span className="dashboard-tabs__label">Подтверждённые</span>
+                                <span className="dashboard-tabs__badge">{contactTabCount.confirmed}</span>
+                            </button>
+                        </div>
+
+                        {isContactsLoading ? (
+                            <div className="dashboard-loading dashboard-loading--inner">
+                                <div className="loading-spinner"></div>
+                                <p>Загрузка контактов...</p>
                             </div>
+                        ) : currentContacts.length === 0 ? (
+                            renderContactsEmpty()
                         ) : (
                             <div className="contacts-list">
-                                {contacts.map(contact => (
+                                {currentContacts.map((contact) => (
                                     <div key={contact.id} className="contact-card">
                                         <div className="contact-card__avatar">
-                                            {contact.firstName?.[0]}{contact.lastName?.[0]}
+                                            {(contact.firstName?.[0] || '')}{(contact.lastName?.[0] || '')}
                                         </div>
+
                                         <div className="contact-card__info">
-                                            <h3>{contact.firstName} {contact.lastName}</h3>
-                                            <p>Статус: {contact.status}</p>
+                                            <h3>{contact.fullName || `${contact.firstName} ${contact.lastName}`.trim() || 'Пользователь'}</h3>
+                                            <p>Статус: {
+                                                contact.status === 'PENDING'
+                                                    ? 'Ожидает ответа'
+                                                    : contact.status === 'ACCEPTED'
+                                                        ? 'Подтверждён'
+                                                        : contact.status
+                                            }</p>
+                                            <span className="contact-card__date">
+                                                {formatDate(contact.createdAt)}
+                                            </span>
                                         </div>
-                                        <button
-                                            className="contact-card__remove"
-                                            onClick={() => handleRemoveContact(contact.id)}
-                                        >
-                                            Удалить
-                                        </button>
+
+                                        <div className="contact-card__actions">
+                                            <button
+                                                className="contact-card__link"
+                                                onClick={() => navigate(`/seekers/${contact.id}`)}
+                                            >
+                                                Профиль
+                                            </button>
+
+                                            <button
+                                                className="contact-card__link"
+                                                onClick={() =>
+                                                    setRecommendationModal((prev) => ({
+                                                        ...prev,
+                                                        isOpen: true,
+                                                        selectedContactId: String(contact.id),
+                                                    }))
+                                                }
+                                            >
+                                                Рекомендовать
+                                            </button>
+
+                                            {contactsTab === 'incoming' && (
+                                                <>
+                                                    <button className="btn-approve"
+                                                            onClick={() => handleAcceptContact(contact.id)}>Принять
+                                                    </button>
+                                                    <button className="btn-reject"
+                                                            onClick={() => handleDeclineContact(contact.id)}>Отклонить
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            {contactsTab === 'outgoing' && (
+                                                <button className="contact-card__remove"
+                                                        onClick={() => handleRemoveContact(contact.id, 'outgoing')}>
+                                                    Отменить заявку
+                                                </button>
+                                            )}
+
+                                            {contactsTab === 'confirmed' && (
+                                                <button className="contact-card__remove"
+                                                        onClick={() => handleRemoveContact(contact.id, 'confirmed')}>
+                                                    Удалить
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'recommendations' && (
+                    <div className="seeker-recommendations">
+                        <div className="section-header">
+                            <h2>Рекомендации</h2>
+                            <button
+                                className="btn-primary-small"
+                                onClick={() =>
+                                    setRecommendationModal({
+                                        isOpen: true,
+                                        selectedOpportunityId: '',
+                                        selectedContactId: '',
+                                        message: '',
+                                    })
+                                }
+                            >
+                                Новая рекомендация
+                            </button>
+                        </div>
+
+                        <div className="dashboard-tabs dashboard-tabs--inner dashboard-tabs--stats">
+                            <button
+                                type="button"
+                                className={`dashboard-tabs__btn ${recommendationsTab === 'incoming' ? 'is-active' : ''}`}
+                                onClick={() => setRecommendationsTab('incoming')}
+                            >
+                                <span className="dashboard-tabs__label">Входящие</span>
+                                <span className="dashboard-tabs__badge">{recommendations.incoming.length}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                className={`dashboard-tabs__btn ${recommendationsTab === 'outgoing' ? 'is-active' : ''}`}
+                                onClick={() => setRecommendationsTab('outgoing')}
+                            >
+                                <span className="dashboard-tabs__label">Исходящие</span>
+                                <span className="dashboard-tabs__badge">{recommendations.outgoing.length}</span>
+                            </button>
+                        </div>
+
+                        {isRecommendationsLoading ? (
+                            <div className="dashboard-loading dashboard-loading--inner">
+                                <div className="loading-spinner"></div>
+                                <p>Загрузка рекомендаций...</p>
+                            </div>
+                        ) : currentRecommendations.length === 0 ? (
+                            <div className="empty-state">
+                                <p>Пока нет рекомендаций</p>
+                                <span>
+                                    {recommendationsTab === 'incoming'
+                                        ? 'Входящие рекомендации появятся здесь'
+                                        : 'Отправленные рекомендации появятся здесь'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="applications-list">
+                                {currentRecommendations.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="application-card"
+                                        onClick={() => navigate(`/opportunities/${item.opportunityId}`)}
+                                    >
+                                        <div className="application-card__content">
+                                            <h3>{item.opportunityTitle}</h3>
+                                            <p className="application-card__company">{item.companyName}</p>
+                                            <p className="application-card__description">
+                                                {recommendationsTab === 'incoming'
+                                                    ? `От: ${item.fromApplicantName}`
+                                                    : `Кому: ${item.toApplicantName}`}
+                                            </p>
+                                            {item.message && (
+                                                <p className="application-card__description">{item.message}</p>
+                                            )}
+                                            <div className="application-card__footer">
+                                                <span
+                                                    className="application-card__date">{formatDate(item.createdAt)}</span>
+                                                {recommendationsTab === 'outgoing' && (
+                                                    <button
+                                                        className="saved-card__remove"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation()
+                                                            handleDeleteRecommendation(item.id)
+                                                        }}
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -1132,6 +1409,119 @@ function SeekerDashboard() {
                     </div>
                 )}
             </div>
+
+            {recommendationModal.isOpen && (
+                <div
+                    className="modal-overlay"
+                    onClick={() =>
+                        setRecommendationModal({
+                            isOpen: false,
+                            selectedOpportunityId: '',
+                            selectedContactId: '',
+                            message: '',
+                        })
+                    }
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>Рекомендовать возможность</h3>
+
+                        {!canSendRecommendation && (
+                            <div className="modal__empty-state">
+                                {recommendationContactsOptions.length === 0 && (
+                                    <p>
+                                        Сначала добавьте хотя бы один подтверждённый контакт. Только после этого можно отправлять рекомендации.
+                                    </p>
+                                )}
+
+                                {recommendationContactsOptions.length > 0 && recommendationOpportunityOptions.length === 0 && (
+                                    <p>
+                                        Пока нет подходящих возможностей для рекомендации. Добавьте что-то в избранное или откликнитесь на возможность.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="modal__field">
+                            <Label>Контакт</Label>
+                            {recommendationContactsOptions.length > 0 ? (
+                                <CustomSelect
+                                    value={recommendationModal.selectedContactId}
+                                    onChange={(value) =>
+                                        setRecommendationModal((prev) => ({
+                                            ...prev,
+                                            selectedContactId: value,
+                                        }))
+                                    }
+                                    options={recommendationContactsOptions}
+                                />
+                            ) : (
+                                <div className="modal__placeholder-box">
+                                    Нет подтверждённых контактов
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal__field">
+                            <Label>Возможность</Label>
+                            {recommendationOpportunityOptions.length > 0 ? (
+                                <CustomSelect
+                                    value={recommendationModal.selectedOpportunityId}
+                                    onChange={(value) =>
+                                        setRecommendationModal((prev) => ({
+                                            ...prev,
+                                            selectedOpportunityId: value,
+                                        }))
+                                    }
+                                    options={recommendationOpportunityOptions}
+                                />
+                            ) : (
+                                <div className="modal__placeholder-box">
+                                    Нет доступных возможностей для рекомендации
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal__field">
+                            <Label>Сообщение</Label>
+                            <Textarea
+                                rows={4}
+                                value={recommendationModal.message}
+                                onChange={(e) =>
+                                    setRecommendationModal((prev) => ({
+                                        ...prev,
+                                        message: e.target.value,
+                                    }))
+                                }
+                                placeholder="Напишите, почему вы рекомендуете эту возможность"
+                                disabled={!canSendRecommendation}
+                            />
+                        </div>
+
+                        <div className="modal__actions">
+                            <button
+                                className="btn-primary-small"
+                                onClick={handleSendRecommendation}
+                                disabled={!canSendRecommendation}
+                            >
+                                Отправить
+                            </button>
+                            <button
+                                className="btn-secondary-small"
+                                onClick={() =>
+                                    setRecommendationModal({
+                                        isOpen: false,
+                                        selectedOpportunityId: '',
+                                        selectedContactId: '',
+                                        message: '',
+                                    })
+                                }
+                            >
+                                Отмена
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     )
 }

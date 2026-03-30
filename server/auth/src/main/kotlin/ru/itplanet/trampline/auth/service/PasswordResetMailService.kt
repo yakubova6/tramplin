@@ -23,7 +23,7 @@ class PasswordResetMailService(
         message.text = """
             Здравствуйте!
             
-            Вы запросили сброс пароля в Trampline.
+            Вы запросили сброс пароля в Tramplin.
             Код подтверждения: $code
             
             Код действует ${passwordResetProperties.codeTtlMinutes} минут.
