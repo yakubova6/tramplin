@@ -1,4 +1,4 @@
-import { httpJson } from './http'
+import { httpJson, toQuery } from './http'
 
 const API_BASE = '/api/interaction'
 
@@ -35,8 +35,18 @@ export async function getMyResponses() {
     return httpJson(`${API_BASE}/responses/my`)
 }
 
-export async function getOpportunityResponses(opportunityId) {
-    return httpJson(`${API_BASE}/opportunities/${opportunityId}/responses`)
+export async function getEmployerResponses(params = {}) {
+    const query = toQuery({
+        limit: params.limit ?? 20,
+        offset: params.offset ?? 0,
+        sortBy: params.sortBy || 'CREATED_AT',
+        sortDirection: params.sortDirection || 'DESC',
+        opportunityId: params.opportunityId,
+        status: params.status,
+        search: params.search,
+    })
+
+    return httpJson(`/api/employer/responses${query ? `?${query}` : ''}`)
 }
 
 export async function createResponse(opportunityId, applicantComment = '', coverLetter = '') {

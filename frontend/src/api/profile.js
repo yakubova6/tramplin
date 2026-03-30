@@ -3,8 +3,12 @@ const API_BASE = '/api'
 import { CITIES } from '../constants/cities'
 import {
     archiveEmployerOpportunity,
+    closeEmployerOpportunity,
     createEmployerOpportunity,
-    listEmployerOpportunities
+    getEmployerOpportunity,
+    listEmployerOpportunities,
+    returnToDraftEmployerOpportunity,
+    updateEmployerOpportunity,
 } from './opportunities'
 import {
     getContacts,
@@ -17,6 +21,8 @@ import {
     getFavorites,
     addToFavorites,
     removeFromFavorites,
+    getEmployerResponses,
+    updateResponseStatus as updateInteractionResponseStatus,
 } from './interaction'
 import { clearSessionUser, getSessionUser, getSessionUserId } from '../utils/sessionStore'
 
@@ -83,8 +89,6 @@ async function apiRequest(endpoint, options = {}) {
 
     return data
 }
-
-// ========== HELPERS ==========
 
 function normalizeProfileLinks(links) {
     if (!links) return []
@@ -188,21 +192,63 @@ function normalizeContactMethods(contacts) {
     return []
 }
 
-// ========== ПОИСК ГОРОДОВ (локальная версия) ==========
+function normalizeOpportunity(item = {}) {
+    return {
+        ...item,
+        cityId: item.cityId ?? item.city?.id ?? null,
+        cityName: item.cityName ?? item.city?.name ?? '',
+        locationId: item.locationId ?? item.location?.id ?? null,
+        locationPreview: item.locationPreview || item.location || null,
+        resourceLinks: normalizeProfileLinks(item.resourceLinks),
+        tagIds: Array.isArray(item.tags) ? item.tags.map((tag) => tag.id) : (item.tagIds || []),
+        contactEmail: item.contactInfo?.email || '',
+        contactPhone: item.contactInfo?.phone || '',
+        contactTelegram: item.contactInfo?.telegram || '',
+        contactPerson: item.contactInfo?.contactPerson || '',
+    }
+}
+
+function buildOpportunityPayload(opportunity) {
+    return {
+        title: opportunity.title?.trim(),
+        shortDescription: opportunity.shortDescription?.trim() || '',
+        fullDescription: opportunity.fullDescription?.trim() || opportunity.shortDescription?.trim() || '',
+        requirements: opportunity.requirements?.trim() || null,
+        companyName: opportunity.companyName?.trim() || opportunity.profileCompanyName || 'Компания работодателя',
+        type: opportunity.type || 'VACANCY',
+        workFormat: opportunity.workFormat || opportunity.format || 'REMOTE',
+        employmentType: opportunity.employmentType || 'FULL_TIME',
+        grade: opportunity.grade || opportunity.experienceLevel || 'JUNIOR',
+        salaryFrom: opportunity.salaryFrom !== '' && opportunity.salaryFrom != null ? Number(opportunity.salaryFrom) : null,
+        salaryTo: opportunity.salaryTo !== '' && opportunity.salaryTo != null ? Number(opportunity.salaryTo) : null,
+        salaryCurrency: opportunity.salaryCurrency || 'RUB',
+        expiresAt: opportunity.expiresAt || null,
+        eventDate: opportunity.eventDate || null,
+        cityId: opportunity.cityId ? Number(opportunity.cityId) : null,
+        locationId: opportunity.locationId ? Number(opportunity.locationId) : null,
+        contactInfo: {
+            email: opportunity.contactEmail || null,
+            phone: opportunity.contactPhone || null,
+            telegram: opportunity.contactTelegram || null,
+            contactPerson: opportunity.contactPerson || null,
+        },
+        resourceLinks: normalizeProfileLinks(opportunity.resourceLinks),
+        tagIds: Array.isArray(opportunity.tagIds)
+            ? opportunity.tagIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+            : [],
+    }
+}
 
 export async function searchCities(query) {
     if (!query || query.length < 2) return []
 
     const lowerQuery = query.toLowerCase()
-    const filtered = CITIES.filter(city =>
+    const filtered = CITIES.filter((city) =>
         city.name.toLowerCase().includes(lowerQuery)
     )
 
-    console.log('[API] Cities found (local):', filtered)
     return filtered.slice(0, 10)
 }
-
-// ========== СОИСКАТЕЛЬ ==========
 
 export async function getApplicantProfile() {
     const userId = getSessionUserId()
@@ -211,20 +257,19 @@ export async function getApplicantProfile() {
     }
 
     const url = `${API_BASE}/profile/applicant/${userId}`
-    console.log('[API] GET applicant profile:', url)
 
     try {
         const data = await apiRequest(url)
-        console.log('[API] Applicant profile received:', data)
 
         return {
             ...data,
+            cityId: data.city?.id ?? null,
+            cityName: data.city?.name ?? '',
             portfolioLinks: normalizeProfileLinks(data.portfolioLinks),
             contactLinks: normalizeContactMethods(data.contactLinks),
         }
     } catch (error) {
         if ([401, 403, 404, 500, 503].includes(error.status)) {
-            console.log('[API] Applicant profile unavailable:', error.message)
             return null
         }
 
@@ -260,15 +305,11 @@ export async function updateApplicantProfile(profile) {
         openToEvents: profile.openToEvents ?? true,
     }
 
-    console.log('[API] Saving applicant profile with PATCH:', payload)
-
     return apiRequest(`${API_BASE}/profile/applicant`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
 }
-
-// ========== РАБОТОДАТЕЛЬ ==========
 
 export async function getEmployerProfile() {
     const userId = getSessionUserId()
@@ -280,16 +321,18 @@ export async function getEmployerProfile() {
 
     try {
         const data = await apiRequest(url)
-        console.log('[API] Employer profile received:', data)
 
         return {
             ...data,
+            cityId: data.city?.id ?? null,
+            cityName: data.city?.name ?? '',
+            locationId: data.location?.id ?? null,
+            locationPreview: data.location || null,
             socialLinks: normalizeProfileLinks(data.socialLinks),
             publicContacts: normalizeContactMethods(data.publicContacts),
         }
     } catch (error) {
         if ([401, 403, 404, 500, 503].includes(error.status)) {
-            console.log('[API] Employer profile unavailable:', error.message)
             return null
         }
 
@@ -316,10 +359,7 @@ export async function updateEmployerProfile(profile) {
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
         socialLinks: normalizeProfileLinks(profile.socialLinks),
         publicContacts: normalizeContactMethods(profile.publicContacts),
-        verificationStatus: profile.verificationStatus || 'PENDING',
     }
-
-    console.log('[API] Saving employer profile with PATCH:', JSON.stringify(payload, null, 2))
 
     return apiRequest(`${API_BASE}/profile/employer`, {
         method: 'PATCH',
@@ -333,15 +373,21 @@ export async function submitVerification(payload) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
-    console.log('[API] Submitting verification:', payload)
+    const body = {
+        verificationMethod: payload.verificationMethod,
+        corporateEmail: payload.corporateEmail || null,
+        inn: payload.inn || null,
+        professionalLinks: Array.isArray(payload.professionalLinks)
+            ? payload.professionalLinks.filter(Boolean)
+            : [],
+        submittedComment: payload.submittedComment || null,
+    }
 
     return apiRequest(`${API_BASE}/employer/verification`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
     })
 }
-
-// ========== INTERACTION API: СОИСКАТЕЛЬ ==========
 
 export async function getSeekerContacts() {
     try {
@@ -357,7 +403,6 @@ export async function getSeekerContacts() {
         }))
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load contacts:', error.message)
             return []
         }
 
@@ -404,7 +449,6 @@ export async function getSeekerApplications() {
         })
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load applications:', error.message)
             return []
         }
 
@@ -460,7 +504,6 @@ export async function getSeekerSaved() {
             .filter((item) => item.id !== null && item.id !== undefined)
     } catch (error) {
         if ([401, 403, 500, 503].includes(error.status)) {
-            console.error('[API] Failed to load favorites:', error.message)
             return []
         }
 
@@ -491,7 +534,7 @@ export async function removeFromSaved(opportunityId) {
 
 export async function getEmployerOpportunities(params = {}) {
     const page = await listEmployerOpportunities({
-        limit: params.limit || 20,
+        limit: params.limit || 50,
         offset: params.offset || 0,
         sortBy: params.sortBy || 'UPDATED_AT',
         sortDirection: params.sortDirection || 'DESC',
@@ -502,45 +545,43 @@ export async function getEmployerOpportunities(params = {}) {
         search: params.search,
     })
 
-    return page?.items || []
+    return {
+        ...page,
+        items: Array.isArray(page?.items) ? page.items.map(normalizeOpportunity) : [],
+    }
 }
 
-function normalizeTagIds(tagIds) {
-    if (!Array.isArray(tagIds)) return []
-    return tagIds
-        .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && id > 0)
+export async function getEmployerOpportunityById(opportunityId) {
+    const data = await getEmployerOpportunity(opportunityId)
+    return normalizeOpportunity(data)
 }
 
 export async function createOpportunity(opportunity) {
-    const payload = {
-        title: opportunity.title?.trim(),
-        shortDescription: opportunity.shortDescription?.trim() || opportunity.description?.trim() || '',
-        fullDescription: opportunity.fullDescription?.trim() || opportunity.description?.trim() || '',
-        requirements: opportunity.requirements?.trim() || null,
-        companyName: opportunity.companyName?.trim() || opportunity.profileCompanyName || 'Компания работодателя',
-        type: opportunity.type || 'VACANCY',
-        workFormat: opportunity.workFormat || opportunity.format || 'REMOTE',
-        employmentType: opportunity.employmentType || 'FULL_TIME',
-        grade: opportunity.grade || opportunity.experienceLevel || 'JUNIOR',
-        salaryFrom: opportunity.salaryFrom ? Number(opportunity.salaryFrom) : null,
-        salaryTo: opportunity.salaryTo ? Number(opportunity.salaryTo) : null,
-        salaryCurrency: opportunity.salaryCurrency || 'RUB',
-        expiresAt: opportunity.expiresAt || opportunity.deadline || null,
-        eventDate: opportunity.eventDate || null,
-        cityId: opportunity.cityId ? Number(opportunity.cityId) : null,
-        locationId: opportunity.locationId ? Number(opportunity.locationId) : null,
-        contactInfo: {
-            email: opportunity.contactEmail || null,
-            phone: opportunity.contactPhone || null,
-            telegram: opportunity.contactTelegram || null,
-            contactPerson: opportunity.contactPerson || null,
-        },
-        resourceLinks: Array.isArray(opportunity.resourceLinks) ? opportunity.resourceLinks : [],
-        tagIds: normalizeTagIds(opportunity.tagIds),
+    const payload = buildOpportunityPayload(opportunity)
+    const created = await createEmployerOpportunity(payload)
+    return normalizeOpportunity(created)
+}
+
+export async function updateOpportunity(opportunityId, opportunity) {
+    const payload = buildOpportunityPayload(opportunity)
+    const updated = await updateEmployerOpportunity(opportunityId, payload)
+    return normalizeOpportunity(updated)
+}
+
+export async function updateOpportunityStatus(opportunityId, action) {
+    if (action === 'close') {
+        return closeEmployerOpportunity(opportunityId)
     }
 
-    return createEmployerOpportunity(payload)
+    if (action === 'archive') {
+        return archiveEmployerOpportunity(opportunityId)
+    }
+
+    if (action === 'draft') {
+        return returnToDraftEmployerOpportunity(opportunityId)
+    }
+
+    throw createApiError('Неизвестное действие со статусом', 400)
 }
 
 export async function deleteOpportunity(opportunityId) {
@@ -548,27 +589,43 @@ export async function deleteOpportunity(opportunityId) {
     return { success: true }
 }
 
-export async function getEmployerApplications() {
-    const user = getSessionUser()
-    if (!user) return []
+export async function getEmployerApplications(params = {}) {
+    try {
+        const page = await getEmployerResponses({
+            limit: params.limit || 50,
+            offset: params.offset || 0,
+            sortBy: params.sortBy || 'CREATED_AT',
+            sortDirection: params.sortDirection || 'DESC',
+            opportunityId: params.opportunityId,
+            status: params.status,
+            search: params.search,
+        })
 
-    const key = `employer_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : []
+        return {
+            ...page,
+            items: Array.isArray(page?.items)
+                ? page.items.map((item) => ({
+                    id: item.id,
+                    opportunityId: item.opportunityId,
+                    opportunityTitle: item.opportunityTitle,
+                    status: item.status,
+                    employerComment: item.employerComment || '',
+                    applicantComment: item.applicantComment || '',
+                    coverLetter: item.coverLetter || '',
+                    createdAt: item.createdAt,
+                    applicant: item.applicant || null,
+                }))
+                : [],
+        }
+    } catch (error) {
+        if ([401, 403, 500, 503].includes(error.status)) {
+            return { items: [], total: 0, limit: params.limit || 50, offset: params.offset || 0 }
+        }
+
+        throw error
+    }
 }
 
-export async function updateApplicationStatus(applicationId, status) {
-    const user = getSessionUser()
-    if (!user) throw createApiError('Пользователь не авторизован', 401)
-
-    const key = `employer_applications_${user.email}`
-    const saved = localStorage.getItem(key)
-    const applications = saved ? JSON.parse(saved) : []
-
-    const updated = applications.map(app =>
-        app.id === applicationId ? { ...app, status } : app
-    )
-
-    localStorage.setItem(key, JSON.stringify(updated))
-    return { success: true }
+export async function updateApplicationStatus(applicationId, status, employerComment = '') {
+    return updateInteractionResponseStatus(applicationId, status, employerComment)
 }
