@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../../../hooks/use-toast'
 import DashboardLayout from '../DashboardLayout'
 import Button from '../../../components/Button'
@@ -19,16 +19,27 @@ import {
     addModerationComment,
     cancelModerationTask,
     getEntityModerationHistory,
-    ENTITY_TYPES,
     TASK_TYPES,
     SEVERITY_OPTIONS,
-    PRIORITIES,
     SORT_OPTIONS
 } from '../../../api/moderation'
+import {
+    formatDate,
+    getPriorityLabel,
+    getPriorityClass,
+    getStatusLabel,
+    getStatusClass,
+    getEntityTypeLabel,
+    getTaskTypeLabel,
+    getActionLabel,
+    deepClone,
+    buildChangedFieldsPatch,
+    getEditableFieldsByEntityType,
+    getPreviewFieldsByEntityType,
+} from '../../../utils/moderationHelpers'
 import '../DashboardBase.scss'
 import './CuratorDashboard.scss'
 
-// Иконки
 import eyeIcon from '../../../assets/icons/eye.svg'
 
 const STATUS_OPTIONS = [
@@ -54,140 +65,122 @@ const ENTITY_TYPE_OPTIONS = [
     { value: 'TAG', label: 'Тег' },
 ]
 
-function formatDate(dateString) {
-    if (!dateString) return '—'
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return '—'
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+function EntityEditor({ entityType, originalSnapshot, draft, onChange }) {
+    const fields = getEditableFieldsByEntityType(entityType)
+
+    if (!fields.length) {
+        return (
+            <div className="moderation-entity-editor__empty">
+                Для этого типа сущности редактирование пока не настроено.
+            </div>
+        )
+    }
+
+    return (
+        <div className="moderation-entity-editor">
+            {fields.map((field) => {
+                const originalValue = originalSnapshot?.[field.key]
+                const currentValue = draft?.[field.key]
+                const isChanged = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+
+                if (field.type === 'textarea') {
+                    return (
+                        <div key={field.key} className={`moderation-entity-editor__field ${isChanged ? 'is-changed' : ''}`}>
+                            <Label>{field.label}</Label>
+                            <Textarea
+                                rows={4}
+                                value={currentValue ?? ''}
+                                onChange={(e) => onChange(field.key, e.target.value)}
+                            />
+                            {isChanged && (
+                                <div className="moderation-entity-editor__diff">
+                                    Было: {String(originalValue ?? '—')}
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
+
+                if (field.type === 'boolean') {
+                    return (
+                        <div key={field.key} className={`moderation-entity-editor__field ${isChanged ? 'is-changed' : ''}`}>
+                            <CustomCheckbox
+                                checked={Boolean(currentValue)}
+                                onChange={(val) => onChange(field.key, val)}
+                                label={field.label}
+                            />
+                            {isChanged && (
+                                <div className="moderation-entity-editor__diff">
+                                    Было: {originalValue ? 'Да' : 'Нет'}
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
+
+                return (
+                    <div key={field.key} className={`moderation-entity-editor__field ${isChanged ? 'is-changed' : ''}`}>
+                        <Label>{field.label}</Label>
+                        <Input
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            value={currentValue ?? ''}
+                            onChange={(e) =>
+                                onChange(
+                                    field.key,
+                                    field.type === 'number'
+                                        ? (e.target.value === '' ? null : Number(e.target.value))
+                                        : e.target.value
+                                )
+                            }
+                        />
+                        {isChanged && (
+                            <div className="moderation-entity-editor__diff">
+                                Было: {String(originalValue ?? '—')}
+                            </div>
+                        )}
+                    </div>
+                )
+            })}
+        </div>
+    )
 }
 
-function getPriorityLabel(priority) {
-    const labels = {
-        LOW: 'Низкий',
-        MEDIUM: 'Средний',
-        HIGH: 'Высокий'
-    }
-    return labels[priority] || priority
-}
+function PreviewBlock({ title, entityType, snapshot, draft = null }) {
+    const fields = getPreviewFieldsByEntityType(entityType, snapshot)
 
-function getPriorityClass(priority) {
-    const classes = {
-        LOW: 'priority-low',
-        MEDIUM: 'priority-medium',
-        HIGH: 'priority-high'
-    }
-    return classes[priority] || ''
-}
-
-function getStatusLabel(status) {
-    const labels = {
-        OPEN: 'Открыта',
-        IN_PROGRESS: 'В работе',
-        APPROVED: 'Одобрено',
-        REJECTED: 'Отклонено',
-        CANCELLED: 'Отменено'
-    }
-    return labels[status] || status
-}
-
-function getStatusClass(status) {
-    const classes = {
-        OPEN: 'status-open',
-        IN_PROGRESS: 'status-progress',
-        APPROVED: 'status-approved',
-        REJECTED: 'status-rejected',
-        CANCELLED: 'status-cancelled'
-    }
-    return classes[status] || ''
-}
-
-function getEntityTypeLabel(entityType) {
-    const labels = {
-        EMPLOYER_PROFILE: 'Профиль работодателя',
-        EMPLOYER_VERIFICATION: 'Верификация компании',
-        OPPORTUNITY: 'Вакансия',
-        TAG: 'Тег'
-    }
-    return labels[entityType] || entityType
-}
-
-function getTaskTypeLabel(taskType) {
-    const labels = {
-        VERIFICATION_REVIEW: 'Проверка верификации',
-        OPPORTUNITY_REVIEW: 'Проверка вакансии',
-        TAG_REVIEW: 'Проверка тега',
-        CONTENT_REVIEW: 'Проверка контента'
-    }
-    return labels[taskType] || taskType
-}
-
-// Форматирование действия для отображения
-const getActionLabel = (action) => {
-    const labels = {
-        CREATED: 'CREATED',
-        ASSIGNED: 'ASSIGNED',
-        APPROVED: 'APPROVED',
-        REJECTED: 'REJECTED',
-        STATUS_CHANGED: 'STATUS_CHANGED',
-        COMMENTED: 'COMMENTED',
-        UPDATED: 'UPDATED'
-    }
-    return labels[action] || action
-}
-
-// Форматирование данных для отображения
-function formatSnapshotData(snapshot) {
-    if (!snapshot) return null
-
-    if (snapshot.name && snapshot.category) {
-        const fields = [
-            { label: 'Название', value: snapshot.name },
-            { label: 'Категория', value: snapshot.category === 'TECH' ? 'Технология' : snapshot.category },
-            { label: 'Статус', value: snapshot.isActive ? 'Активен' : 'Неактивен' },
-            { label: 'Создан', value: formatDate(snapshot.createdAt) },
-            { label: 'Тип создания', value: snapshot.createdManually ? 'Вручную' : 'Системный' },
-        ]
-
-        if (snapshot.manualComment &&
-            snapshot.manualComment !== 'Проверить карточку вручную' &&
-            snapshot.manualComment.trim() !== '') {
-            fields.push({ label: 'Комментарий', value: snapshot.manualComment })
-        }
-
-        return {
-            title: `Тег: ${snapshot.name}`,
-            fields
-        }
+    if (!fields.length) {
+        return (
+            <div className="task-detail-snapshot">
+                <h4>{title}</h4>
+                <pre className="snapshot-content">
+                    {JSON.stringify(draft || snapshot || {}, null, 2)}
+                </pre>
+            </div>
+        )
     }
 
-    if (snapshot.title) {
-        return {
-            title: snapshot.title,
-            fields: [
-                { label: 'Компания', value: snapshot.companyName },
-                { label: 'Тип', value: snapshot.type },
-                { label: 'Формат работы', value: snapshot.workFormat },
-                { label: 'Описание', value: snapshot.shortDescription?.substring(0, 200) + (snapshot.shortDescription?.length > 200 ? '...' : '') }
-            ]
-        }
-    }
+    return (
+        <div className="task-detail-snapshot">
+            <h4>{title}</h4>
+            <div className="snapshot-formatted">
+                <div className="snapshot-fields">
+                    {fields.map(([label, value]) => {
+                        const draftValue = draft ? draft[label] : undefined
+                        const isChanged = draft
+                            ? JSON.stringify(value) !== JSON.stringify(draftValue)
+                            : false
 
-    if (snapshot.companyName) {
-        return {
-            title: snapshot.companyName,
-            fields: [
-                { label: 'Юридическое название', value: snapshot.legalName },
-                { label: 'ИНН', value: snapshot.inn },
-                { label: 'Сфера деятельности', value: snapshot.industry },
-                { label: 'Описание', value: snapshot.description?.substring(0, 200) + (snapshot.description?.length > 200 ? '...' : '') }
-            ]
-        }
-    }
-
-    return {
-        title: 'Данные для проверки',
-        rawJson: snapshot
-    }
+                        return (
+                            <div key={label} className={`snapshot-field ${isChanged ? 'is-changed' : ''}`}>
+                                <span className="field-label">{label}:</span>
+                                <span className="field-value">{value || '—'}</span>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    )
 }
 
 function CuratorDashboard() {
@@ -197,7 +190,6 @@ function CuratorDashboard() {
     const [isDetailOpen, setIsDetailOpen] = useState(false)
     const { toast } = useToast()
 
-    // Фильтры для задач
     const [filters, setFilters] = useState({
         status: '',
         taskType: '',
@@ -210,7 +202,6 @@ function CuratorDashboard() {
     const [dashboardStats, setDashboardStats] = useState(null)
     const [currentUser, setCurrentUser] = useState(null)
 
-    // Фильтры для истории
     const [historyFilters, setHistoryFilters] = useState({
         page: 0,
         size: 10,
@@ -218,17 +209,14 @@ function CuratorDashboard() {
         sort: 'createdAt,desc'
     })
     const [allHistory, setAllHistory] = useState([])
-    const [historyTotal, setHistoryTotal] = useState(0)
     const [historyTotalPages, setHistoryTotalPages] = useState(0)
     const [isHistoryLoading, setIsHistoryLoading] = useState(false)
 
-    // Состояние для создания куратора
     const [newCuratorEmail, setNewCuratorEmail] = useState('')
     const [newCuratorName, setNewCuratorName] = useState('')
     const [newCuratorPassword, setNewCuratorPassword] = useState('')
     const [isCreating, setIsCreating] = useState(false)
 
-    // Состояние для модалки одобрения/отклонения
     const [approveComment, setApproveComment] = useState('')
     const [rejectComment, setRejectComment] = useState('')
     const [rejectReason, setRejectReason] = useState('')
@@ -236,11 +224,12 @@ function CuratorDashboard() {
     const [isApproveModalOpen, setIsApproveModalOpen] = useState(false)
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
 
-    // Состояние для комментария
     const [newComment, setNewComment] = useState('')
     const [taskHistory, setTaskHistory] = useState([])
 
-    // Загрузка текущего пользователя
+    const [isEditingEntity, setIsEditingEntity] = useState(false)
+    const [entityDraft, setEntityDraft] = useState(null)
+
     useEffect(() => {
         setCurrentUser(getSessionUser())
 
@@ -251,9 +240,6 @@ function CuratorDashboard() {
         return unsubscribe
     }, [])
 
-    // ========== ФУНКЦИИ ЗАГРУЗКИ ДАННЫХ ==========
-
-    // Загрузка статистики дашборда
     const loadDashboardStats = useCallback(async () => {
         try {
             const stats = await getModerationDashboard()
@@ -263,7 +249,6 @@ function CuratorDashboard() {
         }
     }, [])
 
-    // Загрузка списка задач
     const loadTasks = useCallback(async () => {
         setIsLoading(true)
         try {
@@ -290,21 +275,16 @@ function CuratorDashboard() {
         }
     }, [pagination, filters, toast])
 
-    // Загрузка истории всех задач
     const loadAllHistory = useCallback(async () => {
         setIsHistoryLoading(true)
         try {
-            // Сначала загружаем ВСЕ задачи (без пагинации, чтобы получить все действия)
             const allTasksData = await getModerationTasks({
                 page: 0,
-                size: 100,  // загружаем максимум задач
+                size: 100,
                 search: historyFilters.search || undefined,
                 sort: historyFilters.sort
             })
 
-            console.log('[History] Total tasks:', allTasksData.totalItems)
-
-            // Собираем все действия из всех задач
             let allActions = []
 
             for (const task of allTasksData.items || []) {
@@ -325,7 +305,6 @@ function CuratorDashboard() {
                 }
             }
 
-            // Сортируем все действия по дате
             allActions.sort((a, b) => {
                 const dateA = new Date(a.createdAt)
                 const dateB = new Date(b.createdAt)
@@ -334,19 +313,12 @@ function CuratorDashboard() {
                     : dateA - dateB
             })
 
-            // Сохраняем общее количество действий
-            setHistoryTotal(allActions.length)
-
-            // Пагинация: берём нужную страницу
             const start = historyFilters.page * historyFilters.size
             const end = start + historyFilters.size
             const paginatedActions = allActions.slice(start, end)
 
             setAllHistory(paginatedActions)
             setHistoryTotalPages(Math.ceil(allActions.length / historyFilters.size))
-
-            console.log('[History] Total actions:', allActions.length, 'pages:', Math.ceil(allActions.length / historyFilters.size))
-
         } catch (error) {
             console.error('Failed to load all history:', error)
             toast({
@@ -359,12 +331,13 @@ function CuratorDashboard() {
         }
     }, [historyFilters, toast])
 
-    // Загрузка деталей задачи
     const loadTaskDetail = async (taskId) => {
         setIsLoading(true)
         try {
             const data = await getModerationTaskDetail(taskId)
             setSelectedTask(data)
+            setEntityDraft(deepClone(data.createdSnapshot || {}))
+            setIsEditingEntity(false)
 
             const history = await getEntityModerationHistory(data.entityType, data.entityId)
             setTaskHistory(history || [])
@@ -380,21 +353,16 @@ function CuratorDashboard() {
         }
     }
 
-    // ========== ОБРАБОТЧИКИ ДЕЙСТВИЙ ==========
-
-    // Открытие деталей задачи
     const handleOpenTask = async (taskId) => {
         await loadTaskDetail(taskId)
         setIsDetailOpen(true)
     }
 
-    // Назначить задачу себе
     const handleAssignToMe = async (taskId) => {
         try {
-            const payload = {
+            await assignModerationTask(taskId, {
                 comment: 'Принято в работу'
-            }
-            await assignModerationTask(taskId, payload)
+            })
             toast({
                 title: 'Задача назначена',
                 description: 'Задача добавлена в ваши текущие'
@@ -412,7 +380,18 @@ function CuratorDashboard() {
         }
     }
 
-    // Одобрение задачи
+    const handleEntityDraftChange = (key, value) => {
+        setEntityDraft((prev) => ({
+            ...(prev || {}),
+            [key]: value,
+        }))
+    }
+
+    const entityPatch = useMemo(() => {
+        if (!selectedTask?.createdSnapshot || !entityDraft) return {}
+        return buildChangedFieldsPatch(selectedTask.createdSnapshot, entityDraft)
+    }, [selectedTask, entityDraft])
+
     const handleApprove = async () => {
         if (!selectedTask) return
 
@@ -429,7 +408,7 @@ function CuratorDashboard() {
             const payload = {
                 comment: approveComment.trim(),
                 reasonCode: 'APPROVED_BY_MODERATOR',
-                applyPatch: {},
+                applyPatch: entityPatch,
                 notifyUser: true
             }
 
@@ -437,8 +416,11 @@ function CuratorDashboard() {
 
             toast({
                 title: 'Задача одобрена',
-                description: 'Решение отправлено пользователю'
+                description: Object.keys(entityPatch).length > 0
+                    ? 'Изменения применены и решение отправлено'
+                    : 'Решение отправлено пользователю'
             })
+
             setIsApproveModalOpen(false)
             setApproveComment('')
             loadTasks()
@@ -453,7 +435,6 @@ function CuratorDashboard() {
         }
     }
 
-    // Отклонение задачи
     const handleReject = async () => {
         if (!selectedTask) return
 
@@ -489,6 +470,7 @@ function CuratorDashboard() {
                 title: 'Задача отклонена',
                 description: 'Отказ отправлен пользователю'
             })
+
             setIsRejectModalOpen(false)
             setRejectComment('')
             setRejectReason('')
@@ -505,15 +487,13 @@ function CuratorDashboard() {
         }
     }
 
-    // Добавление комментария
     const handleAddComment = async () => {
         if (!selectedTask || !newComment.trim()) return
 
         try {
-            const payload = {
+            await addModerationComment(selectedTask.id, {
                 text: newComment.trim()
-            }
-            await addModerationComment(selectedTask.id, payload)
+            })
             toast({
                 title: 'Комментарий добавлен',
                 description: 'Комментарий сохранён'
@@ -529,7 +509,6 @@ function CuratorDashboard() {
         }
     }
 
-    // Отмена задачи
     const handleCancelTask = async () => {
         if (!selectedTask) return
 
@@ -550,7 +529,6 @@ function CuratorDashboard() {
         }
     }
 
-    // Создание куратора
     const handleCreateCurator = async () => {
         if (!newCuratorEmail.trim() || !newCuratorName.trim() || !newCuratorPassword.trim()) {
             toast({
@@ -596,9 +574,6 @@ function CuratorDashboard() {
         }
     }
 
-    // ========== ФУНКЦИИ ФИЛЬТРОВ ==========
-
-    // Функции для фильтров истории
     const handleHistorySearchChange = (e) => {
         setHistoryFilters(prev => ({ ...prev, search: e.target.value, page: 0 }))
     }
@@ -611,13 +586,11 @@ function CuratorDashboard() {
         setHistoryFilters(prev => ({ ...prev, page: newPage }))
     }
 
-    // Применение фильтров задач
     const applyFilters = () => {
         setPagination(prev => ({ ...prev, page: 0 }))
         loadTasks()
     }
 
-    // Сброс фильтров задач
     const resetFilters = () => {
         setFilters({
             status: '',
@@ -628,8 +601,6 @@ function CuratorDashboard() {
         })
         setPagination(prev => ({ ...prev, page: 0 }))
     }
-
-    // ========== ЭФФЕКТЫ ==========
 
     useEffect(() => {
         loadTasks()
@@ -647,10 +618,12 @@ function CuratorDashboard() {
     }, [activeTab, historyFilters.page, historyFilters.search, historyFilters.sort, loadAllHistory])
 
     const isAdmin = currentUser?.role === 'ADMIN'
+    const canModerateSelectedTask =
+        selectedTask?.status === 'IN_PROGRESS' &&
+        selectedTask?.assignee?.id === currentUser?.id
 
     return (
         <DashboardLayout title="Панель модерации" subtitle="Управление задачами и верификация">
-            {/* Статистика */}
             {dashboardStats && (
                 <div className="moderation-stats">
                     <div className="stat-card">
@@ -668,7 +641,6 @@ function CuratorDashboard() {
                 </div>
             )}
 
-            {/* Вкладки */}
             <div className="dashboard-tabs">
                 <button className={`dashboard-tabs__btn ${activeTab === 'tasks' ? 'is-active' : ''}`} onClick={() => setActiveTab('tasks')}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -880,7 +852,6 @@ function CuratorDashboard() {
                                         </div>
                                     ))}
 
-                                    {/* Пагинация для действий */}
                                     {historyTotalPages > 1 && (
                                         <div className="pagination">
                                             <button
@@ -904,7 +875,7 @@ function CuratorDashboard() {
                     </div>
                 )}
 
-                {activeTab === 'create' && isAdmin && (
+                {activeTab === 'create' && currentUser?.role === 'ADMIN' && (
                     <div className="curator-card">
                         <h3>Создать куратора</h3>
                         <div className="curator-create-form">
@@ -947,7 +918,6 @@ function CuratorDashboard() {
                 )}
             </div>
 
-            {/* Модалка деталей задачи */}
             {isDetailOpen && selectedTask && (
                 <div className="modal-overlay" onClick={() => setIsDetailOpen(false)}>
                     <div className="modal-content moderation-modal" onClick={(e) => e.stopPropagation()}>
@@ -990,32 +960,58 @@ function CuratorDashboard() {
                                 )}
                             </div>
 
-                            {selectedTask.createdSnapshot && (
+                            <div className="moderation-entity-actions">
+                                <Button
+                                    className="button--ghost"
+                                    onClick={() => setIsEditingEntity((prev) => !prev)}
+                                >
+                                    {isEditingEntity ? 'Скрыть редактор' : 'Исправить данные перед одобрением'}
+                                </Button>
+                            </div>
+
+                            <PreviewBlock
+                                title="Исходные данные"
+                                entityType={selectedTask.entityType}
+                                snapshot={selectedTask.createdSnapshot}
+                            />
+
+                            {selectedTask.currentEntityState &&
+                                JSON.stringify(selectedTask.currentEntityState) !== JSON.stringify(selectedTask.createdSnapshot) && (
+                                    <PreviewBlock
+                                        title="Текущее состояние в системе"
+                                        entityType={selectedTask.entityType}
+                                        snapshot={selectedTask.currentEntityState}
+                                    />
+                                )}
+
+                            {isEditingEntity && (
                                 <div className="task-detail-snapshot">
-                                    <h4>Данные для проверки</h4>
-                                    {(() => {
-                                        const formatted = formatSnapshotData(selectedTask.createdSnapshot)
-                                        if (formatted.rawJson) {
-                                            return (
-                                                <pre className="snapshot-content">
-                                                    {JSON.stringify(formatted.rawJson, null, 2)}
-                                                </pre>
-                                            )
-                                        }
-                                        return (
-                                            <div className="snapshot-formatted">
-                                                <h5>{formatted.title}</h5>
-                                                <div className="snapshot-fields">
-                                                    {formatted.fields.map((field, idx) => (
-                                                        <div key={idx} className="snapshot-field">
-                                                            <span className="field-label">{field.label}:</span>
-                                                            <span className="field-value">{field.value || '—'}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )
-                                    })()}
+                                    <h4>Редактор сущности</h4>
+                                    <p className="moderation-editor-note">
+                                        Здесь можно исправить данные заявки перед одобрением.
+                                        Изменения применятся только после нажатия кнопки «Одобрить».
+                                    </p>
+                                    <EntityEditor
+                                        entityType={selectedTask.entityType}
+                                        originalSnapshot={selectedTask.createdSnapshot}
+                                        draft={entityDraft}
+                                        onChange={handleEntityDraftChange}
+                                    />
+                                </div>
+                            )}
+
+                            {isEditingEntity && (
+                                <div className="task-detail-snapshot">
+                                    <div className="moderation-editor-summary">
+                                        Будет изменено полей: {Object.keys(entityPatch).length}
+                                    </div>
+
+                                    <details className="moderation-patch-details">
+                                        <summary>Показать технический patch</summary>
+                                        <pre className="snapshot-content">
+                                            {JSON.stringify(entityPatch, null, 2)}
+                                        </pre>
+                                    </details>
                                 </div>
                             )}
 
@@ -1068,7 +1064,8 @@ function CuratorDashboard() {
                                     Взять в работу
                                 </Button>
                             )}
-                            {selectedTask.status === 'IN_PROGRESS' && selectedTask.assignee?.id === currentUser?.id && (
+
+                            {canModerateSelectedTask && (
                                 <>
                                     <Button className="button--primary" onClick={() => setIsApproveModalOpen(true)}>
                                         Одобрить
@@ -1078,6 +1075,7 @@ function CuratorDashboard() {
                                     </Button>
                                 </>
                             )}
+
                             {selectedTask.status !== 'APPROVED' && selectedTask.status !== 'REJECTED' && selectedTask.status !== 'CANCELLED' && (
                                 <Button className="button--ghost" onClick={handleCancelTask}>
                                     Отменить задачу
@@ -1088,7 +1086,6 @@ function CuratorDashboard() {
                 </div>
             )}
 
-            {/* Модалка одобрения */}
             {isApproveModalOpen && (
                 <div className="modal-overlay" onClick={() => setIsApproveModalOpen(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1098,14 +1095,31 @@ function CuratorDashboard() {
                         </div>
                         <div className="modal-body">
                             <div className="modal-field">
-                                <label>Комментарий <span className="required-star">*</span></label>
-                                <textarea
+                                <Label>
+                                    Комментарий <span className="required-star">*</span>
+                                </Label>
+                                <Textarea
                                     rows={3}
                                     value={approveComment}
                                     onChange={(e) => setApproveComment(e.target.value)}
                                     placeholder="Пояснение к решению..."
+                                    className="moderation-full-width-textarea"
                                 />
+                                <p className="moderation-editor-note">
+                                    Исправления из редактора будут применены после одобрения.
+                                </p>
                             </div>
+
+                            <div className="moderation-editor-summary">
+                                Изменено полей: {Object.keys(entityPatch).length}
+                            </div>
+
+                            <details className="moderation-patch-details">
+                                <summary>Показать технические данные</summary>
+                                <pre className="snapshot-content">
+                                    {JSON.stringify(entityPatch, null, 2)}
+                                </pre>
+                            </details>
                         </div>
                         <div className="modal-footer">
                             <Button
@@ -1115,13 +1129,13 @@ function CuratorDashboard() {
                             >
                                 Подтвердить
                             </Button>
-                            <Button className="button--ghost" onClick={() => setIsApproveModalOpen(false)}>Отмена</Button>
+                            <Button className="button--ghost"
+                                    onClick={() => setIsApproveModalOpen(false)}>Отмена</Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Модалка отклонения */}
             {isRejectModalOpen && (
                 <div className="modal-overlay" onClick={() => setIsRejectModalOpen(false)}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>

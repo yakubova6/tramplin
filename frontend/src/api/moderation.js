@@ -2,7 +2,6 @@ import { httpJson, toQuery } from './http'
 
 const API_BASE = '/api/moderation'
 
-// Константы для фильтров
 export const ENTITY_TYPES = [
     { value: '', label: 'Все типы' },
     { value: 'EMPLOYER_PROFILE', label: 'Профиль работодателя' },
@@ -47,11 +46,6 @@ export const SORT_OPTIONS = [
     { value: 'createdAt,asc', label: 'Сначала старые' },
 ]
 
-/**
- * Получение списка задач модерации
- * GET /api/moderation/tasks
- * Параметры: status, taskType, entityType, priority, assigneeUserId, mine, createdFrom, createdTo, page, size, sort
- */
 export async function getModerationTasks(params = {}) {
     const query = toQuery({
         status: params.status,
@@ -63,137 +57,93 @@ export async function getModerationTasks(params = {}) {
         createdFrom: params.createdFrom,
         createdTo: params.createdTo,
         search: params.search,
-        page: params.page || 0,
-        size: params.size || 20,
-        sort: params.sort || 'createdAt,desc'
+        page: params.page ?? 0,
+        size: params.size ?? 20,
+        sort: params.sort || 'createdAt,desc',
     })
-    console.log('[API] getModerationTasks:', `${API_BASE}/tasks${query ? `?${query}` : ''}`)
+
     return httpJson(`${API_BASE}/tasks${query ? `?${query}` : ''}`)
 }
 
-/**
- * Получение деталей задачи
- * GET /api/moderation/tasks/{taskId}
- */
 export async function getModerationTaskDetail(taskId) {
-    console.log('[API] getModerationTaskDetail:', `${API_BASE}/tasks/${taskId}`)
     return httpJson(`${API_BASE}/tasks/${taskId}`)
 }
 
-/**
- * Получение истории изменений сущности
- * GET /api/moderation/entities/{entityType}/{entityId}/history
- */
 export async function getEntityModerationHistory(entityType, entityId) {
-    console.log('[API] getEntityModerationHistory:', `${API_BASE}/entities/${entityType}/${entityId}/history`)
     return httpJson(`${API_BASE}/entities/${entityType}/${entityId}/history`)
 }
 
-/**
- * Получение статистики дашборда
- * GET /api/moderation/dashboard
- */
 export async function getModerationDashboard() {
     return httpJson(`${API_BASE}/dashboard`)
 }
 
-/**
- * Одобрение задачи
- * POST /api/moderation/tasks/{taskId}/approve
- * Поля: comment, reasonCode, applyPatch, notifyUser
- */
 export async function approveModerationTask(taskId, payload) {
     const body = {
         comment: payload.comment || '',
         reasonCode: payload.reasonCode || '',
         applyPatch: payload.applyPatch || {},
-        notifyUser: payload.notifyUser ?? true
+        notifyUser: payload.notifyUser ?? true,
     }
-    console.log('[API] approveModerationTask:', `${API_BASE}/tasks/${taskId}/approve`, body)
+
     return httpJson(`${API_BASE}/tasks/${taskId}/approve`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
     })
 }
 
-/**
- * Отклонение задачи
- * POST /api/moderation/tasks/{taskId}/reject
- * Поля: comment, reasonCode, severity, notifyUser
- */
 export async function rejectModerationTask(taskId, payload) {
     const body = {
         comment: payload.comment || '',
         reasonCode: payload.reasonCode || '',
         severity: payload.severity || 'NORMAL',
-        notifyUser: payload.notifyUser ?? true
+        notifyUser: payload.notifyUser ?? true,
     }
-    console.log('[API] rejectModerationTask:', `${API_BASE}/tasks/${taskId}/reject`, body)
+
     return httpJson(`${API_BASE}/tasks/${taskId}/reject`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
     })
 }
 
-/**
- * Добавление комментария к задаче
- * POST /api/moderation/tasks/{taskId}/comment
- * Поля: text (обязательное)
- */
 export async function addModerationComment(taskId, payload) {
     const body = {
-        text: payload.text || ''
+        text: payload.text || '',
     }
-    console.log('[API] addModerationComment:', `${API_BASE}/tasks/${taskId}/comment`, body)
+
     return httpJson(`${API_BASE}/tasks/${taskId}/comment`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
     })
 }
 
-/**
- * Отмена задачи
- * POST /api/moderation/tasks/{taskId}/cancel
- */
 export async function cancelModerationTask(taskId) {
-    console.log('[API] cancelModerationTask:', `${API_BASE}/tasks/${taskId}/cancel`)
     return httpJson(`${API_BASE}/tasks/${taskId}/cancel`, {
-        method: 'POST'
+        method: 'POST',
     })
 }
 
-/**
- * Назначение задачи
- * POST /api/moderation/tasks/{taskId}/assign
- * Поля: comment (обязательное)
- */
 export async function assignModerationTask(taskId, payload) {
     const body = {
-        comment: payload.comment || ''
+        comment: payload.comment || '',
     }
-    console.log('[API] assignModerationTask:', `${API_BASE}/tasks/${taskId}/assign`, body)
+
     return httpJson(`${API_BASE}/tasks/${taskId}/assign`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
     })
 }
 
-/**
- * Ручное создание задачи
- * POST /api/moderation/tasks/manual
- * Поля: entityType, entityId, taskType, priority, comment
- */
 export async function createManualModerationTask(payload) {
     const body = {
         entityType: payload.entityType,
         entityId: payload.entityId,
         taskType: payload.taskType,
         priority: payload.priority || 'MEDIUM',
-        comment: payload.comment || ''
+        comment: payload.comment || '',
     }
-    console.log('[API] createManualModerationTask:', `${API_BASE}/tasks/manual`, body)
+
     return httpJson(`${API_BASE}/tasks/manual`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
     })
 }
