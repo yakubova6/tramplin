@@ -8,6 +8,7 @@ import SeekerDashboard from './pages/Dashboard/SeekerDashboard/SeekerDashboard'
 import EmployerDashboard from './pages/Dashboard/EmployerDashboard/EmployerDashboard'
 import CuratorDashboard from './pages/Dashboard/CuratorDashboard/CuratorDashboard'
 import ProfileEdit from './pages/ProfileEdit/ProfileEdit'
+import SecuritySettings from './pages/Settings/SecuritySettings/SecuritySettings'
 import ProtectedRoute from './components/ProtectedRoute'
 import './styles/main.scss'
 
@@ -43,6 +44,12 @@ function App() {
             <Route path="/profile/edit">
                 <ProtectedRoute allowedRoles={['APPLICANT', 'EMPLOYER']}>
                     <ProfileEdit />
+                </ProtectedRoute>
+            </Route>
+
+            <Route path="/settings/security">
+                <ProtectedRoute allowedRoles={['APPLICANT', 'EMPLOYER', 'CURATOR', 'ADMIN']}>
+                    <SecuritySettings />
                 </ProtectedRoute>
             </Route>
 

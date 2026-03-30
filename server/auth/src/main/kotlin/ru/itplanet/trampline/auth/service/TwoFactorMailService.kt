@@ -18,7 +18,7 @@ class TwoFactorMailService(
             text = """
                 Здравствуйте!
                 
-                Код для входа в Trampline: $code
+                Код для входа в Tramplin: $code
                 
                 Код действует ${twoFactorProperties.codeTtlMinutes} минут.
                 Никому не сообщайте этот код.
@@ -34,7 +34,7 @@ class TwoFactorMailService(
             text = """
                 Здравствуйте!
                 
-                Вы запросили включение двухфакторной аутентификации в Trampline.
+                Вы запросили включение двухфакторной аутентификации в Tramplin.
                 Код подтверждения: $code
                 
                 Код действует ${twoFactorProperties.codeTtlMinutes} минут.
@@ -50,7 +50,7 @@ class TwoFactorMailService(
             text = """
                 Здравствуйте!
                 
-                Вы запросили отключение двухфакторной аутентификации в Trampline.
+                Вы запросили отключение двухфакторной аутентификации в Tramplin.
                 Код подтверждения: $code
                 
                 Код действует ${twoFactorProperties.codeTtlMinutes} минут.
