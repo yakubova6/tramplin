@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import DashboardLayout from '../../Dashboard/DashboardLayout'
 import {
     Card,
@@ -43,6 +43,12 @@ function formatExpiresAt(value) {
         hour: '2-digit',
         minute: '2-digit',
     })
+}
+
+function getDashboardPathByRole(role) {
+    if (role === 'EMPLOYER') return '/employer'
+    if (role === 'CURATOR' || role === 'ADMIN') return '/curator'
+    return '/seeker'
 }
 
 function SecuritySettings() {
@@ -171,6 +177,7 @@ function SecuritySettings() {
     const isTwoFactorEnabled = Boolean(user?.twoFactorEnabled)
     const currentAction = operation || (isTwoFactorEnabled ? ACTION_DISABLE : ACTION_ENABLE)
     const isEnableAction = currentAction === ACTION_ENABLE
+    const backHref = getDashboardPathByRole(user?.role)
 
     const handleRequestChallenge = async (event) => {
         event.preventDefault()
@@ -339,15 +346,11 @@ function SecuritySettings() {
     if (isLoading) {
         return (
             <DashboardLayout title="Настройки безопасности">
-                <div className="security-settings">
-                    <Card className="security-settings__card">
-                        <CardHeader>
-                            <CardTitle>Загрузка...</CardTitle>
-                            <CardDescription>
-                                Получаем текущие настройки безопасности
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
+                <div className="security-settings security-settings--loading">
+                    <div className="dashboard-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Загрузка профиля...</p>
+                    </div>
                 </div>
             </DashboardLayout>
         )
@@ -363,6 +366,26 @@ function SecuritySettings() {
             subtitle={user.displayName || user.email}
         >
             <div className="security-settings">
+                <Link
+                    href={backHref}
+                    className="security-settings__back"
+                    onClick={(event) => {
+                        event.preventDefault()
+
+                        if (window.history.length > 1) {
+                            window.history.back()
+                            return
+                        }
+
+                        setLocation(backHref)
+                    }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M15 18L9 12L15 6" />
+                    </svg>
+                    <span>Назад</span>
+                </Link>
+
                 <div className="security-settings__layout">
                     <section className="security-settings__hero">
                         <span className="security-settings__eyebrow">
