@@ -13,13 +13,16 @@ function loadYmaps() {
         const script = document.createElement('script')
         script.src = `https://api-maps.yandex.ru/2.1/?apikey=${YMAPS_API_KEY}&lang=ru_RU`
         script.async = true
+
         script.onload = () => {
             if (!window.ymaps) {
                 reject(new Error('Yandex Maps API не загрузился'))
                 return
             }
+
             window.ymaps.ready(() => resolve(window.ymaps))
         }
+
         script.onerror = () => reject(new Error('Не удалось загрузить Yandex Maps API'))
         document.head.appendChild(script)
     })
@@ -29,14 +32,17 @@ function loadYmaps() {
 
 function formatMoney(from, to, currency) {
     if (from == null && to == null) return 'По договорённости'
+
     const values = []
     if (from != null) values.push(`от ${Number(from).toLocaleString('ru-RU')}`)
     if (to != null) values.push(`до ${Number(to).toLocaleString('ru-RU')}`)
+
     return `${values.join(' ')} ${currency || ''}`.trim()
 }
 
 function escapeHtml(value) {
     if (!value && value !== 0) return ''
+
     return String(value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -52,6 +58,60 @@ function markerSvg(color) {
           <circle cx="17" cy="15" r="5" fill="#ffffff"/>
         </svg>
     `)}`
+}
+
+function buildBalloon(point) {
+    const preview = point.preview || {}
+    const tags = (preview.tags || [])
+        .slice(0, 4)
+        .map(
+            (tag) =>
+                `<span style="display:inline-block;background:#edf6f7;color:#365f65;padding:3px 8px;border-radius:8px;font-size:11px;margin:2px;">${escapeHtml(tag.name)}</span>`
+        )
+        .join('')
+
+    const title = preview.title || point.title
+    const companyName = preview.companyName || point.companyName
+    const typeLabel = OPPORTUNITY_LABELS.type[point.type] || 'Возможность'
+    const formatLabel =
+        OPPORTUNITY_LABELS.workFormat[point.workFormat] ||
+        point.workFormat ||
+        'Формат не указан'
+    const salary = formatMoney(preview.salaryFrom, preview.salaryTo, preview.salaryCurrency)
+
+    return `
+        <div style="max-width:320px;font-family:Manrope,Arial,sans-serif;">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px;">
+            <h4 style="margin:0;color:#10272b;font-size:15px;line-height:1.35;">${escapeHtml(title)}</h4>
+            <span style="flex-shrink:0;font-size:11px;color:#0f5f68;background:#dceff1;padding:2px 8px;border-radius:999px;">
+              ${escapeHtml(typeLabel)}
+            </span>
+          </div>
+
+          <p style="margin:0 0 6px;color:#264a50;font-weight:700;">
+            ${escapeHtml(companyName)}
+          </p>
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px;">
+            <span style="font-size:11px;color:#45666b;background:#f1f5f9;padding:2px 7px;border-radius:999px;">
+              ${escapeHtml(formatLabel)}
+            </span>
+            <span style="font-size:11px;color:#10272b;background:#fef3c7;padding:2px 7px;border-radius:999px;font-weight:700;">
+              ${escapeHtml(salary)}
+            </span>
+          </div>
+
+          <p style="margin:0 0 6px;color:#547379;font-size:12px;">
+            ${escapeHtml(point.addressLine || point.cityName || 'Адрес не указан')}
+          </p>
+
+          <p style="margin:0 0 8px;color:#45666b;font-size:13px;line-height:1.45;">
+            ${escapeHtml(preview.shortDescription || '')}
+          </p>
+
+          ${tags ? `<div>${tags}</div>` : ''}
+        </div>
+    `
 }
 
 function buildHint(point) {
@@ -70,7 +130,10 @@ function buildHint(point) {
     const title = preview.title || point.title
     const companyName = preview.companyName || point.companyName
     const typeLabel = OPPORTUNITY_LABELS.type[point.type] || 'Возможность'
-    const formatLabel = OPPORTUNITY_LABELS.workFormat[point.workFormat] || point.workFormat || 'Формат не указан'
+    const formatLabel =
+        OPPORTUNITY_LABELS.workFormat[point.workFormat] ||
+        point.workFormat ||
+        'Формат не указан'
     const salary = formatMoney(preview.salaryFrom, preview.salaryTo, preview.salaryCurrency)
 
     return `
@@ -84,7 +147,7 @@ function buildHint(point) {
             </span>
           </div>
 
-          <p style="margin:0 0 4px;color:#264a50;font-weight:700;font-size:13px;">
+          <p style="margin:0 0 4px;color:#264a50;font-weight:700;">
             ${escapeHtml(companyName)}
           </p>
 
@@ -146,6 +209,7 @@ export default function YandexOpportunityMap({
                     const placemark = new ymaps.Placemark(
                         [point.latitude, point.longitude],
                         {
+                            balloonContentBody: buildBalloon(point),
                             hintContent: buildHint(point),
                             iconCaption: `${point.companyName || ''} · ${point.title || ''}`.slice(0, 45),
                         },
@@ -171,7 +235,10 @@ export default function YandexOpportunityMap({
 
             if (!focusedOpportunityId) {
                 if (map.geoObjects.getLength() > 0) {
-                    map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, zoomMargin: 40 })
+                    map.setBounds(map.geoObjects.getBounds(), {
+                        checkZoomRange: true,
+                        zoomMargin: 40,
+                    })
                 } else {
                     map.setCenter(center, 5)
                 }
@@ -208,6 +275,7 @@ export default function YandexOpportunityMap({
                 map.container.fitToViewport()
                 const coords = placemark.geometry.getCoordinates()
                 map.setCenter(coords, 14, { duration: 350, checkZoomRange: true })
+                placemark.balloon.open()
             } catch (error) {
                 console.error('[YandexOpportunityMap] focus error', error)
             }

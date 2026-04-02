@@ -253,12 +253,13 @@ function EmployerDashboard() {
             ? items.map((item) => createLinkRow(item.label || '', item.url || item.value || ''))
             : [createLinkRow()]
 
-    const rowsToLinks = (rows = []) =>
+    const rowsToLinks = (rows = [], defaultLinkType = 'RESOURCE') =>
         rows
             .filter((row) => row.url?.trim())
             .map((row, index) => ({
                 label: row.title?.trim() || `Ссылка ${index + 1}`,
                 url: row.url.trim(),
+                linkType: defaultLinkType,
             }))
 
     const handleCitySearch = async (value) => {
@@ -294,7 +295,7 @@ function EmployerDashboard() {
                 status: responseFilters.status || undefined,
                 search: responseFilters.search || undefined,
             })
-            setResponsesPage(page)
+            setResponsesPage(page || { items: [], total: 0, limit: 50, offset: 0 })
         } catch (error) {
             console.error('Responses load error:', error)
             toast({
@@ -357,14 +358,31 @@ function EmployerDashboard() {
                 }))
             }
 
-            const opportunityPage = await getEmployerOpportunities()
-            setOpportunities(Array.isArray(opportunityPage?.items) ? opportunityPage.items : [])
+            try {
+                const opportunityPage = await getEmployerOpportunities()
+                setOpportunities(Array.isArray(opportunityPage?.items) ? opportunityPage.items : [])
+            } catch (error) {
+                console.error('Employer opportunities load failed:', error)
+                setOpportunities([])
+            }
 
-            await loadEmployerResponsesData()
+            try {
+                const page = await getEmployerApplications({
+                    limit: 50,
+                    offset: 0,
+                    sortDirection: responseFilters.sortDirection,
+                    status: responseFilters.status || undefined,
+                    search: responseFilters.search || undefined,
+                })
+                setResponsesPage(page || { items: [], total: 0, limit: 50, offset: 0 })
+            } catch (error) {
+                console.error('Employer responses load failed:', error)
+                setResponsesPage({ items: [], total: 0, limit: 50, offset: 0 })
+            }
         } catch (error) {
             console.error('Load error:', error)
 
-            if ([401, 403, 500, 503].includes(error?.status)) {
+            if ([401, 403].includes(error?.status)) {
                 clearSessionUser()
                 setUser(null)
                 setOpportunities([])
@@ -380,7 +398,7 @@ function EmployerDashboard() {
         } finally {
             setIsLoading(false)
         }
-    }, [loadEmployerResponsesData, toast])
+    }, [responseFilters, toast])
 
     useEffect(() => {
         const unsubscribe = subscribeSessionChange((nextUser) => {
@@ -615,12 +633,70 @@ function EmployerDashboard() {
             return
         }
 
+        if (opportunityForm.type !== 'EVENT' && opportunityForm.expiresAt) {
+            const selectedDate = new Date(`${opportunityForm.expiresAt}T23:59:59`)
+            const now = new Date()
+
+            if (Number.isNaN(selectedDate.getTime()) || selectedDate < now) {
+                toast({
+                    title: 'Ошибка',
+                    description: 'Срок действия вакансии не может быть в прошлом',
+                    variant: 'destructive',
+                })
+                setIsLoading(false)
+                return
+            }
+        }
+
         setIsLoading(true)
         try {
             const payload = {
-                ...opportunityForm,
-                companyName: profile.companyName || user?.displayName,
-                resourceLinks: rowsToLinks(resourceRows),
+                title: opportunityForm.title?.trim(),
+                shortDescription: opportunityForm.shortDescription?.trim() || '',
+                fullDescription:
+                    opportunityForm.fullDescription?.trim() ||
+                    opportunityForm.shortDescription?.trim() ||
+                    '',
+                requirements: opportunityForm.requirements?.trim() || null,
+                companyName: (profile.companyName || user?.displayName || '').trim(),
+                type: opportunityForm.type || 'VACANCY',
+                workFormat: opportunityForm.workFormat || 'REMOTE',
+                employmentType: opportunityForm.employmentType || 'FULL_TIME',
+                grade: opportunityForm.grade || 'JUNIOR',
+                salaryFrom:
+                    opportunityForm.salaryFrom !== '' && opportunityForm.salaryFrom != null
+                        ? Number(opportunityForm.salaryFrom)
+                        : null,
+                salaryTo:
+                    opportunityForm.salaryTo !== '' && opportunityForm.salaryTo != null
+                        ? Number(opportunityForm.salaryTo)
+                        : null,
+                salaryCurrency: (opportunityForm.salaryCurrency || 'RUB').trim().toUpperCase(),
+
+                expiresAt:
+                    opportunityForm.type === 'EVENT'
+                        ? null
+                        : new Date(`${opportunityForm.expiresAt}T23:59:59`).toISOString(),
+
+                eventDate:
+                    opportunityForm.type === 'EVENT'
+                        ? (opportunityForm.eventDate || null)
+                        : null,
+
+                cityId: Number(opportunityForm.cityId || 1),
+                locationId: opportunityForm.locationId ? Number(opportunityForm.locationId) : null,
+
+                contactInfo: {
+                    email: opportunityForm.contactEmail?.trim() || null,
+                    phone: opportunityForm.contactPhone?.trim() || null,
+                    telegram: opportunityForm.contactTelegram?.trim() || null,
+                    contactPerson: opportunityForm.contactPerson?.trim() || null,
+                },
+
+                resourceLinks: rowsToLinks(resourceRows, 'RESOURCE'),
+                tagIds: Array.isArray(opportunityForm.tagIds)
+                    ? opportunityForm.tagIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+                    : [],
             }
 
             const savedOpportunity =
@@ -647,6 +723,7 @@ function EmployerDashboard() {
             resetOpportunityForm()
             setActiveTab('opportunities')
         } catch (error) {
+            console.error('Save opportunity error:', error)
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось сохранить публикацию',
@@ -783,6 +860,7 @@ function EmployerDashboard() {
                 <button
                     className={`dashboard-tabs__btn ${activeTab === 'create' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('create')}
+                    disabled={!isVerified}
                 >
                     {opportunityMode === 'edit' ? 'Редактирование' : 'Создать'}
                 </button>

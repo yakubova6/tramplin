@@ -92,9 +92,10 @@ export async function getMyResponses() {
 }
 
 export async function getEmployerResponses(params = {}) {
-    const currentUser = getRequiredCurrentUser()
+    const currentUser = getCurrentUserQueryValue()
+    const user = getSessionUser()
 
-    const query = toQuery({
+    const fullQuery = toQuery({
         limit: params.limit ?? 20,
         offset: params.offset ?? 0,
         sortBy: params.sortBy || 'CREATED_AT',
@@ -105,7 +106,28 @@ export async function getEmployerResponses(params = {}) {
         currentUser,
     })
 
-    return httpJson(`/api/employer/responses${query ? `?${query}` : ''}`)
+    try {
+        return await httpJson(`/api/employer/responses${fullQuery ? `?${fullQuery}` : ''}`)
+    } catch (error) {
+        console.warn('[interaction] employer responses with currentUser failed, retrying with currentUserId:', error)
+
+        if (!user?.id) {
+            throw error
+        }
+
+        const fallbackQuery = toQuery({
+            limit: params.limit ?? 20,
+            offset: params.offset ?? 0,
+            sortBy: params.sortBy || 'CREATED_AT',
+            sortDirection: params.sortDirection || 'DESC',
+            opportunityId: params.opportunityId,
+            status: params.status,
+            search: params.search,
+            currentUserId: user.id,
+        })
+
+        return httpJson(`/api/employer/responses${fallbackQuery ? `?${fallbackQuery}` : ''}`)
+    }
 }
 
 export async function createResponse(opportunityId, applicantComment = '', coverLetter = '') {

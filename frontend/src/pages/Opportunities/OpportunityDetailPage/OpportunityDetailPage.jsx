@@ -328,36 +328,32 @@ export default function OpportunityDetailPage() {
                     <span>Назад к списку</span>
                 </Link>
 
-                {isLoading && (
+                {isLoading ? (
                     <div className="opportunity-detail-page__loader">
                         <div className="opportunity-detail-page__spinner"></div>
                         <p>Загрузка информации...</p>
                     </div>
-                )}
-
-                {error && (
+                ) : error ? (
                     <div className="opportunity-detail-page__error-card">
                         <p>{error}</p>
                         <Link href="/">
                             <Button>Вернуться к поиску</Button>
                         </Link>
                     </div>
-                )}
-
-                {item && (
+                ) : item ? (
                     <div className="opportunity-detail-page__grid">
                         <div className="opportunity-detail-page__content">
                             <div className="opportunity-detail-page__badges">
-                                <span className="badge badge--type">
-                                    {OPPORTUNITY_LABELS.type[item.type] || 'Возможность'}
-                                </span>
+                <span className="badge badge--type">
+                    {OPPORTUNITY_LABELS.type[item.type] || 'Возможность'}
+                </span>
                                 <span className="badge badge--format">
-                                    {OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat || 'Формат не указан'}
-                                </span>
+                    {OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat || 'Формат не указан'}
+                </span>
                                 {item.grade && (
                                     <span className="badge badge--grade">
-                                        {OPPORTUNITY_LABELS.grade[item.grade] || item.grade}
-                                    </span>
+                        {OPPORTUNITY_LABELS.grade[item.grade] || item.grade}
+                    </span>
                                 )}
                             </div>
 
@@ -590,7 +586,7 @@ export default function OpportunityDetailPage() {
                             )}
                         </aside>
                     </div>
-                )}
+                ) : null}
             </main>
         </div>
     )

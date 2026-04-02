@@ -8,6 +8,7 @@ import Textarea from '../../../components/Textarea'
 import CustomSelect from '../../../components/CustomSelect'
 import CustomCheckbox from '../../../components/CustomCheckbox'
 import LinksEditor from '../../../components/LinksEditor'
+import Button from '../../../components/Button'
 import {
     clearSessionUser,
     getSessionUser,
@@ -27,6 +28,11 @@ import {
     getSeekerRecommendations,
     sendSeekerRecommendation,
     removeSeekerRecommendation,
+    uploadApplicantAvatar,
+    uploadApplicantResumeFile,
+    uploadApplicantPortfolioFile,
+    deleteApplicantFile,
+    getFileDownloadUrlByUserAndFile,
 } from '../../../api/profile'
 import '../DashboardBase.scss'
 import './SeekerDashboard.scss'
@@ -38,12 +44,20 @@ import locationIcon from '../../../assets/icons/location.svg'
 import editIcon from '../../../assets/icons/edit.svg'
 import pencilIcon from '../../../assets/icons/pencil.svg'
 import linkIcon from '../../../assets/icons/link.svg'
+import trashIcon from '../../../assets/icons/trash.svg'
 
 const VISIBILITY_OPTIONS = [
     { value: 'PUBLIC', label: 'Публично' },
     { value: 'AUTHENTICATED', label: 'Только зарегистрированным' },
     { value: 'PRIVATE', label: 'Только мне' },
 ]
+
+function formatFileSize(sizeBytes) {
+    if (!sizeBytes) return '0 Б'
+    if (sizeBytes < 1024) return `${sizeBytes} Б`
+    if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} КБ`
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} МБ`
+}
 
 function SeekerDashboard() {
     const [activeTab, setActiveTab] = useState('profile')
@@ -60,6 +74,14 @@ function SeekerDashboard() {
     const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false)
     const [errors, setErrors] = useState({})
     const { toast } = useToast()
+
+    const avatarInputRef = useRef(null)
+    const resumeFileInputRef = useRef(null)
+    const portfolioFileInputRef = useRef(null)
+
+    const [isAvatarUploading, setIsAvatarUploading] = useState(false)
+    const [isResumeFileUploading, setIsResumeFileUploading] = useState(false)
+    const [isPortfolioFileUploading, setIsPortfolioFileUploading] = useState(false)
 
     const [profile, setProfile] = useState({
         firstName: '',
@@ -82,6 +104,9 @@ function SeekerDashboard() {
         contactsVisibility: 'AUTHENTICATED',
         openToWork: true,
         openToEvents: true,
+        avatar: null,
+        resumeFile: null,
+        portfolioFiles: [],
     })
 
     const [tempPortfolioLinks, setTempPortfolioLinks] = useState([])
@@ -115,10 +140,10 @@ function SeekerDashboard() {
 
     const linksToArray = (linksArray) => {
         if (!linksArray || !Array.isArray(linksArray)) return []
-        return linksArray.map((url, index) => ({
-            id: index,
-            title: '',
-            url: typeof url === 'string' ? url : url?.url || '',
+        return linksArray.map((item, index) => ({
+            id: index + 1 + Date.now() + index,
+            title: item?.label || item?.title || '',
+            url: item?.url || item?.value || item || '',
         }))
     }
 
@@ -148,7 +173,7 @@ function SeekerDashboard() {
         setProfile(prev => ({
             ...prev,
             cityId: city.id,
-            cityName: city.name
+            cityName: city.name,
         }))
         setCitySearchQuery(city.name)
         setIsCitySearchOpen(false)
@@ -186,6 +211,18 @@ function SeekerDashboard() {
         }
     }
 
+    const refreshApplicantFiles = async () => {
+        const freshProfile = await getApplicantProfile()
+        if (!freshProfile) return
+
+        setProfile(prev => ({
+            ...prev,
+            avatar: freshProfile.avatar || null,
+            resumeFile: freshProfile.resumeFile || null,
+            portfolioFiles: freshProfile.portfolioFiles || [],
+        }))
+    }
+
     useEffect(() => {
         const unsubscribe = subscribeSessionChange((nextUser) => {
             setUser(nextUser)
@@ -217,8 +254,8 @@ function SeekerDashboard() {
                         studyProgram: profileData.studyProgram || '',
                         course: profileData.course,
                         graduationYear: profileData.graduationYear,
-                        cityId: profileData.cityId,
-                        cityName: profileData.cityName || '',
+                        cityId: profileData.cityId || profileData.city?.id || null,
+                        cityName: profileData.cityName || profileData.city?.name || '',
                         about: profileData.about || '',
                         resumeText: profileData.resumeText || '',
                         portfolioLinks: profileData.portfolioLinks || [],
@@ -229,10 +266,13 @@ function SeekerDashboard() {
                         contactsVisibility: profileData.contactsVisibility || 'AUTHENTICATED',
                         openToWork: profileData.openToWork ?? true,
                         openToEvents: profileData.openToEvents ?? true,
+                        avatar: profileData.avatar || null,
+                        resumeFile: profileData.resumeFile || null,
+                        portfolioFiles: profileData.portfolioFiles || [],
                     }))
 
-                    if (profileData.cityName) {
-                        setCitySearchQuery(profileData.cityName)
+                    if (profileData.cityName || profileData.city?.name) {
+                        setCitySearchQuery(profileData.cityName || profileData.city?.name)
                     }
 
                     setTempPortfolioLinks(linksToArray(profileData.portfolioLinks || []))
@@ -306,8 +346,8 @@ function SeekerDashboard() {
                 detail: {
                     firstName: profile.firstName,
                     lastName: profile.lastName,
-                    role: 'APPLICANT'
-                }
+                    role: 'APPLICANT',
+                },
             }))
 
             toast({
@@ -370,7 +410,10 @@ function SeekerDashboard() {
         try {
             const portfolioLinks = tempPortfolioLinks
                 .filter(link => link.url?.trim())
-                .map(link => link.url.trim())
+                .map(link => ({
+                    label: link.title?.trim() || '',
+                    url: link.url.trim(),
+                }))
 
             const updatedProfile = { ...profile, portfolioLinks }
             await updateApplicantProfile(updatedProfile)
@@ -396,7 +439,11 @@ function SeekerDashboard() {
         try {
             const contactLinks = tempContactLinks
                 .filter(link => link.url?.trim())
-                .map(link => link.url.trim())
+                .map(link => ({
+                    type: 'OTHER',
+                    label: link.title?.trim() || '',
+                    value: link.url.trim(),
+                }))
 
             const updatedProfile = { ...profile, contactLinks }
             await updateApplicantProfile(updatedProfile)
@@ -581,6 +628,146 @@ function SeekerDashboard() {
         }
     }
 
+    const handleAvatarUpload = async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+        if (!allowedTypes.includes(file.type)) {
+            toast({
+                title: 'Неверный формат изображения',
+                description: 'Для аватара доступны только JPEG, PNG или WEBP',
+                variant: 'destructive',
+            })
+            event.target.value = ''
+            return
+        }
+
+        try {
+            setIsAvatarUploading(true)
+            const updatedProfile = await uploadApplicantAvatar(file)
+            setProfile(prev => ({
+                ...prev,
+                avatar: updatedProfile.avatar || null,
+            }))
+            toast({
+                title: 'Аватар загружен',
+                description: 'Фото профиля успешно обновлено',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка загрузки аватара',
+                description: error.message || 'Не удалось загрузить изображение',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsAvatarUploading(false)
+            event.target.value = ''
+        }
+    }
+
+    const handleResumeFileUpload = async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const isPdf =
+            file.type === 'application/pdf' ||
+            file.name.toLowerCase().endsWith('.pdf')
+
+        if (!isPdf) {
+            toast({
+                title: 'Неверный формат файла',
+                description: 'Для резюме можно загружать только PDF',
+                variant: 'destructive',
+            })
+            event.target.value = ''
+            return
+        }
+
+        try {
+            setIsResumeFileUploading(true)
+            const updatedProfile = await uploadApplicantResumeFile(file)
+            setProfile(prev => ({
+                ...prev,
+                resumeFile: updatedProfile.resumeFile || null,
+            }))
+            toast({
+                title: 'Файл резюме загружен',
+                description: 'Резюме прикреплено к профилю',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось загрузить файл резюме',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsResumeFileUploading(false)
+            event.target.value = ''
+        }
+    }
+
+    const handlePortfolioFileUpload = async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const isPdf =
+            file.type === 'application/pdf' ||
+            file.name.toLowerCase().endsWith('.pdf')
+
+        if (!isPdf) {
+            toast({
+                title: 'Неверный формат файла',
+                description: 'В портфолио можно загружать только PDF',
+                variant: 'destructive',
+            })
+            event.target.value = ''
+            return
+        }
+
+        try {
+            setIsPortfolioFileUploading(true)
+            await uploadApplicantPortfolioFile(file)
+            await refreshApplicantFiles()
+            toast({
+                title: 'Файл портфолио загружен',
+                description: 'Файл добавлен в портфолио',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось загрузить файл портфолио',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsPortfolioFileUploading(false)
+            event.target.value = ''
+        }
+    }
+
+    const handleDeleteApplicantMedia = async (fileId, kindLabel) => {
+        try {
+            const updatedProfile = await deleteApplicantFile(fileId)
+            setProfile(prev => ({
+                ...prev,
+                avatar: updatedProfile.avatar || null,
+                resumeFile: updatedProfile.resumeFile || null,
+                portfolioFiles: updatedProfile.portfolioFiles || [],
+            }))
+
+            toast({
+                title: 'Файл удалён',
+                description: `${kindLabel} удалён из профиля`,
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error.message || 'Не удалось удалить файл',
+                variant: 'destructive',
+            })
+        }
+    }
+
     const getInitials = () => {
         if (profile.firstName || profile.lastName) {
             return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
@@ -614,17 +801,20 @@ function SeekerDashboard() {
             <div className="links-display">
                 <h4>{title}</h4>
                 <div className="links-list">
-                    {links.map((url, idx) => {
-                        const linkUrl = typeof url === 'string' ? url : url?.url || ''
-                        let displayName = linkUrl
+                    {links.map((item, idx) => {
+                        const url = item?.url || item?.value || item
+                        if (!url) return null
+
+                        let displayName = url
                         try {
-                            const urlObj = new URL(linkUrl)
-                            displayName = urlObj.hostname
+                            const urlObj = new URL(url)
+                            displayName = item?.label || item?.title || urlObj.hostname
                         } catch {
-                            displayName = linkUrl
+                            displayName = item?.label || item?.title || url
                         }
+
                         return (
-                            <a key={idx} href={linkUrl} target="_blank" rel="noopener noreferrer" className="link-item">
+                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="link-item">
                                 <img src={linkIcon} alt="" className="icon-small" />
                                 <span>{displayName}</span>
                             </a>
@@ -661,18 +851,6 @@ function SeekerDashboard() {
         outgoing: outgoingContacts.length,
         confirmed: confirmedContacts.length,
     }), [incomingContacts.length, outgoingContacts.length, confirmedContacts.length])
-
-    useEffect(() => {
-        console.log('[SeekerDashboard] contacts raw state:', contacts)
-        console.log('[SeekerDashboard] contacts counts:', {
-            total: contacts.length,
-            incoming: incomingContacts.length,
-            outgoing: outgoingContacts.length,
-            confirmed: confirmedContacts.length,
-            activeTab: contactsTab,
-            currentContacts,
-        })
-    }, [contacts, incomingContacts, outgoingContacts, confirmedContacts, currentContacts, contactsTab])
 
     const currentRecommendations = useMemo(() => {
         return recommendationsTab === 'incoming'
@@ -717,6 +895,14 @@ function SeekerDashboard() {
         recommendationContactsOptions.length > 0 &&
         recommendationOpportunityOptions.length > 0
 
+    const avatarUrl = profile.avatar && user?.id
+        ? getFileDownloadUrlByUserAndFile('APPLICANT', user.id, profile.avatar.fileId)
+        : null
+
+    const resumeFileUrl = profile.resumeFile && user?.id
+        ? getFileDownloadUrlByUserAndFile('APPLICANT', user.id, profile.resumeFile.fileId)
+        : null
+
     if (isLoading && !profile.firstName) {
         return (
             <DashboardLayout title="Мой профиль">
@@ -725,33 +911,6 @@ function SeekerDashboard() {
                     <p>Загрузка профиля...</p>
                 </div>
             </DashboardLayout>
-        )
-    }
-
-    const renderContactsEmpty = () => {
-        if (contactsTab === 'incoming') {
-            return (
-                <div className="empty-state">
-                    <p>Нет входящих заявок</p>
-                    <span>Когда кто-то отправит вам запрос в контакты, он появится здесь</span>
-                </div>
-            )
-        }
-
-        if (contactsTab === 'outgoing') {
-            return (
-                <div className="empty-state">
-                    <p>Нет исходящих заявок</p>
-                    <span>Отправленные вами запросы в контакты появятся здесь</span>
-                </div>
-            )
-        }
-
-        return (
-            <div className="empty-state">
-                <p>Пока нет подтверждённых контактов</p>
-                <span>Добавляйте интересных специалистов и расширяйте сеть</span>
-            </div>
         )
     }
 
@@ -781,22 +940,108 @@ function SeekerDashboard() {
             <div className="dashboard-panel">
                 {activeTab === 'profile' && (
                     <div className="seeker-profile">
+                        <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/*"
+                            hidden
+                            onChange={handleAvatarUpload}
+                        />
+                        <input
+                            ref={resumeFileInputRef}
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            hidden
+                            onChange={handleResumeFileUpload}
+                        />
+                        <input
+                            ref={portfolioFileInputRef}
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            hidden
+                            onChange={handlePortfolioFileUpload}
+                        />
+
                         <div className="profile-card">
-                            <div className="profile-card__avatar-initials">
-                                {getInitials() !== '?' ? (
-                                    getInitials()
-                                ) : (
-                                    <img src={userAvatarIcon} alt="Аватар" className="profile-card__avatar-icon" />
+                            <div
+                                className={`profile-card__avatar-wrap ${isEditing ? 'is-editing' : ''}`}
+                                onClick={() => {
+                                    if (isEditing) {
+                                        avatarInputRef.current?.click()
+                                    }
+                                }}
+                                role={isEditing ? 'button' : undefined}
+                                tabIndex={isEditing ? 0 : undefined}
+                                onKeyDown={(e) => {
+                                    if (!isEditing) return
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        avatarInputRef.current?.click()
+                                    }
+                                }}
+                            >
+                                <div className="profile-card__avatar-initials">
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="Аватар" className="profile-card__avatar-photo" />
+                                    ) : getInitials() !== '?' ? (
+                                        getInitials()
+                                    ) : (
+                                        <img src={userAvatarIcon} alt="Аватар" className="profile-card__avatar-icon" />
+                                    )}
+                                </div>
+
+                                {isEditing && (
+                                    <>
+                                        <div className="profile-card__avatar-edit-badge" aria-hidden="true">
+                                            <span className="profile-card__camera-icon">
+                                                <span></span>
+                                            </span>
+                                        </div>
+
+                                        <div className="profile-card__avatar-overlay">
+                                            <button
+                                                type="button"
+                                                className="profile-card__avatar-action"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    avatarInputRef.current?.click()
+                                                }}
+                                                disabled={isAvatarUploading}
+                                            >
+                                                {isAvatarUploading
+                                                    ? 'Загрузка...'
+                                                    : profile.avatar
+                                                        ? 'Изменить фото профиля'
+                                                        : 'Загрузить фото профиля'}
+                                            </button>
+
+                                            {profile.avatar && (
+                                                <button
+                                                    type="button"
+                                                    className="profile-card__avatar-action profile-card__avatar-action--danger"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation()
+                                                        await handleDeleteApplicantMedia(profile.avatar.fileId, 'Аватар')
+                                                    }}
+                                                >
+                                                    Удалить фото профиля
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
                                 )}
                             </div>
+
                             <div className="profile-card__info">
                                 <div className="profile-card__header">
                                     <h2>{getFullNameWithPatronymic() || user?.displayName || 'Не указано'}</h2>
                                     <div className="profile-card__header-actions">
-                                        <button className="profile-card__edit-btn" onClick={() => setIsEditing(true)}>
-                                            <img src={editIcon} alt="" className="icon" />
-                                            Редактировать
-                                        </button>
+                                        {!isEditing && (
+                                            <button className="profile-card__edit-btn" onClick={() => setIsEditing(true)}>
+                                                <img src={editIcon} alt="" className="icon" />
+                                                Редактировать
+                                            </button>
+                                        )}
                                         {user?.id && (
                                             <button
                                                 className="profile-card__edit-btn"
@@ -818,6 +1063,7 @@ function SeekerDashboard() {
                                             {profile.openToWork ? 'Активно ищу работу' : 'Не ищу работу'}
                                         </span>
                                     </div>
+
                                     {profile.universityName && (
                                         <div className="profile-card__detail">
                                             <span className="profile-card__detail-label">
@@ -831,6 +1077,7 @@ function SeekerDashboard() {
                                             </span>
                                         </div>
                                     )}
+
                                     {profile.cityName && (
                                         <div className="profile-card__detail">
                                             <span className="profile-card__detail-label">
@@ -1020,9 +1267,54 @@ function SeekerDashboard() {
                                             {isEditingResume ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
+
                                     {isEditingResume ? (
                                         <div className="info-block__edit">
                                             <Textarea rows={6} value={profile.resumeText} onChange={(e) => handleFieldChange('resumeText', e.target.value)} />
+
+                                            <div className="info-block__file-tools">
+                                                <Button
+                                                    className="button--outline"
+                                                    onClick={() => resumeFileInputRef.current?.click()}
+                                                    disabled={isResumeFileUploading}
+                                                >
+                                                    {isResumeFileUploading
+                                                        ? 'Загрузка файла...'
+                                                        : profile.resumeFile
+                                                            ? 'Заменить файл резюме'
+                                                            : 'Прикрепить файл резюме'}
+                                                </Button>
+                                            </div>
+
+                                            <p className="info-block__hint">Можно прикрепить только PDF-файл</p>
+
+                                            {profile.resumeFile && (
+                                                <div className="embedded-file-card">
+                                                    <div className="embedded-file-card__content">
+                                                        <strong>{profile.resumeFile.originalFileName}</strong>
+                                                        <p>{formatFileSize(profile.resumeFile.sizeBytes)}</p>
+                                                    </div>
+
+                                                    <div className="embedded-file-card__actions">
+                                                        <a
+                                                            href={resumeFileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="media-link"
+                                                        >
+                                                            Открыть
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            className="media-delete-btn"
+                                                            onClick={() => handleDeleteApplicantMedia(profile.resumeFile.fileId, 'Резюме')}
+                                                        >
+                                                            <img src={trashIcon} alt="" className="icon-small" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="info-block__actions">
                                                 <button className="btn-primary-small" onClick={handleSaveResume} disabled={isLoading}>Сохранить</button>
                                                 <button className="btn-secondary-small" onClick={() => setIsEditingResume(false)}>Отменить</button>
@@ -1031,6 +1323,25 @@ function SeekerDashboard() {
                                     ) : (
                                         <div className="info-block__content">
                                             {profile.resumeText ? <p>{profile.resumeText}</p> : <p className="info-block__empty">Добавьте резюме</p>}
+
+                                            {profile.resumeFile && (
+                                                <div className="embedded-file-card embedded-file-card--readonly">
+                                                    <div className="embedded-file-card__content">
+                                                        <strong>{profile.resumeFile.originalFileName}</strong>
+                                                        <p>{formatFileSize(profile.resumeFile.sizeBytes)}</p>
+                                                    </div>
+                                                    <div className="embedded-file-card__actions">
+                                                        <a
+                                                            href={resumeFileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="media-link"
+                                                        >
+                                                            Открыть файл
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1043,6 +1354,7 @@ function SeekerDashboard() {
                                             {isEditingPortfolio ? 'Отмена' : 'Редактировать'}
                                         </button>
                                     </div>
+
                                     {isEditingPortfolio ? (
                                         <div className="info-block__edit">
                                             <LinksEditor
@@ -1052,6 +1364,53 @@ function SeekerDashboard() {
                                                 placeholderTitle="Название"
                                                 placeholderUrl="https://..."
                                             />
+
+                                            <div className="info-block__file-tools">
+                                                <Button
+                                                    className="button--outline"
+                                                    onClick={() => portfolioFileInputRef.current?.click()}
+                                                    disabled={isPortfolioFileUploading}
+                                                >
+                                                    {isPortfolioFileUploading ? 'Загрузка файла...' : 'Добавить файл портфолио'}
+                                                </Button>
+                                            </div>
+
+                                            <p className="info-block__hint">В портфолио можно загружать только PDF-файлы</p>
+
+                                            {profile.portfolioFiles && profile.portfolioFiles.length > 0 && (
+                                                <div className="embedded-files-list">
+                                                    {profile.portfolioFiles.map((file) => {
+                                                        const fileUrl = getFileDownloadUrlByUserAndFile('APPLICANT', user?.id, file.fileId)
+                                                        return (
+                                                            <div key={file.fileId} className="embedded-file-card">
+                                                                <div className="embedded-file-card__content">
+                                                                    <strong>{file.originalFileName}</strong>
+                                                                    <p>{formatFileSize(file.sizeBytes)}</p>
+                                                                </div>
+
+                                                                <div className="embedded-file-card__actions">
+                                                                    <a
+                                                                        href={fileUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="media-link"
+                                                                    >
+                                                                        Открыть
+                                                                    </a>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="media-delete-btn"
+                                                                        onClick={() => handleDeleteApplicantMedia(file.fileId, 'Файл портфолио')}
+                                                                    >
+                                                                        <img src={trashIcon} alt="" className="icon-small" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
+
                                             <div className="info-block__actions">
                                                 <button className="btn-primary-small" onClick={handleSavePortfolio} disabled={isLoading}>Сохранить</button>
                                                 <button className="btn-secondary-small" onClick={handleCancelPortfolioEdit}>Отменить</button>
@@ -1061,7 +1420,36 @@ function SeekerDashboard() {
                                         <div className="info-block__content">
                                             {profile.portfolioLinks && profile.portfolioLinks.length > 0
                                                 ? renderLinks(profile.portfolioLinks, 'Ссылки портфолио')
-                                                : <p className="info-block__empty">Добавьте ссылки на проекты</p>}
+                                                : !(profile.portfolioFiles && profile.portfolioFiles.length > 0) && (
+                                                <p className="info-block__empty">Добавьте ссылки на проекты или прикрепите PDF-файлы портфолио</p>
+                                            )}
+
+                                            {profile.portfolioFiles && profile.portfolioFiles.length > 0 && (
+                                                <div className="embedded-files-list">
+                                                    {profile.portfolioFiles.map((file) => {
+                                                        const fileUrl = getFileDownloadUrlByUserAndFile('APPLICANT', user?.id, file.fileId)
+                                                        return (
+                                                            <div key={file.fileId} className="embedded-file-card embedded-file-card--readonly">
+                                                                <div className="embedded-file-card__content">
+                                                                    <strong>{file.originalFileName}</strong>
+                                                                    <p>{formatFileSize(file.sizeBytes)}</p>
+                                                                </div>
+
+                                                                <div className="embedded-file-card__actions">
+                                                                    <a
+                                                                        href={fileUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="media-link"
+                                                                    >
+                                                                        Открыть файл
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1238,7 +1626,9 @@ function SeekerDashboard() {
                                 <p>Загрузка контактов...</p>
                             </div>
                         ) : currentContacts.length === 0 ? (
-                            renderContactsEmpty()
+                            <div className="empty-state">
+                                <p>Контактов в этом разделе пока нет</p>
+                            </div>
                         ) : (
                             <div className="contacts-list">
                                 {currentContacts.map((contact) => (
@@ -1284,25 +1674,19 @@ function SeekerDashboard() {
 
                                             {contactsTab === 'incoming' && (
                                                 <>
-                                                    <button className="btn-approve"
-                                                            onClick={() => handleAcceptContact(contact.id)}>Принять
-                                                    </button>
-                                                    <button className="btn-reject"
-                                                            onClick={() => handleDeclineContact(contact.id)}>Отклонить
-                                                    </button>
+                                                    <button className="btn-approve" onClick={() => handleAcceptContact(contact.id)}>Принять</button>
+                                                    <button className="btn-reject" onClick={() => handleDeclineContact(contact.id)}>Отклонить</button>
                                                 </>
                                             )}
 
                                             {contactsTab === 'outgoing' && (
-                                                <button className="contact-card__remove"
-                                                        onClick={() => handleRemoveContact(contact.id, 'outgoing')}>
+                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'outgoing')}>
                                                     Отменить заявку
                                                 </button>
                                             )}
 
                                             {contactsTab === 'confirmed' && (
-                                                <button className="contact-card__remove"
-                                                        onClick={() => handleRemoveContact(contact.id, 'confirmed')}>
+                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'confirmed')}>
                                                     Удалить
                                                 </button>
                                             )}
@@ -1387,8 +1771,7 @@ function SeekerDashboard() {
                                                 <p className="application-card__description">{item.message}</p>
                                             )}
                                             <div className="application-card__footer">
-                                                <span
-                                                    className="application-card__date">{formatDate(item.createdAt)}</span>
+                                                <span className="application-card__date">{formatDate(item.createdAt)}</span>
                                                 {recommendationsTab === 'outgoing' && (
                                                     <button
                                                         className="saved-card__remove"
@@ -1429,13 +1812,13 @@ function SeekerDashboard() {
                             <div className="modal__empty-state">
                                 {recommendationContactsOptions.length === 0 && (
                                     <p>
-                                        Сначала добавьте хотя бы один подтверждённый контакт. Только после этого можно отправлять рекомендации.
+                                        Сначала добавьте хотя бы один подтверждённый контакт.
                                     </p>
                                 )}
 
                                 {recommendationContactsOptions.length > 0 && recommendationOpportunityOptions.length === 0 && (
                                     <p>
-                                        Пока нет подходящих возможностей для рекомендации. Добавьте что-то в избранное или откликнитесь на возможность.
+                                        Пока нет подходящих возможностей для рекомендации.
                                     </p>
                                 )}
                             </div>

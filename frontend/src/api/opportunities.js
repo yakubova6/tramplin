@@ -70,7 +70,7 @@ export async function listTags(category) {
 export async function listEmployerOpportunities(params = {}) {
     const currentUserId = getRequiredUserId()
 
-    const query = toQuery({
+    const fullQuery = toQuery({
         limit: params.limit ?? 50,
         offset: params.offset ?? 0,
         sortBy: params.sortBy || 'UPDATED_AT',
@@ -83,7 +83,15 @@ export async function listEmployerOpportunities(params = {}) {
         currentUserId,
     })
 
-    return httpJson(`${API_BASE}/employer/opportunities?${query}`)
+    try {
+        return await httpJson(`${API_BASE}/employer/opportunities?${fullQuery}`)
+    } catch (error) {
+        console.warn('[opportunities] full employer opportunities query failed, retrying minimal query:', error)
+
+        const fallbackQuery = toQuery({ currentUserId })
+
+        return httpJson(`${API_BASE}/employer/opportunities?${fallbackQuery}`)
+    }
 }
 
 export async function getEmployerOpportunity(id) {

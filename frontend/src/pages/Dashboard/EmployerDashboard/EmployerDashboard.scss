@@ -803,3 +803,33 @@ $transition: all 0.2s ease;
 .employer-opportunities__filters input {
   height: 44px;
 }
+
+.employer-applicants__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.employer-applicants__meta span {
+  display: inline-flex;
+  align-items: center;
+  white-space: normal;
+}
+
+.employer-applicants__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.employer-applicants__buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.employer-applicants__actions .employer-opportunities__view {
+  margin-top: 10px;
+}

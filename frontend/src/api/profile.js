@@ -36,6 +36,19 @@ function createApiError(message, status = 0) {
     return error
 }
 
+function getAuthenticatedUserPayload() {
+    const user = getSessionUser()
+    if (!user?.id || !user?.email || !user?.role) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    return {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+    }
+}
+
 async function parseApiResponse(response) {
     if (response.status === 204) return null
 
@@ -92,6 +105,53 @@ async function apiRequest(endpoint, options = {}) {
     }
 
     return data
+}
+
+async function multipartRequest(endpoint, formData, options = {}) {
+    console.log(`[API] ${options.method || 'POST'} ${endpoint}`)
+
+    let response
+    try {
+        response = await fetch(endpoint, {
+            credentials: 'include',
+            method: options.method || 'POST',
+            body: formData,
+            ...options,
+        })
+    } catch {
+        throw createApiError('Сервер недоступен. Попробуйте позже.', 0)
+    }
+
+    const data = await parseApiResponse(response)
+
+    if (!response.ok) {
+        const errorMessage =
+            (typeof data === 'object' && data?.message) ||
+            (typeof data === 'object' && data?.error) ||
+            (typeof data === 'string' && data) ||
+            'Ошибка загрузки файла'
+
+        if (response.status === 401 || response.status === 403) {
+            clearSessionUser()
+        }
+
+        throw createApiError(errorMessage, response.status)
+    }
+
+    return data
+}
+
+function createMultipartWithCurrentUser(file) {
+    const currentUser = getAuthenticatedUserPayload()
+    const formData = new FormData()
+
+    formData.append('file', file)
+    formData.append(
+        'currentUser',
+        new Blob([JSON.stringify(currentUser)], { type: 'application/json' })
+    )
+
+    return formData
 }
 
 // ========== HELPERS ==========
@@ -198,6 +258,42 @@ function normalizeContactMethods(contacts) {
     return []
 }
 
+function normalizeApplicantProfile(data = {}) {
+    return {
+        ...data,
+        cityId: data.city?.id ?? data.cityId ?? null,
+        cityName: data.city?.name ?? data.cityName ?? '',
+        portfolioLinks: normalizeProfileLinks(data.portfolioLinks),
+        contactLinks: normalizeContactMethods(data.contactLinks),
+        portfolioFiles: Array.isArray(data.portfolioFiles) ? data.portfolioFiles : [],
+        avatar: data.avatar || null,
+        resumeFile: data.resumeFile || null,
+    }
+}
+
+function normalizeEmployerProfile(data = {}) {
+    return {
+        ...data,
+        cityId: data.city?.id ?? data.cityId ?? null,
+        cityName: data.city?.name ?? data.cityName ?? '',
+        locationId: data.location?.id ?? data.locationId ?? null,
+        locationPreview: data.location || data.locationPreview || null,
+        socialLinks: normalizeProfileLinks(data.socialLinks),
+        publicContacts: normalizeContactMethods(data.publicContacts),
+        logo: data.logo || null,
+    }
+}
+
+export function getFileDownloadUrlByUserAndFile(role, userId, fileId) {
+    if (!userId || !fileId) return null
+
+    if (role === 'EMPLOYER') {
+        return `${API_BASE}/profile/employer/${userId}/files/${fileId}`
+    }
+
+    return `${API_BASE}/profile/applicant/${userId}/files/${fileId}`
+}
+
 function getContactDirectionStorageKey() {
     const user = getSessionUser()
     return user?.id ? `tramplin_contact_directions_${user.id}` : 'tramplin_contact_directions_guest'
@@ -300,6 +396,116 @@ export async function migrateGuestFavoritesToAccount() {
     }))
 }
 
+// ========== MEDIA / FILES ==========
+
+export async function uploadApplicantAvatar(file) {
+    if (!file) throw createApiError('Файл не выбран', 400)
+
+    const formData = createMultipartWithCurrentUser(file)
+    const data = await multipartRequest(`${API_BASE}/applicant/profile/avatar`, formData, {
+        method: 'PUT',
+    })
+
+    return normalizeApplicantProfile(data)
+}
+
+export async function uploadApplicantResumeFile(file) {
+    if (!file) throw createApiError('Файл не выбран', 400)
+
+    const formData = createMultipartWithCurrentUser(file)
+    const data = await multipartRequest(`${API_BASE}/applicant/profile/resume-file`, formData, {
+        method: 'PUT',
+    })
+
+    return normalizeApplicantProfile(data)
+}
+
+export async function uploadApplicantPortfolioFile(file) {
+    if (!file) throw createApiError('Файл не выбран', 400)
+
+    const formData = createMultipartWithCurrentUser(file)
+    const data = await multipartRequest(`${API_BASE}/applicant/profile/portfolio/files`, formData, {
+        method: 'POST',
+    })
+
+    return normalizeApplicantProfile(data)
+}
+
+export async function deleteApplicantFile(fileId) {
+    if (!fileId) throw createApiError('Не указан fileId', 400)
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+    const data = await apiRequest(`${API_BASE}/applicant/profile/files/${fileId}?currentUser=${currentUser}`, {
+        method: 'DELETE',
+    })
+
+    return normalizeApplicantProfile(data)
+}
+
+export async function uploadEmployerLogo(file) {
+    if (!file) throw createApiError('Файл не выбран', 400)
+
+    const formData = createMultipartWithCurrentUser(file)
+    const data = await multipartRequest(`${API_BASE}/employer/profile/logo`, formData, {
+        method: 'PUT',
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
+export async function deleteEmployerFile(fileId) {
+    if (!fileId) throw createApiError('Не указан fileId', 400)
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+    const data = await apiRequest(`${API_BASE}/employer/profile/files/${fileId}?currentUser=${currentUser}`, {
+        method: 'DELETE',
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
+export async function createEmployerVerification(payload) {
+    const userId = getSessionUserId()
+    if (!userId) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    return apiRequest(`${API_BASE}/employer/verification?employerUserId=${userId}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function uploadEmployerVerificationAttachment(verificationId, file) {
+    if (!verificationId) throw createApiError('Не указан verificationId', 400)
+    if (!file) throw createApiError('Файл не выбран', 400)
+
+    const formData = createMultipartWithCurrentUser(file)
+    return multipartRequest(`${API_BASE}/employer/verifications/${verificationId}/attachments`, formData, {
+        method: 'POST',
+    })
+}
+
+export async function getEmployerVerificationModerationTask(verificationId) {
+    const userId = getSessionUserId()
+    if (!userId) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    return apiRequest(`${API_BASE}/employer/verification/${verificationId}/moderation-task?employerUserId=${userId}`)
+}
+
+export async function cancelEmployerVerificationModerationTask(verificationId) {
+    const userId = getSessionUserId()
+    if (!userId) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    return apiRequest(`${API_BASE}/employer/verification/${verificationId}/moderation-task/cancel?employerUserId=${userId}`, {
+        method: 'POST',
+    })
+}
+
 function normalizeOpportunity(item = {}) {
     return {
         ...item,
@@ -334,9 +540,20 @@ function buildOpportunityPayload(opportunity) {
             .filter(Boolean)
         : []
 
-    const expiresAt = opportunity.expiresAt
-        ? new Date(`${opportunity.expiresAt}T23:59:59`).toISOString()
-        : null
+    let expiresAt = null
+
+    if (opportunity.expiresAt) {
+        const rawValue = String(opportunity.expiresAt).trim()
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+            expiresAt = rawValue
+        } else {
+            const parsed = new Date(rawValue)
+            if (!Number.isNaN(parsed.getTime())) {
+                expiresAt = parsed.toISOString()
+            }
+        }
+    }
 
     return {
         title: opportunity.title?.trim(),
@@ -362,16 +579,16 @@ function buildOpportunityPayload(opportunity) {
             opportunity.salaryTo !== '' && opportunity.salaryTo != null
                 ? Number(opportunity.salaryTo)
                 : null,
-        salaryCurrency: opportunity.salaryCurrency || 'RUB',
+        salaryCurrency: (opportunity.salaryCurrency || 'RUB').trim().toUpperCase(),
         expiresAt,
         eventDate: opportunity.eventDate || null,
-        cityId: opportunity.cityId ? Number(opportunity.cityId) : 1,
+        cityId: opportunity.cityId ? Number(opportunity.cityId) : null,
         locationId: opportunity.locationId ? Number(opportunity.locationId) : null,
         contactInfo: {
-            email: opportunity.contactEmail || null,
-            phone: opportunity.contactPhone || null,
-            telegram: opportunity.contactTelegram || null,
-            contactPerson: opportunity.contactPerson || null,
+            email: opportunity.contactEmail?.trim?.() || opportunity.contactInfo?.email || null,
+            phone: opportunity.contactPhone?.trim?.() || opportunity.contactInfo?.phone || null,
+            telegram: opportunity.contactTelegram?.trim?.() || opportunity.contactInfo?.telegram || null,
+            contactPerson: opportunity.contactPerson?.trim?.() || opportunity.contactInfo?.contactPerson || null,
         },
         resourceLinks: normalizedResourceLinks,
         tagIds: Array.isArray(opportunity.tagIds)
@@ -407,14 +624,7 @@ export async function getApplicantProfile() {
 
     try {
         const data = await apiRequest(url)
-
-        return {
-            ...data,
-            cityId: data.city?.id ?? null,
-            cityName: data.city?.name ?? '',
-            portfolioLinks: normalizeProfileLinks(data.portfolioLinks),
-            contactLinks: normalizeContactMethods(data.contactLinks),
-        }
+        return normalizeApplicantProfile(data)
     } catch (error) {
         if ([401, 403, 404, 500, 503].includes(error.status)) {
             return null
@@ -429,6 +639,8 @@ export async function updateApplicantProfile(profile) {
     if (!user) {
         throw createApiError('Пользователь не авторизован', 401)
     }
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
 
     const payload = {
         firstName: profile.firstName || '',
@@ -450,12 +662,16 @@ export async function updateApplicantProfile(profile) {
         contactsVisibility: profile.contactsVisibility || 'AUTHENTICATED',
         openToWork: profile.openToWork ?? true,
         openToEvents: profile.openToEvents ?? true,
+        skillTagIds: Array.isArray(profile.skillTagIds) ? profile.skillTagIds : undefined,
+        interestTagIds: Array.isArray(profile.interestTagIds) ? profile.interestTagIds : undefined,
     }
 
-    return apiRequest(`${API_BASE}/profile/applicant`, {
+    const data = await apiRequest(`${API_BASE}/profile/applicant?currentUser=${currentUser}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
+
+    return normalizeApplicantProfile(data)
 }
 
 // ========== РАБОТОДАТЕЛЬ ==========
@@ -466,20 +682,12 @@ export async function getEmployerProfile() {
         return null
     }
 
-    const url = `${API_BASE}/profile/employer/${userId}`
+    const currentUserId = getSessionUserId()
+    const url = `${API_BASE}/profile/employer/${userId}${currentUserId ? `?currentUserId=${currentUserId}` : ''}`
 
     try {
         const data = await apiRequest(url)
-
-        return {
-            ...data,
-            cityId: data.city?.id ?? null,
-            cityName: data.city?.name ?? '',
-            locationId: data.location?.id ?? null,
-            locationPreview: data.location || null,
-            socialLinks: normalizeProfileLinks(data.socialLinks),
-            publicContacts: normalizeContactMethods(data.publicContacts),
-        }
+        return normalizeEmployerProfile(data)
     } catch (error) {
         if ([401, 403, 404, 500, 503].includes(error.status)) {
             return null
@@ -495,6 +703,8 @@ export async function updateEmployerProfile(profile) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+
     const payload = {
         companyName: profile.companyName || '',
         legalName: profile.legalName || null,
@@ -508,20 +718,18 @@ export async function updateEmployerProfile(profile) {
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
         socialLinks: normalizeProfileLinks(profile.socialLinks),
         publicContacts: normalizeContactMethods(profile.publicContacts),
+        verificationStatus: profile.verificationStatus || undefined,
     }
 
-    return apiRequest(`${API_BASE}/profile/employer`, {
+    const data = await apiRequest(`${API_BASE}/profile/employer?currentUser=${currentUser}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
     })
+
+    return normalizeEmployerProfile(data)
 }
 
 export async function submitVerification(payload) {
-    const user = getSessionUser()
-    if (!user) {
-        throw createApiError('Пользователь не авторизован', 401)
-    }
-
     const body = {
         verificationMethod: payload.verificationMethod,
         corporateEmail: payload.corporateEmail || null,
@@ -532,10 +740,7 @@ export async function submitVerification(payload) {
         submittedComment: payload.submittedComment || null,
     }
 
-    return apiRequest(`${API_BASE}/employer/verification?employerUserId=${user.id}`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-    })
+    return createEmployerVerification(body)
 }
 
 // ========== INTERACTION API: СОИСКАТЕЛЬ ==========
@@ -746,20 +951,11 @@ export async function getEmployerOpportunities(params = {}) {
             search: params.search,
         })
 
-        return {
-            ...page,
-            items: Array.isArray(page?.items) ? page.items.map(normalizeOpportunity) : [],
-        }
+        return page || { items: [], total: 0, limit: 50, offset: 0 }
     } catch (error) {
-        if ([400, 401, 403, 404, 500, 503].includes(error?.status)) {
-            return {
-                items: [],
-                total: 0,
-                limit: params.limit || 50,
-                offset: params.offset || 0,
-            }
+        if ([500, 503].includes(error?.status)) {
+            return { items: [], total: 0, limit: 50, offset: 0 }
         }
-
         throw error
     }
 }
@@ -818,30 +1014,12 @@ export async function getEmployerApplications(params = {}) {
 
         return {
             ...page,
-            items: Array.isArray(page?.items)
-                ? page.items.map((item) => ({
-                    id: item.id,
-                    opportunityId: item.opportunityId,
-                    opportunityTitle: item.opportunityTitle,
-                    status: item.status,
-                    employerComment: item.employerComment || '',
-                    applicantComment: item.applicantComment || '',
-                    coverLetter: item.coverLetter || '',
-                    createdAt: item.createdAt,
-                    applicant: item.applicant || null,
-                }))
-                : [],
+            items: Array.isArray(page?.items) ? page.items : [],
         }
     } catch (error) {
-        if ([401, 403].includes(error.status)) {
+        if ([500, 503].includes(error?.status)) {
             return { items: [], total: 0, limit: params.limit || 50, offset: params.offset || 0 }
         }
-
-        if ([500, 503].includes(error.status)) {
-            console.warn('[API] Employer responses temporarily unavailable:', error.message)
-            return { items: [], total: 0, limit: params.limit || 50, offset: params.offset || 0 }
-        }
-
         throw error
     }
 }

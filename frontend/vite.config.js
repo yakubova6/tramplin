@@ -53,12 +53,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        '/api/employer': {
-          target: profileTarget,
-          changeOrigin: true,
-          secure: false,
-        },
-
         '/api/opportunities': {
           target: opportunityTarget,
           changeOrigin: true,
