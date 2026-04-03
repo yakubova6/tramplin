@@ -35,6 +35,15 @@ services:
 #      retries: 5
 #    restart: unless-stopped
 
+  redis:
+    container_name: tramplin_cache
+    image: redis
+    command: redis-server --save 20 1 --loglevel warning --requirepass tramplin_token
+    ports:
+      - "6379:6379"
+    networks:
+      - tramplin_net
+
   auth:
     container_name: tramplin_auth
     image: tramplin_auth:latest
@@ -241,28 +250,28 @@ services:
 #
 #    restart: unless-stopped
 #
-  frontend:
-    container_name: tramplin_frontend
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: tramplin_frontend:latest
-    ports:
-      - "8888:80"
-      - "443:443"  # если будет HTTPS
-    networks:
-      - tramplin_net
-    env_file:
-      - host_urls.env
-    depends_on:
-      - auth
-      - geo
-      - interaction
-      - media
-      - moderation
-      - opportunity
-      - profile
-    restart: unless-stopped
+#  frontend:
+#    container_name: tramplin_frontend
+#    build:
+#      context: ./frontend
+#      dockerfile: Dockerfile
+#    image: tramplin_frontend:latest
+#    ports:
+#      - "8888:80"
+#      - "443:443"  # если будет HTTPS
+#    networks:
+#      - tramplin_net
+#    env_file:
+#      - host_urls.env
+#    depends_on:
+#      - auth
+#      - geo
+#      - interaction
+#      - media
+#      - moderation
+#      - opportunity
+#      - profile
+#    restart: unless-stopped
 
 volumes:
   tramplin_data:
