@@ -1,4 +1,4 @@
 datasource:
-  url: jdbc:postgresql://64.188.97.232:5432/tramplin
+  url: jdbc:postgresql://64.188.97.232:5555/tramplin
   username: tramplin_adm
   password: tramplin_adm
