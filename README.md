@@ -111,53 +111,45 @@
 
 ### Авторизация и регистрация
 
-<div style="display: flex; gap: 10px; justify-content: flex-start;">
-  <img src="https://i.postimg.cc/8CHgqmsv/auth.png" alt="Страница авторизации" width="700" />
-  <img src="https://i.postimg.cc/Z5tBw416/reg2.png" alt="Страница регистрации соискателя" width="700" />
-  <img src="https://i.postimg.cc/63ynDzz7/reg1.png" alt="Страница регистрации работодателя" width="700" />
-</div>
+  <img src="https://i.postimg.cc/8CHgqmsv/auth.png" alt="Страница авторизации" width="500"/>
+  <img src="https://i.postimg.cc/Z5tBw416/reg2.png" alt="Страница регистрации соискателя" width="500" />
+  <img src="https://i.postimg.cc/63ynDzz7/reg1.png" alt="Страница регистрации работодателя" width="500" />
 
 ### Восстановление пароля
 
-<div style="display: flex; gap: 10px; justify-content: flex-start;">
   <img src="https://i.imgur.com/p98e8pX.png" alt="Форма восстановления пароля" width="700" />
   <img src="https://i.imgur.com/PcdeNox.png" alt="Форма восстановления пароля" width="700" />
   <img src="https://i.imgur.com/WuSInpv.png" alt="Форма восстановления пароля" width="700" />
-</div>
 
 ### 2FA аутентификация
 
 <div style="display: flex; gap: 10px; justify-content: flex-start;  margin-bottom: 20px;">
-  <img src="https://i.imgur.com/4LThdvp.png" alt="2FA аутентификация" width="800" />
-  <img src="https://i.imgur.com/lwwiJuP.png" alt="2FA аутентификация" width="800" />
+  <img src="https://i.imgur.com/4LThdvp.png" alt="2FA аутентификация" width=700" />
+  <img src="https://i.imgur.com/lwwiJuP.png" alt="2FA аутентификация" width="700" />
 </div>
 
 <div style="display: flex; gap: 10px; justify-content: flex-start;">
-  <img src="https://i.imgur.com/AToAQtu.png" alt="2FA аутентификация" width="800" />
-  <img src="https://i.imgur.com/ghT9Z2j.png" alt="2FA аутентификация" width="800" />
+  <img src="https://i.imgur.com/AToAQtu.png" alt="2FA аутентификация" width="700" />
+  <img src="https://i.imgur.com/ghT9Z2j.png" alt="2FA аутентификация" width="700" />
 </div>
 
 ### Верификация компании
 
-<div style="display: flex; gap: 10px; justify-content: flex-start;">
-  <img src="https://i.imgur.com/mjYPmTe.png" alt="Процесс верификации компании" width="800" />
-  <img src="https://i.imgur.com/UAfAQMv.png" alt="Процесс верификации компании" width="800" />
-</div>
+  <img src="https://i.imgur.com/mjYPmTe.png" alt="Процесс верификации компании" width="700" />
+  <img src="https://i.imgur.com/UAfAQMv.png" alt="Процесс верификации компании" width="700" />
 
 ### Профиль соискателя
 
-<img src="https://i.imgur.com/mjYPmTe.png" alt="Cтраница профиля соискателя" width="800" />
+<img src="https://i.imgur.com/mjYPmTe.png" alt="Cтраница профиля соискателя" width="700" />
 
 ### Основная страница с фильтрацией
 
 <img src="https://i.imgur.com/eZta0yZ.png" alt="Основная страница" width="800" />
 
-### Отображение на карте
-
+#### Отображение на карте
 <img src="https://i.imgur.com/Vy1qg1l.png" alt="Отображение на карте" width="800" />
 
-### Отображение списком
-
+#### Отображение списком
 <img src="https://i.imgur.com/T8y63Fn.png" alt="Отображение списком" width="800" />
 
 ### Детальная страница вакансии
@@ -183,10 +175,11 @@
 
 ### Взаимодействие пользователей
 
-<div style="display: flex; gap: 10px; justify-content: flex-start;">
-  <img src="https://i.imgur.com/ZOs6cvo.png" alt="Процесс верификации компании" width="800" />
-  <img src="https://i.imgur.com/Dje9sHK.png" alt="Процесс верификации компании" width="800" />
-</div>
+  #### Страница рекомендаций
+  <img src="https://i.imgur.com/ZOs6cvo.png" alt="Страница рекомендаций" width="800" />
+  
+  #### Создание новой рекомендации
+  <img src="https://i.imgur.com/Dje9sHK.png" alt="Создание новой рекомендации" width="400" />
 
 ---
 
