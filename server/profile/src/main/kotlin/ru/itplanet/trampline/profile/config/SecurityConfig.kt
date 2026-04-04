@@ -70,6 +70,7 @@ class SecurityConfig(
                     .requestMatchers(HttpMethod.PATCH, "/api/profile/employer").hasRole("EMPLOYER")
                     .requestMatchers(HttpMethod.PATCH, "/api/profile/applicant").hasRole("APPLICANT")
                     .requestMatchers(HttpMethod.PUT, "/api/applicant/profile/avatar").hasRole("APPLICANT")
+                    .requestMatchers(HttpMethod.GET, "/api/profile/applicants").authenticated()
                     .requestMatchers(HttpMethod.GET, "/api/profile/**").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/api/employer/**")).hasRole("EMPLOYER")

@@ -34,12 +34,15 @@ import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.model.ApplicantApplicationSummary
 import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
+import ru.itplanet.trampline.profile.model.ApplicantProfileSearchItem
+import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
 import ru.itplanet.trampline.profile.model.EmployerProfile
 import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
 import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
+import ru.itplanet.trampline.profile.model.request.GetApplicantProfileListRequest
 
 @Primary
 @Service
@@ -282,6 +285,80 @@ class ProfileServiceImpl(
         return buildEmployerProfile(profileDto = profile)
     }
 
+    @Transactional(readOnly = true)
+    override fun searchApplicants(
+        currentUserId: Long,
+        request: GetApplicantProfileListRequest,
+    ): ApplicantProfileSearchPage {
+        val normalizedSearch = request.search
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+        val skillTagIds = request.skillTagIds.distinct()
+        val interestTagIds = request.interestTagIds.distinct()
+
+        val preparedSkillTagIds = skillTagIds.ifEmpty { listOf(NO_TAG_ID_PLACEHOLDER) }
+        val preparedInterestTagIds = interestTagIds.ifEmpty { listOf(NO_TAG_ID_PLACEHOLDER) }
+
+        val total = applicantProfileDao.countApplicantUserIds(
+            currentUserId = currentUserId,
+            search = normalizedSearch,
+            cityId = request.cityId,
+            openToWork = request.openToWork,
+            openToEvents = request.openToEvents,
+            skillTagIds = preparedSkillTagIds,
+            skillTagIdsEmpty = skillTagIds.isEmpty(),
+            interestTagIds = preparedInterestTagIds,
+            interestTagIdsEmpty = interestTagIds.isEmpty(),
+        )
+
+        if (total == 0L) {
+            return ApplicantProfileSearchPage(
+                items = emptyList(),
+                limit = request.limit,
+                offset = request.offset,
+                total = 0,
+            )
+        }
+
+        val applicantUserIds = applicantProfileDao.searchApplicantUserIds(
+            currentUserId = currentUserId,
+            search = normalizedSearch,
+            cityId = request.cityId,
+            openToWork = request.openToWork,
+            openToEvents = request.openToEvents,
+            skillTagIds = preparedSkillTagIds,
+            skillTagIdsEmpty = skillTagIds.isEmpty(),
+            interestTagIds = preparedInterestTagIds,
+            interestTagIdsEmpty = interestTagIds.isEmpty(),
+            limit = request.limit,
+            offset = request.offset,
+        )
+
+        if (applicantUserIds.isEmpty()) {
+            return ApplicantProfileSearchPage(
+                items = emptyList(),
+                limit = request.limit,
+                offset = request.offset,
+                total = total,
+            )
+        }
+
+        val profilesById = applicantProfileDao.findAllById(applicantUserIds)
+            .associateBy { it.userId }
+
+        val items = applicantUserIds.mapNotNull { applicantUserId ->
+            profilesById[applicantUserId]?.let(::buildApplicantProfileSearchItem)
+        }
+
+        return ApplicantProfileSearchPage(
+            items = items,
+            limit = request.limit,
+            offset = request.offset,
+            total = total,
+        )
+    }
+
     override fun getApplicantProfile(
         currentUserId: Long?,
         targetUserId: Long,
@@ -415,6 +492,44 @@ class ProfileServiceImpl(
             portfolioFiles = portfolioFiles,
             skills = applicantTags.skills,
             interests = applicantTags.interests,
+        )
+    }
+
+    private fun buildApplicantProfileSearchItem(
+        profileDto: ApplicantProfileDto,
+    ): ApplicantProfileSearchItem {
+        val baseProfile = applicantProfileConverter.fromDto(profileDto)
+
+        val avatar = loadApplicantSingleFileOrNull(
+            userId = profileDto.userId,
+            attachmentRole = FileAttachmentRole.AVATAR,
+            visibility = profileDto.profileVisibility.toFileVisibility(),
+            logSubject = "applicant avatar",
+        )
+
+        val applicantTags = if (profileDto.resumeVisibility == ResumeVisibility.PRIVATE) {
+            ApplicantTagsView()
+        } else {
+            loadApplicantTags(profileDto.userId)
+        }
+
+        return ApplicantProfileSearchItem(
+            userId = baseProfile.userId,
+            firstName = baseProfile.firstName,
+            lastName = baseProfile.lastName,
+            middleName = baseProfile.middleName,
+            universityName = baseProfile.universityName,
+            facultyName = baseProfile.facultyName,
+            studyProgram = baseProfile.studyProgram,
+            course = baseProfile.course,
+            graduationYear = baseProfile.graduationYear,
+            city = baseProfile.city,
+            about = baseProfile.about,
+            avatar = avatar,
+            skills = applicantTags.skills,
+            interests = applicantTags.interests,
+            openToWork = baseProfile.openToWork,
+            openToEvents = baseProfile.openToEvents,
         )
     }
 
@@ -775,6 +890,8 @@ class ProfileServiceImpl(
 
     private companion object {
         private val logger = LoggerFactory.getLogger(ProfileServiceImpl::class.java)
+
+        private const val NO_TAG_ID_PLACEHOLDER = -1L
 
         private val applicantDownloadRoles = setOf(
             FileAttachmentRole.AVATAR,

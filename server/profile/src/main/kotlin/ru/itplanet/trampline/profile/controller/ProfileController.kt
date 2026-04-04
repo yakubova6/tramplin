@@ -4,6 +4,7 @@ import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestBody
@@ -15,9 +16,11 @@ import ru.itplanet.trampline.commons.model.Role
 import ru.itplanet.trampline.profile.model.ApplicantApplicationSummary
 import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
+import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
 import ru.itplanet.trampline.profile.model.EmployerProfile
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
+import ru.itplanet.trampline.profile.model.request.GetApplicantProfileListRequest
 import ru.itplanet.trampline.profile.security.AuthenticatedUser
 import ru.itplanet.trampline.profile.service.ProfileService
 
@@ -54,6 +57,14 @@ class ProfileController(
             )
         }
         return profileService.patchEmployerProfile(currentUser.userId, request)
+    }
+
+    @GetMapping("/applicants")
+    fun searchApplicants(
+        @Valid @ModelAttribute request: GetApplicantProfileListRequest,
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ApplicantProfileSearchPage {
+        return profileService.searchApplicants(currentUser.userId, request)
     }
 
     @GetMapping("/applicant/{userId}")
