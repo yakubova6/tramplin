@@ -12,7 +12,12 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import ru.itplanet.trampline.commons.model.moderation.*
+import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalCuratorModerationStatsResponse
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskResponse
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.moderation.service.ModerationCommandService
 import ru.itplanet.trampline.moderation.service.ModerationQueryService
 
@@ -36,7 +41,7 @@ class InternalModerationController(
     @GetMapping("/tasks/by-entity")
     fun getTaskByEntity(
         @RequestParam entityType: ModerationEntityType,
-        @RequestParam @Positive entityId: Long,
+        @RequestParam @Positive(message = "Идентификатор сущности должен быть положительным") entityId: Long,
         @RequestParam taskType: ModerationTaskType,
     ): InternalModerationTaskLookupResponse {
         return moderationQueryService.findActiveTaskByEntity(
@@ -48,14 +53,14 @@ class InternalModerationController(
 
     @GetMapping("/curators/{userId}/stats")
     fun getCuratorStats(
-        @PathVariable @Positive userId: Long,
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
     ): InternalCuratorModerationStatsResponse {
         return moderationQueryService.getCuratorStats(userId)
     }
 
     @PostMapping("/tasks/{taskId}/cancel")
     fun cancelTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
     ): ResponseEntity<Unit> {
         moderationCommandService.cancelByInternal(taskId)
         return ResponseEntity.noContent().build()

@@ -10,14 +10,14 @@ import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 data class CreateManualModerationTaskRequest(
     val entityType: ModerationEntityType,
 
-    @field:Positive
+    @field:Positive(message = "Идентификатор сущности должен быть положительным")
     val entityId: Long,
 
     val taskType: ModerationTaskType,
 
     val priority: ModerationTaskPriority,
 
-    @field:NotBlank
-    @field:Size(max = 1000)
+    @field:NotBlank(message = "Комментарий обязателен")
+    @field:Size(max = 1000, message = "Комментарий не должен превышать 1000 символов")
     val comment: String,
 )

@@ -2,12 +2,12 @@ package ru.itplanet.trampline.moderation.service
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
+import feign.FeignException
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.model.Role
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
@@ -26,6 +26,9 @@ import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
 import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
+import ru.itplanet.trampline.moderation.exception.ModerationForbiddenException
+import ru.itplanet.trampline.moderation.exception.ModerationIntegrationException
+import ru.itplanet.trampline.moderation.exception.ModerationNotFoundException
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
@@ -118,7 +121,7 @@ class ModerationQueryServiceImpl(
         }
 
         val items = page.content.map { task ->
-            val taskId = task.id ?: error("Task id must not be null")
+            val taskId = task.id ?: throw IllegalStateException("Идентификатор задачи модерации не должен быть null")
             toListItem(
                 task = task,
                 createdSnapshot = createdSnapshotsByTaskId[taskId],
@@ -159,7 +162,7 @@ class ModerationQueryServiceImpl(
         val attachments = moderationReadModelDao.findTaskAttachments(taskId)
 
         return ModerationTaskDetailResponse(
-            id = task.id ?: error("Task id must not be null"),
+            id = task.id ?: throw IllegalStateException("Идентификатор задачи модерации не должен быть null"),
             entityType = task.entityType,
             entityId = task.entityId,
             taskType = task.taskType,
@@ -168,8 +171,8 @@ class ModerationQueryServiceImpl(
             assignee = task.assigneeUser?.toResponse(),
             createdBy = task.createdByUser?.toResponse(),
             resolutionComment = task.resolutionComment,
-            createdAt = task.createdAt ?: error("Task createdAt must not be null"),
-            updatedAt = task.updatedAt ?: error("Task updatedAt must not be null"),
+            createdAt = task.createdAt ?: throw IllegalStateException("Дата создания задачи модерации не должна быть null"),
+            updatedAt = task.updatedAt ?: throw IllegalStateException("Дата обновления задачи модерации не должна быть null"),
             resolvedAt = task.resolvedAt,
             createdSnapshot = createdSnapshot,
             currentEntityState = currentEntityState,
@@ -187,10 +190,14 @@ class ModerationQueryServiceImpl(
     ): List<InternalFileAttachmentResponse> {
         ensureCanViewAttachments(currentUser)
 
-        return mediaServiceClient.getAttachments(
-            entityType = entityType,
-            entityId = entityId,
-        )
+        return try {
+            mediaServiceClient.getAttachments(
+                entityType = entityType,
+                entityId = entityId,
+            )
+        } catch (ex: FeignException) {
+            throw translateMediaServiceException(ex)
+        }
     }
 
     @Transactional(readOnly = true)
@@ -207,7 +214,11 @@ class ModerationQueryServiceImpl(
         val attachment = findTaskAttachmentByFileId(taskId, fileId)
         ensureCanDownloadAttachment(currentUser, attachment)
 
-        return mediaServiceClient.getDownloadUrl(attachment.fileId)
+        return try {
+            mediaServiceClient.getDownloadUrl(attachment.fileId)
+        } catch (ex: FeignException) {
+            throw translateMediaServiceException(ex)
+        }
     }
 
     @Transactional(readOnly = true)
@@ -326,14 +337,20 @@ class ModerationQueryServiceImpl(
                 attachment.fileId == fileId &&
                         attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
             }
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Moderation attachment not found")
+            ?: throw ModerationNotFoundException(
+                message = "Вложение задачи модерации не найдено",
+                code = "moderation_attachment_not_found",
+            )
     }
 
     private fun ensureCanViewAttachments(
         currentUser: AuthenticatedUser,
     ) {
         if (currentUser.role !in MODERATION_DOWNLOAD_ROLES) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            throw ModerationForbiddenException(
+                message = "Доступ к вложениям модерации запрещён",
+                code = "moderation_attachment_access_denied",
+            )
         }
     }
 
@@ -342,13 +359,16 @@ class ModerationQueryServiceImpl(
         attachment: ModerationTaskAttachmentResponse,
     ) {
         if (currentUser.role !in MODERATION_DOWNLOAD_ROLES) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            throw ModerationForbiddenException(
+                message = "Доступ к скачиванию вложения модерации запрещён",
+                code = "moderation_attachment_download_denied",
+            )
         }
 
         if (attachment.visibility != FileAssetVisibility.AUTHENTICATED.name) {
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Only AUTHENTICATED attachments can be downloaded in moderation",
+            throw ModerationForbiddenException(
+                message = "В moderation можно скачивать только вложения с видимостью AUTHENTICATED",
+                code = "moderation_attachment_visibility_invalid",
             )
         }
     }
@@ -358,43 +378,43 @@ class ModerationQueryServiceImpl(
         createdSnapshot: JsonNode?,
     ): ModerationTaskListItemResponse {
         return ModerationTaskListItemResponse(
-            id = task.id ?: error("Task id must not be null"),
+            id = task.id ?: throw IllegalStateException("Идентификатор задачи модерации не должен быть null"),
             entityType = task.entityType,
             entityId = task.entityId,
             taskType = task.taskType,
             status = task.status,
             priority = task.priority,
             assignee = task.assigneeUser?.toResponse(),
-            createdAt = task.createdAt ?: error("Task createdAt must not be null"),
-            updatedAt = task.updatedAt ?: error("Task updatedAt must not be null"),
+            createdAt = task.createdAt ?: throw IllegalStateException("Дата создания задачи модерации не должна быть null"),
+            updatedAt = task.updatedAt ?: throw IllegalStateException("Дата обновления задачи модерации не должна быть null"),
             snapshotSummary = buildSnapshotSummary(task.entityType, createdSnapshot),
         )
     }
 
     private fun ModerationLogDto.toHistoryResponse(): ModerationTaskHistoryItemResponse {
         return ModerationTaskHistoryItemResponse(
-            id = id ?: error("Log id must not be null"),
+            id = id ?: throw IllegalStateException("Идентификатор записи истории не должен быть null"),
             action = action,
             actor = actorUser?.toResponse(),
             payload = payload.deepCopy(),
-            createdAt = createdAt ?: error("Log createdAt must not be null"),
+            createdAt = createdAt ?: throw IllegalStateException("Дата создания записи истории не должна быть null"),
         )
     }
 
     private fun ModerationLogDto.toEntityHistoryResponse(): ModerationEntityHistoryItemResponse {
         return ModerationEntityHistoryItemResponse(
-            id = id ?: error("Log id must not be null"),
+            id = id ?: throw IllegalStateException("Идентификатор записи истории не должен быть null"),
             taskId = taskId,
             action = action,
             actor = actorUser?.toResponse(),
             payload = payload.deepCopy(),
-            createdAt = createdAt ?: error("Log createdAt must not be null"),
+            createdAt = createdAt ?: throw IllegalStateException("Дата создания записи истории не должна быть null"),
         )
     }
 
     private fun ModerationUserRefDto.toResponse(): ModerationUserShortResponse {
         return ModerationUserShortResponse(
-            id = id ?: error("User id must not be null"),
+            id = id ?: throw IllegalStateException("Идентификатор пользователя не должен быть null"),
             displayName = displayName,
             email = email,
             role = role,
@@ -518,6 +538,21 @@ class ModerationQueryServiceImpl(
         }
 
         return Sort.by(Sort.Order(direction, property))
+    }
+
+    private fun translateMediaServiceException(ex: FeignException): RuntimeException {
+        return when (ex.status()) {
+            HttpStatus.NOT_FOUND.value() -> ModerationNotFoundException(
+                message = "Вложение задачи модерации не найдено",
+                code = "moderation_attachment_not_found",
+            )
+
+            else -> ModerationIntegrationException(
+                message = "Media-сервис временно недоступен",
+                code = "media_service_unavailable",
+                status = HttpStatus.SERVICE_UNAVAILABLE,
+            )
+        }
     }
 
     companion object {

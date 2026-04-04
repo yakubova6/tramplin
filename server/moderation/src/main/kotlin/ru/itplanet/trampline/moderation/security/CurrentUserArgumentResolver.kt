@@ -1,7 +1,6 @@
 package ru.itplanet.trampline.moderation.security
 
 import org.springframework.core.MethodParameter
-import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.support.WebDataBinderFactory
@@ -9,6 +8,7 @@ import org.springframework.web.context.request.NativeWebRequest
 import org.springframework.web.method.support.HandlerMethodArgumentResolver
 import org.springframework.web.method.support.ModelAndViewContainer
 import ru.itplanet.trampline.commons.annotation.CurrentUser
+import ru.itplanet.trampline.moderation.exception.ModerationForbiddenException
 
 @Component
 class CurrentUserArgumentResolver : HandlerMethodArgumentResolver {
@@ -28,17 +28,20 @@ class CurrentUserArgumentResolver : HandlerMethodArgumentResolver {
         parameter: MethodParameter,
         mavContainer: ModelAndViewContainer?,
         webRequest: NativeWebRequest,
-        binderFactory: WebDataBinderFactory?
+        binderFactory: WebDataBinderFactory?,
     ): Any {
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AuthenticatedUser
-            ?: throw AccessDeniedException("Current user is not authenticated")
+            ?: throw ModerationForbiddenException(
+                message = "Требуется авторизация",
+                code = "unauthorized",
+            )
 
         return when (parameter.parameterType) {
             AuthenticatedUser::class.java -> principal
             java.lang.Long::class.java,
             Long::class.javaPrimitiveType -> principal.userId
             else -> throw IllegalStateException(
-                "Unsupported @CurrentUser parameter type: ${parameter.parameterType.name}"
+                "Неподдерживаемый тип параметра для @CurrentUser: ${parameter.parameterType.name}",
             )
         }
     }

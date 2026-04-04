@@ -3,6 +3,7 @@ package ru.itplanet.trampline.moderation.service
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
+import feign.FeignException
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.http.HttpStatus
@@ -10,7 +11,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.multipart.MultipartFile
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.model.Role
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
@@ -33,6 +33,11 @@ import ru.itplanet.trampline.moderation.dao.dto.ModerationLogDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationTaskDto
 import ru.itplanet.trampline.moderation.dao.dto.ModerationUserRefDto
 import ru.itplanet.trampline.moderation.dao.query.ModerationReadModelDao
+import ru.itplanet.trampline.moderation.exception.ModerationBadRequestException
+import ru.itplanet.trampline.moderation.exception.ModerationConflictException
+import ru.itplanet.trampline.moderation.exception.ModerationForbiddenException
+import ru.itplanet.trampline.moderation.exception.ModerationIntegrationException
+import ru.itplanet.trampline.moderation.exception.ModerationNotFoundException
 import ru.itplanet.trampline.moderation.exception.ModerationTaskNotFoundException
 import ru.itplanet.trampline.moderation.model.ModerationLogAction
 import ru.itplanet.trampline.moderation.model.ModerationTaskStatus
@@ -110,9 +115,9 @@ class ModerationCommandServiceImpl(
         )
 
         if (snapshot.path("notFound").asBoolean(false)) {
-            throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Entity ${request.entityType.name}:${request.entityId} was not found",
+            throw ModerationNotFoundException(
+                message = "Сущность ${request.entityType.name}:${request.entityId} не найдена",
+                code = "moderated_entity_not_found",
             )
         }
 
@@ -138,7 +143,7 @@ class ModerationCommandServiceImpl(
             createdAt = now,
         )
 
-        return task.id ?: error("Task id must not be null")
+        return task.id ?: throw IllegalStateException("Идентификатор задачи модерации не должен быть null")
     }
 
     @Transactional
@@ -151,12 +156,18 @@ class ModerationCommandServiceImpl(
         ensureCurrentUserCanModerateTask(task, currentUser)
 
         if (task.status != ModerationTaskStatus.OPEN) {
-            throw conflict("Only OPEN moderation tasks can be assigned")
+            throw conflict(
+                message = "Назначить можно только задачу модерации со статусом OPEN",
+                code = "task_assign_not_allowed",
+            )
         }
 
         val currentAssigneeId = task.assigneeUser?.id
         if (currentAssigneeId != null && currentAssigneeId != currentUser.userId) {
-            throw conflict("Task $taskId is already assigned to another curator")
+            throw conflict(
+                message = "Задача $taskId уже назначена другому куратору",
+                code = "task_already_assigned",
+            )
         }
 
         val now = OffsetDateTime.now()
@@ -295,7 +306,10 @@ class ModerationCommandServiceImpl(
         ensureCurrentUserCanModerateTask(task, currentUser)
 
         if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
-            throw conflict("Comments can be added only to OPEN or IN_PROGRESS tasks")
+            throw conflict(
+                message = "Комментировать можно только задачи со статусом OPEN или IN_PROGRESS",
+                code = "task_comment_not_allowed",
+            )
         }
 
         val now = OffsetDateTime.now()
@@ -320,21 +334,29 @@ class ModerationCommandServiceImpl(
     ) {
         ensureAttachmentCanBeModified(taskId, currentUser)
 
-        val createdFile = mediaServiceClient.uploadFile(
-            file = file,
-            ownerUserId = currentUser.userId,
-            kind = FileAssetKind.MODERATION_ATTACHMENT,
-            visibility = FileAssetVisibility.AUTHENTICATED,
-        )
+        val createdFile = try {
+            mediaServiceClient.uploadFile(
+                file = file,
+                ownerUserId = currentUser.userId,
+                kind = FileAssetKind.MODERATION_ATTACHMENT,
+                visibility = FileAssetVisibility.AUTHENTICATED,
+            )
+        } catch (ex: FeignException) {
+            throw translateMediaServiceException(ex)
+        }
 
-        val attachment = mediaServiceClient.createAttachment(
-            InternalCreateFileAttachmentRequest(
-                fileId = createdFile.fileId,
-                entityType = FileAttachmentEntityType.MODERATION_TASK,
-                entityId = taskId,
-                attachmentRole = FileAttachmentRole.ATTACHMENT,
-            ),
-        )
+        val attachment = try {
+            mediaServiceClient.createAttachment(
+                InternalCreateFileAttachmentRequest(
+                    fileId = createdFile.fileId,
+                    entityType = FileAttachmentEntityType.MODERATION_TASK,
+                    entityId = taskId,
+                    attachmentRole = FileAttachmentRole.ATTACHMENT,
+                ),
+            )
+        } catch (ex: FeignException) {
+            throw translateMediaServiceException(ex)
+        }
 
         transactionTemplate.executeWithoutResult {
             val task = getTaskForUpdate(taskId)
@@ -364,7 +386,11 @@ class ModerationCommandServiceImpl(
 
         val attachment = loadTaskAttachment(taskId, attachmentId)
 
-        mediaServiceClient.deleteAttachment(attachment.id)
+        try {
+            mediaServiceClient.deleteAttachment(attachment.id)
+        } catch (ex: FeignException) {
+            throw translateMediaServiceException(ex)
+        }
 
         transactionTemplate.executeWithoutResult {
             val task = getTaskForUpdate(taskId)
@@ -415,7 +441,10 @@ class ModerationCommandServiceImpl(
         }
 
         if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
-            throw conflict("Resolved moderation task cannot be cancelled")
+            throw conflict(
+                message = "Решённую задачу модерации нельзя отменить",
+                code = "resolved_task_cancel_not_allowed",
+            )
         }
 
         cancelTask(
@@ -438,7 +467,10 @@ class ModerationCommandServiceImpl(
 
     private fun validateAttachmentAllowed(task: ModerationTaskDto) {
         if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
-            throw conflict("Attachments can be added or deleted only to OPEN or IN_PROGRESS tasks")
+            throw conflict(
+                message = "Вложения можно добавлять и удалять только у задач со статусом OPEN или IN_PROGRESS",
+                code = "task_attachment_update_not_allowed",
+            )
         }
     }
 
@@ -450,7 +482,10 @@ class ModerationCommandServiceImpl(
             .firstOrNull { attachment ->
                 attachment.id == attachmentId && attachment.attachmentRole == FileAttachmentRole.ATTACHMENT.name
             }
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Moderation attachment not found")
+            ?: throw ModerationNotFoundException(
+                message = "Вложение задачи модерации не найдено",
+                code = "moderation_attachment_not_found",
+            )
     }
 
     private fun buildAttachmentAddedPayload(
@@ -551,18 +586,22 @@ class ModerationCommandServiceImpl(
         task: ModerationTaskDto,
         request: InternalModerationApproveRequest,
     ): InternalModerationActionResultResponse {
-        return when (task.entityType) {
-            ModerationEntityType.EMPLOYER_PROFILE ->
-                profileModerationOwnerClient.approveEmployerProfile(task.entityId, request)
+        return try {
+            when (task.entityType) {
+                ModerationEntityType.EMPLOYER_PROFILE ->
+                    profileModerationOwnerClient.approveEmployerProfile(task.entityId, request)
 
-            ModerationEntityType.EMPLOYER_VERIFICATION ->
-                profileModerationOwnerClient.approveEmployerVerification(task.entityId, request)
+                ModerationEntityType.EMPLOYER_VERIFICATION ->
+                    profileModerationOwnerClient.approveEmployerVerification(task.entityId, request)
 
-            ModerationEntityType.OPPORTUNITY ->
-                opportunityModerationOwnerClient.approveOpportunity(task.entityId, request)
+                ModerationEntityType.OPPORTUNITY ->
+                    opportunityModerationOwnerClient.approveOpportunity(task.entityId, request)
 
-            ModerationEntityType.TAG ->
-                opportunityModerationOwnerClient.approveTag(task.entityId, request)
+                ModerationEntityType.TAG ->
+                    opportunityModerationOwnerClient.approveTag(task.entityId, request)
+            }
+        } catch (ex: FeignException) {
+            throw translateOwnerServiceException(ex)
         }
     }
 
@@ -570,18 +609,22 @@ class ModerationCommandServiceImpl(
         task: ModerationTaskDto,
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
-        return when (task.entityType) {
-            ModerationEntityType.EMPLOYER_PROFILE ->
-                profileModerationOwnerClient.rejectEmployerProfile(task.entityId, request)
+        return try {
+            when (task.entityType) {
+                ModerationEntityType.EMPLOYER_PROFILE ->
+                    profileModerationOwnerClient.rejectEmployerProfile(task.entityId, request)
 
-            ModerationEntityType.EMPLOYER_VERIFICATION ->
-                profileModerationOwnerClient.rejectEmployerVerification(task.entityId, request)
+                ModerationEntityType.EMPLOYER_VERIFICATION ->
+                    profileModerationOwnerClient.rejectEmployerVerification(task.entityId, request)
 
-            ModerationEntityType.OPPORTUNITY ->
-                opportunityModerationOwnerClient.rejectOpportunity(task.entityId, request)
+                ModerationEntityType.OPPORTUNITY ->
+                    opportunityModerationOwnerClient.rejectOpportunity(task.entityId, request)
 
-            ModerationEntityType.TAG ->
-                opportunityModerationOwnerClient.rejectTag(task.entityId, request)
+                ModerationEntityType.TAG ->
+                    opportunityModerationOwnerClient.rejectTag(task.entityId, request)
+            }
+        } catch (ex: FeignException) {
+            throw translateOwnerServiceException(ex)
         }
     }
 
@@ -590,7 +633,10 @@ class ModerationCommandServiceImpl(
         currentUser: AuthenticatedUser,
     ) {
         if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
-            throw conflict("Only OPEN or IN_PROGRESS moderation tasks can be resolved")
+            throw conflict(
+                message = "Одобрить или отклонить можно только задачи со статусом OPEN или IN_PROGRESS",
+                code = "task_resolve_not_allowed",
+            )
         }
 
         val assigneeId = task.assigneeUser?.id
@@ -600,7 +646,10 @@ class ModerationCommandServiceImpl(
             assigneeId != currentUser.userId &&
             currentUser.role != Role.ADMIN
         ) {
-            throw forbidden("Task ${task.id} is assigned to another curator")
+            throw forbidden(
+                message = "Задача ${task.id} назначена другому куратору",
+                code = "task_assigned_to_another_curator",
+            )
         }
     }
 
@@ -609,11 +658,17 @@ class ModerationCommandServiceImpl(
         currentUser: AuthenticatedUser,
     ) {
         if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
-            throw conflict("Resolved moderation task cannot be cancelled")
+            throw conflict(
+                message = "Решённую задачу модерации нельзя отменить",
+                code = "resolved_task_cancel_not_allowed",
+            )
         }
 
         if (task.status != ModerationTaskStatus.OPEN && task.status != ModerationTaskStatus.IN_PROGRESS) {
-            throw conflict("Only OPEN or IN_PROGRESS moderation tasks can be cancelled")
+            throw conflict(
+                message = "Отменить можно только задачу модерации со статусом OPEN или IN_PROGRESS",
+                code = "task_cancel_not_allowed",
+            )
         }
 
         val assigneeId = task.assigneeUser?.id
@@ -623,7 +678,10 @@ class ModerationCommandServiceImpl(
             assigneeId != currentUser.userId &&
             currentUser.role != Role.ADMIN
         ) {
-            throw forbidden("Task ${task.id} is assigned to another curator")
+            throw forbidden(
+                message = "Задача ${task.id} назначена другому куратору",
+                code = "task_assigned_to_another_curator",
+            )
         }
     }
 
@@ -675,17 +733,79 @@ class ModerationCommandServiceImpl(
 
     private fun ModerationTaskDto.toInternalResponse(created: Boolean): InternalModerationTaskResponse {
         return InternalModerationTaskResponse(
-            taskId = id ?: error("Task id must not be null"),
+            taskId = id ?: throw IllegalStateException("Идентификатор задачи модерации не должен быть null"),
             created = created,
         )
     }
 
-    private fun conflict(message: String): ResponseStatusException {
-        return ResponseStatusException(HttpStatus.CONFLICT, message)
+    private fun conflict(
+        message: String,
+        code: String,
+    ): ModerationConflictException {
+        return ModerationConflictException(
+            message = message,
+            code = code,
+        )
     }
 
-    private fun forbidden(message: String): ResponseStatusException {
-        return ResponseStatusException(HttpStatus.FORBIDDEN, message)
+    private fun forbidden(
+        message: String,
+        code: String,
+    ): ModerationForbiddenException {
+        return ModerationForbiddenException(
+            message = message,
+            code = code,
+        )
+    }
+
+    private fun translateOwnerServiceException(ex: FeignException): RuntimeException {
+        return when (ex.status()) {
+            HttpStatus.BAD_REQUEST.value() -> ModerationBadRequestException(
+                message = "Запрос модерации заполнен некорректно",
+                code = "moderation_action_invalid",
+            )
+
+            HttpStatus.FORBIDDEN.value() -> ModerationForbiddenException(
+                message = "Действие модерации запрещено",
+                code = "moderation_action_forbidden",
+            )
+
+            HttpStatus.NOT_FOUND.value() -> ModerationNotFoundException(
+                message = "Связанная сущность не найдена",
+                code = "moderated_entity_not_found",
+            )
+
+            HttpStatus.CONFLICT.value() -> ModerationConflictException(
+                message = "Состояние связанной сущности не позволяет выполнить действие",
+                code = "moderated_entity_state_conflict",
+            )
+
+            else -> ModerationIntegrationException(
+                message = "Сервис владельца сущности временно недоступен",
+                code = "moderation_owner_service_unavailable",
+                status = HttpStatus.SERVICE_UNAVAILABLE,
+            )
+        }
+    }
+
+    private fun translateMediaServiceException(ex: FeignException): RuntimeException {
+        return when (ex.status()) {
+            HttpStatus.NOT_FOUND.value() -> ModerationNotFoundException(
+                message = "Вложение задачи модерации не найдено",
+                code = "moderation_attachment_not_found",
+            )
+
+            HttpStatus.CONFLICT.value() -> ModerationConflictException(
+                message = "Состояние вложения не позволяет выполнить действие",
+                code = "moderation_attachment_state_conflict",
+            )
+
+            else -> ModerationIntegrationException(
+                message = "Media-сервис временно недоступен",
+                code = "media_service_unavailable",
+                status = HttpStatus.SERVICE_UNAVAILABLE,
+            )
+        }
     }
 
     companion object {

@@ -43,7 +43,7 @@ class ModerationController(
 
     @GetMapping("/dashboard")
     fun getDashboard(
-        @CurrentUser currentUser: AuthenticatedUser
+        @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationDashboardResponse {
         return moderationQueryService.getDashboard(currentUser)
     }
@@ -51,15 +51,15 @@ class ModerationController(
     @GetMapping("/tasks")
     fun getTasks(
         @Valid @ModelAttribute request: GetModerationTasksRequest,
-        @CurrentUser currentUser: AuthenticatedUser
+        @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskPageResponse {
         return moderationQueryService.getTasks(currentUser, request)
     }
 
     @GetMapping("/tasks/{taskId}")
     fun getTask(
-        @PathVariable @Positive taskId: Long,
-        @CurrentUser currentUser: AuthenticatedUser
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
         return moderationQueryService.getTask(taskId, currentUser)
     }
@@ -76,7 +76,7 @@ class ModerationController(
     @GetMapping("/entities/{entityType}/{entityId}/history")
     fun getEntityHistory(
         @PathVariable entityType: ModerationEntityType,
-        @PathVariable @Positive entityId: Long,
+        @PathVariable @Positive(message = "Идентификатор сущности должен быть положительным") entityId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
     ): List<ModerationEntityHistoryItemResponse> {
         return moderationQueryService.getEntityHistory(entityType, entityId)
@@ -85,7 +85,7 @@ class ModerationController(
     @GetMapping("/entities/{entityType}/{entityId}/attachments")
     fun getEntityAttachments(
         @PathVariable entityType: FileAttachmentEntityType,
-        @PathVariable @Positive entityId: Long,
+        @PathVariable @Positive(message = "Идентификатор сущности должен быть положительным") entityId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
     ): List<InternalFileAttachmentResponse> {
         return moderationQueryService.getEntityAttachments(entityType, entityId, currentUser)
@@ -93,7 +93,7 @@ class ModerationController(
 
     @PostMapping("/tasks/{taskId}/assign")
     fun assignTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
         @Valid @RequestBody request: AssignModerationTaskRequest,
     ): ModerationTaskDetailResponse {
@@ -103,7 +103,7 @@ class ModerationController(
 
     @PostMapping("/tasks/{taskId}/approve")
     fun approveTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
         @Valid @RequestBody request: ApproveModerationTaskRequest,
     ): ModerationTaskDetailResponse {
@@ -113,7 +113,7 @@ class ModerationController(
 
     @PostMapping("/tasks/{taskId}/reject")
     fun rejectTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
         @Valid @RequestBody request: RejectModerationTaskRequest,
     ): ModerationTaskDetailResponse {
@@ -123,7 +123,7 @@ class ModerationController(
 
     @PostMapping("/tasks/{taskId}/comment")
     fun commentTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
         @Valid @RequestBody request: CommentModerationTaskRequest,
     ): ModerationTaskDetailResponse {
@@ -133,8 +133,8 @@ class ModerationController(
 
     @GetMapping("/tasks/{taskId}/attachments/{fileId}/download-url")
     fun getTaskAttachmentDownloadUrl(
-        @PathVariable @Positive taskId: Long,
-        @PathVariable @Positive fileId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор файла должен быть положительным") fileId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
     ): InternalFileDownloadUrlResponse {
         return moderationQueryService.getTaskAttachmentDownloadUrl(taskId, currentUser, fileId)
@@ -145,7 +145,7 @@ class ModerationController(
         consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
     )
     fun addTaskAttachment(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @RequestPart("file") file: MultipartFile,
         @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
@@ -155,8 +155,8 @@ class ModerationController(
 
     @DeleteMapping("/tasks/{taskId}/attachments/{attachmentId}")
     fun deleteTaskAttachment(
-        @PathVariable @Positive taskId: Long,
-        @PathVariable @Positive attachmentId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор вложения должен быть положительным") attachmentId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
         moderationCommandService.deleteAttachment(taskId, currentUser, attachmentId)
@@ -165,7 +165,7 @@ class ModerationController(
 
     @PostMapping("/tasks/{taskId}/cancel")
     fun cancelTask(
-        @PathVariable @Positive taskId: Long,
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
         @CurrentUser currentUser: AuthenticatedUser,
     ): ModerationTaskDetailResponse {
         moderationCommandService.cancel(taskId, currentUser)

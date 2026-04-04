@@ -7,6 +7,6 @@ import org.springframework.validation.annotation.Validated
 @Validated
 @ConfigurationProperties(prefix = "auth.service")
 data class AuthServiceProperties(
-    @field:NotBlank(message = "Auth service url must not be blank")
-    var url: String = ""
+    @field:NotBlank(message = "URL сервиса авторизации обязателен")
+    var url: String = "",
 )
