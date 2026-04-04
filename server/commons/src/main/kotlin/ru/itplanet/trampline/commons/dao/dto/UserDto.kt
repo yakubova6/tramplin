@@ -38,8 +38,20 @@ open class UserDto {
     @Column(name = "two_factor_enabled", nullable = false)
     open var twoFactorEnabled: Boolean = false
 
+    @Column(name = "is_active", nullable = false)
+    open var isActive: Boolean = true
+
     @Column(name = "last_login_at")
     open var lastLoginAt: Instant? = null
+
+    @Column(name = "deactivated_at")
+    open var deactivatedAt: Instant? = null
+
+    @Column(name = "deactivated_by_user_id")
+    open var deactivatedByUserId: Long? = null
+
+    @Column(name = "deactivation_reason")
+    open var deactivationReason: String? = null
 
     @Column(name = "password_reset_code_hash")
     open var passwordResetCodeHash: String? = null

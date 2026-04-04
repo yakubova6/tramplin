@@ -18,4 +18,8 @@ interface ModerationLogDao : JpaRepository<ModerationLogDto, Long> {
         entityType: ModerationEntityType,
         entityId: Long
     ): List<ModerationLogDto>
+
+    fun findFirstByActorUser_IdOrderByCreatedAtDescIdDesc(
+        actorUserId: Long,
+    ): ModerationLogDto?
 }

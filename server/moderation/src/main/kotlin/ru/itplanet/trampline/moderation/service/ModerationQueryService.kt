@@ -3,6 +3,7 @@ package ru.itplanet.trampline.moderation.service
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
+import ru.itplanet.trampline.commons.model.moderation.InternalCuratorModerationStatsResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
@@ -49,4 +50,8 @@ interface ModerationQueryService {
         entityId: Long,
         taskType: ModerationTaskType,
     ): InternalModerationTaskLookupResponse
+
+    fun getCuratorStats(
+        userId: Long,
+    ): InternalCuratorModerationStatsResponse
 }

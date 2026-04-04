@@ -14,6 +14,7 @@ import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
 import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
+import ru.itplanet.trampline.commons.model.moderation.InternalCuratorModerationStatsResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskLookupResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
@@ -234,6 +235,37 @@ class ModerationQueryServiceImpl(
         return InternalModerationTaskLookupResponse(
             exists = task != null,
             taskId = task?.id,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getCuratorStats(
+        userId: Long,
+    ): InternalCuratorModerationStatsResponse {
+        val lastAction = moderationLogDao.findFirstByActorUser_IdOrderByCreatedAtDescIdDesc(userId)
+
+        return InternalCuratorModerationStatsResponse(
+            openAssignedCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.OPEN,
+                userId,
+            ),
+            inProgressCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.IN_PROGRESS,
+                userId,
+            ),
+            approvedCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.APPROVED,
+                userId,
+            ),
+            rejectedCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.REJECTED,
+                userId,
+            ),
+            cancelledCount = moderationTaskDao.countByStatusAndAssigneeUser_Id(
+                ModerationTaskStatus.CANCELLED,
+                userId,
+            ),
+            lastModerationActionAt = lastAction?.createdAt,
         )
     }
 

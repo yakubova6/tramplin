@@ -1,9 +1,11 @@
 package ru.itplanet.trampline.auth.service
 
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.auth.config.PasswordResetProperties
 import ru.itplanet.trampline.auth.converter.UserConverter
 import ru.itplanet.trampline.auth.exception.InvalidCredentialsException
@@ -101,6 +103,8 @@ class AuthServiceImpl(
             throw InvalidCredentialsException()
         }
 
+        ensureUserIsActive(userDto)
+
         if (userDto.twoFactorEnabled) {
             val challenge = twoFactorChallengeService.createLoginChallenge(userDto)
 
@@ -130,6 +134,8 @@ class AuthServiceImpl(
 
         val user = userDao.findById(userId).orElse(null)
             ?: throw InvalidTwoFactorPendingTokenException()
+
+        ensureUserIsActive(user)
 
         user.lastLoginAt = Instant.now()
         val savedUser = userDao.save(user)
@@ -354,6 +360,11 @@ class AuthServiceImpl(
                 throw InvalidSessionException()
             }
 
+        if (!user.isActive) {
+            sessionService.deleteAllSessionsByUserId(user.id!!)
+            throw InvalidSessionException()
+        }
+
         val extendedPayload = sessionService.extendSession(sessionId)
 
         return ValidatedSessionContext(
@@ -365,6 +376,15 @@ class AuthServiceImpl(
     private fun validateCurrentPassword(user: UserDto, password: String) {
         if (!passwordEncoder.matches(password, user.passwordHash)) {
             throw InvalidCredentialsException()
+        }
+    }
+
+    private fun ensureUserIsActive(user: UserDto) {
+        if (!user.isActive) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "User account is deactivated"
+            )
         }
     }
 

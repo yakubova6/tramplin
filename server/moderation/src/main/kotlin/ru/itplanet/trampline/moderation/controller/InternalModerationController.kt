@@ -46,6 +46,13 @@ class InternalModerationController(
         )
     }
 
+    @GetMapping("/curators/{userId}/stats")
+    fun getCuratorStats(
+        @PathVariable @Positive userId: Long,
+    ): InternalCuratorModerationStatsResponse {
+        return moderationQueryService.getCuratorStats(userId)
+    }
+
     @PostMapping("/tasks/{taskId}/cancel")
     fun cancelTask(
         @PathVariable @Positive taskId: Long,

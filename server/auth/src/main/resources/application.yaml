@@ -64,6 +64,17 @@ auth:
     secure-cookie: false
     same-site: Lax
 
+moderation:
+  service:
+    url: ${MODERATION_SERVER_HOST:http://localhost:8082}
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+
   password-reset:
     code-ttl-minutes: ${PASSWORD_RESET_CODE_TTL_MINUTES:10}
     reset-token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:10}
