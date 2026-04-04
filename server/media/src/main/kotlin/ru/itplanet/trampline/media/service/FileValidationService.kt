@@ -13,32 +13,32 @@ class FileValidationService {
         kind: FileAssetKind,
     ) {
         if (file.isEmpty) {
-            throw MediaValidationException("File must not be empty")
+            throw MediaValidationException("Файл не должен быть пустым")
         }
 
         val contentType = file.contentType?.lowercase()
-            ?: throw MediaValidationException("File content type is required")
+            ?: throw MediaValidationException("Не удалось определить content type файла")
 
         val maxSizeBytes = maxSizeBytes(kind)
         if (file.size > maxSizeBytes) {
             throw MediaValidationException(
-                message = "File is too large",
+                message = "Размер файла превышает допустимый",
                 details = mapOf(
                     "maxSizeBytes" to maxSizeBytes.toString(),
                     "actualSizeBytes" to file.size.toString(),
-                )
+                ),
             )
         }
 
         val allowedContentTypes = allowedContentTypes(kind)
         if (contentType !in allowedContentTypes) {
             throw MediaValidationException(
-                message = "Unsupported content type for file kind",
+                message = "Неподдерживаемый content type для данного типа файла",
                 details = mapOf(
                     "kind" to kind.name,
                     "contentType" to contentType,
                     "allowedContentTypes" to allowedContentTypes.joinToString(","),
-                )
+                ),
             )
         }
     }

@@ -1,35 +1,28 @@
 package ru.itplanet.trampline.media.security
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
 import org.springframework.security.core.AuthenticationException
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.stereotype.Component
-import ru.itplanet.trampline.commons.exception.ApiError
-import java.nio.charset.StandardCharsets
+import ru.itplanet.trampline.commons.exception.ApiErrorResponseWriter
 
 @Component
 class ApiAuthenticationEntryPoint(
-    private val objectMapper: ObjectMapper
+    private val apiErrorResponseWriter: ApiErrorResponseWriter,
 ) : AuthenticationEntryPoint {
 
     override fun commence(
         request: HttpServletRequest,
         response: HttpServletResponse,
-        authException: AuthenticationException
+        authException: AuthenticationException,
     ) {
-        val body = ApiError(
-            status = HttpStatus.UNAUTHORIZED.value(),
-            error = HttpStatus.UNAUTHORIZED.reasonPhrase,
-            message = "Authentication is required"
+        apiErrorResponseWriter.write(
+            response = response,
+            status = HttpStatus.UNAUTHORIZED,
+            message = "Требуется авторизация",
+            code = "unauthorized",
         )
-
-        response.status = HttpServletResponse.SC_UNAUTHORIZED
-        response.characterEncoding = StandardCharsets.UTF_8.name()
-        response.contentType = MediaType.APPLICATION_JSON_VALUE
-        response.writer.write(objectMapper.writeValueAsString(body))
     }
 }

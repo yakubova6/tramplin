@@ -3,7 +3,13 @@ package ru.itplanet.trampline.media.controller
 import jakarta.validation.constraints.Positive
 import org.springframework.http.MediaType
 import org.springframework.validation.annotation.Validated
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RequestPart
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
@@ -25,7 +31,7 @@ class InternalFileController(
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun upload(
         @RequestPart("file") file: MultipartFile,
-        @RequestParam @Positive ownerUserId: Long,
+        @RequestParam @Positive(message = "Идентификатор владельца файла должен быть положительным") ownerUserId: Long,
         @RequestParam kind: FileAssetKind,
         @RequestParam visibility: FileAssetVisibility,
     ): InternalCreatedFileResponse {
@@ -39,7 +45,7 @@ class InternalFileController(
 
     @GetMapping("/{fileId}")
     fun getMetadata(
-        @PathVariable @Positive fileId: Long,
+        @PathVariable @Positive(message = "Идентификатор файла должен быть положительным") fileId: Long,
     ): InternalFileMetadataResponse {
         return fileAssetService.getMetadata(fileId)
             .toInternalFileMetadataResponse()
@@ -47,7 +53,7 @@ class InternalFileController(
 
     @GetMapping("/{fileId}/download-url")
     fun getDownloadUrl(
-        @PathVariable @Positive fileId: Long,
+        @PathVariable @Positive(message = "Идентификатор файла должен быть положительным") fileId: Long,
     ): InternalFileDownloadUrlResponse {
         return fileAssetService.getDownloadUrl(fileId)
             .toInternalFileDownloadUrlResponse()

@@ -34,7 +34,7 @@ class InternalAttachmentController(
     @DeleteMapping("/{attachmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(
-        @PathVariable @Positive attachmentId: Long,
+        @PathVariable @Positive(message = "Идентификатор вложения должен быть положительным") attachmentId: Long,
     ) {
         fileAttachmentService.delete(attachmentId)
     }

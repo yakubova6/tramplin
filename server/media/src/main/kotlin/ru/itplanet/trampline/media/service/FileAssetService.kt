@@ -1,18 +1,19 @@
 package ru.itplanet.trampline.media.service
 
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.multipart.MultipartFile
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.dao.FileAssetDao
 import ru.itplanet.trampline.commons.dao.dto.FileAssetDto
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.commons.model.file.FileStorageProvider
+import ru.itplanet.trampline.media.exception.MediaConflictException
+import ru.itplanet.trampline.media.exception.MediaIntegrationException
+import ru.itplanet.trampline.media.exception.MediaNotFoundException
 import java.security.MessageDigest
 
 @Service
@@ -34,13 +35,21 @@ class FileAssetService(
         val fileAsset = findExistingNotDeletedFile(fileId)
 
         if (fileAsset.status != FileAssetStatus.READY) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "File must be in READY status to generate download url. Current status: ${fileAsset.status.name}"
+            throw MediaConflictException(
+                message = "Ссылку на скачивание можно сформировать только для файла в статусе READY",
+                code = "file_download_not_ready",
+                details = mapOf("status" to fileAsset.status.name),
             )
         }
 
-        return objectStorage.generateDownloadUrl(fileAsset.storageKey)
+        return try {
+            objectStorage.generateDownloadUrl(fileAsset.storageKey)
+        } catch (_: Exception) {
+            throw MediaIntegrationException(
+                message = "Не удалось сформировать ссылку для скачивания файла",
+                code = "file_download_url_generation_failed",
+            )
+        }
     }
 
     fun upload(
@@ -74,9 +83,9 @@ class FileAssetService(
                     this.kind = kind
                     this.visibility = visibility
                     this.status = FileAssetStatus.UPLOADING
-                }
+                },
             )
-        } ?: throw IllegalStateException("Failed to create file asset record")
+        } ?: throw IllegalStateException("Не удалось создать запись о файле")
 
         return try {
             objectStorage.putObject(
@@ -88,12 +97,28 @@ class FileAssetService(
 
             transactionTemplate.execute {
                 val fileAsset = fileAssetDao.findById(createdFileAsset.id!!)
-                    .orElseThrow { NoSuchElementException("File asset ${createdFileAsset.id} not found") }
+                    .orElse(null)
+                    ?: throw MediaIntegrationException(
+                        message = "Не удалось завершить загрузку файла: запись о файле не найдена",
+                        code = "file_upload_finalize_failed",
+                    )
 
                 fileAsset.status = FileAssetStatus.READY
                 fileAssetDao.save(fileAsset)
-            } ?: throw IllegalStateException("Failed to update file asset status to READY")
-        } catch (ex: Exception) {
+            } ?: throw MediaIntegrationException(
+                message = "Не удалось обновить статус файла после загрузки",
+                code = "file_upload_finalize_failed",
+            )
+        } catch (ex: MediaIntegrationException) {
+            transactionTemplate.executeWithoutResult {
+                val fileAsset = fileAssetDao.findById(createdFileAsset.id!!).orElse(null)
+                if (fileAsset != null) {
+                    fileAsset.status = FileAssetStatus.FAILED
+                    fileAssetDao.save(fileAsset)
+                }
+            }
+            throw ex
+        } catch (_: Exception) {
             transactionTemplate.executeWithoutResult {
                 val fileAsset = fileAssetDao.findById(createdFileAsset.id!!).orElse(null)
                 if (fileAsset != null) {
@@ -102,16 +127,27 @@ class FileAssetService(
                 }
             }
 
-            throw IllegalStateException("Failed to upload file to object storage", ex)
+            throw MediaIntegrationException(
+                message = "Не удалось загрузить файл в объектное хранилище",
+                code = "object_storage_upload_failed",
+            )
         }
     }
 
     private fun findExistingNotDeletedFile(fileId: Long): FileAssetDto {
         val fileAsset = fileAssetDao.findById(fileId)
-            .orElseThrow { fileNotFound() }
+            .orElseThrow {
+                MediaNotFoundException(
+                    message = "Файл не найден",
+                    code = "file_not_found",
+                )
+            }
 
         if (fileAsset.status == FileAssetStatus.DELETED) {
-            throw fileNotFound()
+            throw MediaNotFoundException(
+                message = "Файл не найден",
+                code = "file_not_found",
+            )
         }
 
         return fileAsset
@@ -129,9 +165,5 @@ class FileAssetService(
         return digest.joinToString(separator = "") { byte ->
             "%02x".format(byte)
         }
-    }
-
-    private fun fileNotFound(): ResponseStatusException {
-        return ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
     }
 }

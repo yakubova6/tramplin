@@ -11,8 +11,10 @@ import java.time.Duration
 @ConfigurationProperties(prefix = "media.cleanup")
 data class FileCleanupProperties(
     var enabled: Boolean = true,
-    @field:Positive
+
+    @field:Positive(message = "Размер батча должен быть больше нуля")
     var batchSize: Int = 50,
+
     var readyFileMinAge: Duration = Duration.ofMinutes(15),
     var fixedDelay: Duration = Duration.ofMinutes(30),
 )

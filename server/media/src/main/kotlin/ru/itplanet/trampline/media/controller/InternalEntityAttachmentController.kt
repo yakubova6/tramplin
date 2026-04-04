@@ -21,7 +21,7 @@ class InternalEntityAttachmentController(
     @GetMapping("/{entityType}/{entityId}/attachments")
     fun getAttachments(
         @PathVariable entityType: FileAttachmentEntityType,
-        @PathVariable @Positive entityId: Long,
+        @PathVariable @Positive(message = "Идентификатор сущности должен быть положительным") entityId: Long,
     ): List<InternalFileAttachmentResponse> {
         return fileAttachmentService.getByEntity(entityType, entityId)
             .map { it.toInternalFileAttachmentResponse() }

@@ -3,17 +3,17 @@ package ru.itplanet.trampline.media.service
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
-import org.springframework.web.server.ResponseStatusException
 import ru.itplanet.trampline.commons.dao.FileAssetDao
 import ru.itplanet.trampline.commons.dao.FileAttachmentDao
 import ru.itplanet.trampline.commons.dao.dto.FileAttachmentDto
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequest
+import ru.itplanet.trampline.media.exception.MediaConflictException
+import ru.itplanet.trampline.media.exception.MediaNotFoundException
 
 @Service
 class FileAttachmentService(
@@ -29,16 +29,25 @@ class FileAttachmentService(
     @Transactional
     fun create(request: InternalCreateFileAttachmentRequest): FileAttachmentDto {
         val fileAsset = fileAssetDao.findById(request.fileId)
-            .orElseThrow { fileNotFound() }
+            .orElseThrow {
+                MediaNotFoundException(
+                    message = "Файл не найден",
+                    code = "file_not_found",
+                )
+            }
 
         if (fileAsset.status == FileAssetStatus.DELETED) {
-            throw fileNotFound()
+            throw MediaNotFoundException(
+                message = "Файл не найден",
+                code = "file_not_found",
+            )
         }
 
         if (fileAsset.status != FileAssetStatus.READY) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "File must be in READY status to be attached. Current status: ${fileAsset.status.name}",
+            throw MediaConflictException(
+                message = "Прикрепить можно только файл в статусе READY",
+                code = "file_attachment_not_ready",
+                details = mapOf("status" to fileAsset.status.name),
             )
         }
 
@@ -50,9 +59,9 @@ class FileAttachmentService(
                 attachmentRole = request.attachmentRole,
             )
         ) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "File is already attached to this entity with this role",
+            throw MediaConflictException(
+                message = "Файл уже прикреплён к этой сущности с данной ролью",
+                code = "file_already_attached",
             )
         }
 
@@ -67,17 +76,16 @@ class FileAttachmentService(
                 },
             )
         } catch (ex: DataIntegrityViolationException) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "File is already attached to this entity with this role",
-                ex,
+            throw MediaConflictException(
+                message = "Файл уже прикреплён к этой сущности с данной ролью",
+                code = "file_already_attached",
             )
         }
 
         entityManager.detach(savedAttachment)
 
         return fileAttachmentDao.findDetailedById(savedAttachment.id!!)
-            ?: throw IllegalStateException("Created attachment ${savedAttachment.id} not found")
+            ?: throw IllegalStateException("Созданное вложение ${savedAttachment.id} не найдено")
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +102,12 @@ class FileAttachmentService(
     fun delete(attachmentId: Long) {
         val fileId = transactionTemplate.execute<Long> {
             val attachment = fileAttachmentDao.findById(attachmentId)
-                .orElseThrow { attachmentNotFound() }
+                .orElseThrow {
+                    MediaNotFoundException(
+                        message = "Вложение не найдено",
+                        code = "attachment_not_found",
+                    )
+                }
 
             val detachedFileId = attachment.fileId
 
@@ -102,16 +115,8 @@ class FileAttachmentService(
             fileAttachmentDao.flush()
 
             detachedFileId
-        } ?: throw IllegalStateException("Attachment delete transaction returned null file id")
+        } ?: throw IllegalStateException("Транзакция удаления вложения вернула пустой fileId")
 
         fileAssetCleanupService.cleanupIfOrphaned(fileId)
-    }
-
-    private fun fileNotFound(): ResponseStatusException {
-        return ResponseStatusException(HttpStatus.NOT_FOUND, "File not found")
-    }
-
-    private fun attachmentNotFound(): ResponseStatusException {
-        return ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found")
     }
 }

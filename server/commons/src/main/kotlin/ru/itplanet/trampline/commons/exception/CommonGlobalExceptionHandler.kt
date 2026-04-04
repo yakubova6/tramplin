@@ -9,9 +9,12 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.validation.BindException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MaxUploadSizeExceededException
+import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.server.ResponseStatusException
 
 @RestControllerAdvice
@@ -102,6 +105,47 @@ class CommonGlobalExceptionHandler {
             status = HttpStatus.BAD_REQUEST,
             message = "Тело запроса заполнено некорректно или не полностью",
             code = "invalid_request",
+        )
+    }
+
+    @ExceptionHandler(
+        MissingServletRequestPartException::class,
+        MissingServletRequestParameterException::class,
+    )
+    fun handleMissingMultipartData(): ResponseEntity<ApiError> {
+        return buildResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = "Запрос заполнен некорректно или не полностью",
+            code = "invalid_request",
+        )
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleMaxUploadSizeExceeded(): ResponseEntity<ApiError> {
+        return buildResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = "Размер загружаемого файла превышает допустимый лимит",
+            code = "file_too_large",
+        )
+    }
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ApiError> {
+        return buildResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = ex.message?.takeIf { it.isNotBlank() } ?: "Переданы некорректные аргументы",
+            code = "validation_error",
+        )
+    }
+
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleIllegalState(ex: IllegalStateException): ResponseEntity<ApiError> {
+        logger.error("Некорректное состояние приложения при обработке запроса", ex)
+
+        return buildResponse(
+            status = HttpStatus.INTERNAL_SERVER_ERROR,
+            message = ex.message?.takeIf { it.isNotBlank() } ?: "Внутренняя ошибка сервера",
+            code = "internal_error",
         )
     }
 
