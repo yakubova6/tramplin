@@ -133,14 +133,6 @@
   <img src="https://i.imgur.com/ghT9Z2j.png" alt="2FA аутентификация" width="700" />
 </div>
 
-### Профиль соискателя
-
-<img src="https://i.imgur.com/mjYPmTe.png" alt="Cтраница профиля соискателя" width="700" />
-
-### Редактирование профиля соискателя
-
-<img src="https://i.imgur.com/UjH1L8s.png" alt="Редактирование профиля соискателя" width="700" />
-
 ### Основная страница с фильтрацией
 
 <img src="https://i.imgur.com/eZta0yZ.png" alt="Основная страница" width="800" />
@@ -155,9 +147,17 @@
 
 <img src="https://i.imgur.com/JiwSUUU.png" alt="Детальная страница вакансии" width="800" />
 
+### Профиль соискателя
+
+<img src="https://i.imgur.com/nwwuhLD.png" alt="Cтраница профиля соискателя" width="700" />
+
+### Редактирование профиля соискателя
+
+<img src="https://i.imgur.com/UjH1L8s.png" alt="Редактирование профиля соискателя" width="700" />
+
 ### Отклики
 
-<img src="https://i.imgur.com/JiwSUUU.png" alt="Список откликов соискателя" width="800" />
+<img src="https://i.imgur.com/zTpBqJv.png" alt="Список откликов соискателя" width="800" />
 
 ### Избранное
 
@@ -187,7 +187,7 @@
 
 ### Редактирование профиля работодателя
 
-<img src="https://i.imgur.com/Spjb55Z.png" alt="Редактирование профиля работодателя" width="700" />
+<img src="https://i.imgur.com/Spjb55Z.png" alt="Редактирование профиля работодателя" width="800" />
 
 ### Панель создания вакансии
 
@@ -208,7 +208,7 @@
 
 ### Панель модерации (Администратор)
 
-<img src="https://i.imgur.com/JiwSUUU.png" alt="Панель модерации со списком задач" width="800" />
+<img src="https://i.imgur.com/it1fPk5.png" alt="Панель модерации со списком задач" width="800" />
 
 ---
 
@@ -227,7 +227,6 @@
 
 ```bash
 cd server
-mvn clean install -DskipTests
 mvn clean package -DskipTests
 cd ..
 docker compose up --build
