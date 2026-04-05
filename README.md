@@ -155,15 +155,15 @@
 
 <img src="https://i.imgur.com/UjH1L8s.png" alt="Редактирование профиля соискателя" width="700" />
 
-### Отклики
+### Отклики соискателя
 
 <img src="https://i.imgur.com/zTpBqJv.png" alt="Список откликов соискателя" width="800" />
 
-### Избранное
+### Избранное соискателя
 
 <img src="https://i.imgur.com/TQj1ucQ.png" alt="Список избранных вакансий" width="800" />
 
-### Контакты
+### Контакты соискателя
 
 <img src="https://i.imgur.com/n37NbFW.png" alt="Контакты" width="800" />
 
@@ -189,14 +189,6 @@
 
 <img src="https://i.imgur.com/Spjb55Z.png" alt="Редактирование профиля работодателя" width="800" />
 
-### Панель создания вакансии
-
-<img src="https://i.imgur.com/6pOQI54.png" alt="Панель создания вакансии" width="800" />
-
-### Вакансии работодателя
-
-<img src="https://i.imgur.com/b7ms76M.png" alt="Список вакансий работодателя" width="800" />
-
 ### Верификация компании
 
   #### Этап 1 - Заполнение обязательных и доп. полей
@@ -206,9 +198,42 @@
   #### Этап 2 - Отправка заявки на верификацию по 1/3 возможных вариантов (Почта/ИНН/Проф.ссылки)
   <img src="https://i.imgur.com/JXcjHZW.png" alt="Процесс верификации компании" width="700" />
 
+### Панель создания вакансии
+
+<img src="https://i.imgur.com/6pOQI54.png" alt="Панель создания вакансии" width="800" />
+
+### Вакансии работодателя
+
+<img src="https://i.imgur.com/b7ms76M.png" alt="Список вакансий работодателя" width="800" />
+
+### Отклики работодателя
+
+<img src="https://i.imgur.com/ga7Ycwv.png" alt="Список откликов работодателя" width="800" />
+
 ### Панель модерации (Администратор)
 
 <img src="https://i.imgur.com/it1fPk5.png" alt="Панель модерации со списком задач" width="800" />
+
+### Детальная информация задачи
+
+<img src="https://i.imgur.com/Wba0jY5.png" alt="Детальная информация задачи" width="700" />
+<img src="https://i.imgur.com/ETMBXqm.png" alt="Детальная информация задачи" width="700" />
+
+### Редактор задачи
+
+<img src="https://i.imgur.com/b5Xci8s.png" alt="Редактор задачи" width="700" />
+
+### Одобрение задачи
+
+<img src="https://i.imgur.com/TmhZ9DL.png" alt="Одобрение задачи" width="700" />
+
+### История всех действий по задачам
+
+<img src="https://i.imgur.com/1ESYnx3.png" alt="История всех действий по задачам" width="800" />
+
+### Создание куратора
+
+<img src="https://i.imgur.com/jGsZWHz.png" alt="Форма создания куратора" width="800" />
 
 ---
 
