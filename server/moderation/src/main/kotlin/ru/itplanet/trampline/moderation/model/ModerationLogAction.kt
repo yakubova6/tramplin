@@ -5,6 +5,7 @@ enum class ModerationLogAction {
     ASSIGNED,
     APPROVED,
     REJECTED,
+    REQUESTED_CHANGES,
     STATUS_CHANGED,
     COMMENTED,
     UPDATED

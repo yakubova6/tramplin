@@ -10,7 +10,7 @@ import ru.itplanet.trampline.moderation.model.response.ModerationTaskAttachmentR
 @Repository
 class ModerationReadModelJdbcDao(
     private val jdbcTemplate: NamedParameterJdbcTemplate,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
 ) : ModerationReadModelDao {
 
     /**
@@ -20,9 +20,10 @@ class ModerationReadModelJdbcDao(
      */
     override fun findCurrentEntityState(
         entityType: ModerationEntityType,
-        entityId: Long
+        entityId: Long,
     ): JsonNode {
         val sql = when (entityType) {
+            ModerationEntityType.APPLICANT_PROFILE -> APPLICANT_PROFILE_SQL
             ModerationEntityType.EMPLOYER_PROFILE -> EMPLOYER_PROFILE_SQL
             ModerationEntityType.EMPLOYER_VERIFICATION -> EMPLOYER_VERIFICATION_SQL
             ModerationEntityType.OPPORTUNITY -> OPPORTUNITY_SQL
@@ -33,14 +34,14 @@ class ModerationReadModelJdbcDao(
             sql = sql,
             params = mapOf("id" to entityId),
             entityType = entityType,
-            entityId = entityId
+            entityId = entityId,
         )
     }
 
     override fun findTaskAttachments(taskId: Long): List<ModerationTaskAttachmentResponse> {
         return jdbcTemplate.query(
             ATTACHMENTS_SQL,
-            mapOf("taskId" to taskId)
+            mapOf("taskId" to taskId),
         ) { rs, _ ->
             ModerationTaskAttachmentResponse(
                 id = rs.getLong("id"),
@@ -51,7 +52,7 @@ class ModerationReadModelJdbcDao(
                 visibility = rs.getString("visibility"),
                 status = rs.getString("status"),
                 attachmentRole = rs.getString("attachment_role"),
-                sortOrder = rs.getInt("sort_order")
+                sortOrder = rs.getInt("sort_order"),
             )
         }
     }
@@ -60,11 +61,11 @@ class ModerationReadModelJdbcDao(
         sql: String,
         params: Map<String, Any>,
         entityType: ModerationEntityType,
-        entityId: Long
+        entityId: Long,
     ): JsonNode {
         val json = jdbcTemplate.query(
             sql,
-            params
+            params,
         ) { rs, _ -> rs.getString("data") }.firstOrNull()
 
         return if (json.isNullOrBlank()) {
@@ -79,6 +80,79 @@ class ModerationReadModelJdbcDao(
 
     private companion object {
 
+        val APPLICANT_PROFILE_SQL = """
+            select jsonb_build_object(
+                'userId', ap.user_id,
+                'user', jsonb_build_object(
+                    'id', u.id,
+                    'email', u.email,
+                    'displayName', u.display_name,
+                    'role', u.role
+                ),
+                'firstName', ap.first_name,
+                'lastName', ap.last_name,
+                'middleName', ap.middle_name,
+                'universityName', ap.university_name,
+                'facultyName', ap.faculty_name,
+                'studyProgram', ap.study_program,
+                'course', ap.course,
+                'graduationYear', ap.graduation_year,
+                'about', ap.about,
+                'resumeText', ap.resume_text,
+                'portfolioLinks', coalesce(ap.portfolio_links, '[]'::jsonb),
+                'contactLinks', coalesce(ap.contact_links, '[]'::jsonb),
+                'profileVisibility', ap.profile_visibility,
+                'resumeVisibility', ap.resume_visibility,
+                'applicationsVisibility', ap.applications_visibility,
+                'contactsVisibility', ap.contacts_visibility,
+                'openToWork', ap.open_to_work,
+                'openToEvents', ap.open_to_events,
+                'city', case
+                    when c.id is null then null
+                    else jsonb_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'regionName', c.region_name,
+                        'countryCode', c.country_code
+                    )
+                end,
+                'skillTags', coalesce((
+                    select jsonb_agg(
+                        jsonb_build_object(
+                            'id', t.id,
+                            'name', t.name,
+                            'category', t.category
+                        )
+                        order by t.name
+                    )
+                    from applicant_tag apt
+                    join tag t on t.id = apt.tag_id
+                    where apt.applicant_user_id = ap.user_id
+                      and apt.relation_type = 'SKILL'
+                ), '[]'::jsonb),
+                'interestTags', coalesce((
+                    select jsonb_agg(
+                        jsonb_build_object(
+                            'id', t.id,
+                            'name', t.name,
+                            'category', t.category
+                        )
+                        order by t.name
+                    )
+                    from applicant_tag apt
+                    join tag t on t.id = apt.tag_id
+                    where apt.applicant_user_id = ap.user_id
+                      and apt.relation_type = 'INTEREST'
+                ), '[]'::jsonb),
+                'createdAt', ap.created_at,
+                'updatedAt', ap.updated_at
+            )::text as data
+            from applicant_profile ap
+            join users u on u.id = ap.user_id
+            left join city c on c.id = ap.city_id
+            where ap.user_id = :id
+        """.trimIndent()
+
         val EMPLOYER_PROFILE_SQL = """
             select jsonb_build_object(
                 'userId', ep.user_id,
@@ -86,8 +160,7 @@ class ModerationReadModelJdbcDao(
                     'id', u.id,
                     'email', u.email,
                     'displayName', u.display_name,
-                    'role', u.role,
-                    'status', u.status
+                    'role', u.role
                 ),
                 'companyName', ep.company_name,
                 'legalName', ep.legal_name,

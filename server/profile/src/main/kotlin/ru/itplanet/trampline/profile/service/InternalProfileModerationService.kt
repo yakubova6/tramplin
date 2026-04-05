@@ -7,30 +7,76 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.dao.LocationDao
-import ru.itplanet.trampline.profile.exception.ProfileBadRequestException
-import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
+import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerVerificationDao
+import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerVerificationDto
+import ru.itplanet.trampline.profile.exception.ProfileBadRequestException
+import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
 import ru.itplanet.trampline.profile.model.ContactMethod
 import ru.itplanet.trampline.profile.model.ProfileLink
+import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactType
+import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
+import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
+import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
 import ru.itplanet.trampline.profile.model.enums.VerificationMethod
 import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 import java.time.OffsetDateTime
 
 @Service
 class InternalProfileModerationService(
+    private val applicantProfileDao: ApplicantProfileDao,
     private val employerProfileDao: EmployerProfileDao,
     private val employerVerificationDao: EmployerVerificationDao,
     private val cityDao: CityDao,
     private val locationDao: LocationDao,
     private val objectMapper: ObjectMapper,
 ) {
+
+    @Transactional
+    fun approveApplicantProfile(
+        userId: Long,
+        request: InternalModerationApproveRequest,
+    ): InternalModerationActionResultResponse {
+        val profile = applicantProfileDao.findById(userId).orElseThrow {
+            notFoundApplicantProfile(userId)
+        }
+
+        applyApplicantPatch(profile, request.applyPatch)
+
+        return InternalModerationActionResultResponse(affectedUserId = userId)
+    }
+
+    @Transactional
+    fun rejectApplicantProfile(
+        userId: Long,
+        request: InternalModerationRejectRequest,
+    ): InternalModerationActionResultResponse {
+        applicantProfileDao.findById(userId).orElseThrow {
+            notFoundApplicantProfile(userId)
+        }
+
+        return InternalModerationActionResultResponse(affectedUserId = userId)
+    }
+
+    @Transactional
+    fun requestChangesApplicantProfile(
+        userId: Long,
+        request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        applicantProfileDao.findById(userId).orElseThrow {
+            notFoundApplicantProfile(userId)
+        }
+
+        return InternalModerationActionResultResponse(affectedUserId = userId)
+    }
 
     @Transactional
     fun approveEmployerProfile(
@@ -50,6 +96,18 @@ class InternalProfileModerationService(
     fun rejectEmployerProfile(
         userId: Long,
         request: InternalModerationRejectRequest,
+    ): InternalModerationActionResultResponse {
+        employerProfileDao.findById(userId).orElseThrow {
+            notFoundEmployerProfile(userId)
+        }
+
+        return InternalModerationActionResultResponse(affectedUserId = userId)
+    }
+
+    @Transactional
+    fun requestChangesEmployerProfile(
+        userId: Long,
+        request: InternalModerationRequestChangesRequest,
     ): InternalModerationActionResultResponse {
         employerProfileDao.findById(userId).orElseThrow {
             notFoundEmployerProfile(userId)
@@ -99,6 +157,67 @@ class InternalProfileModerationService(
         }
 
         return InternalModerationActionResultResponse(affectedUserId = verification.employerUserId)
+    }
+
+    @Transactional
+    fun requestChangesEmployerVerification(
+        verificationId: Long,
+        request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        val verification = employerVerificationDao.findById(verificationId).orElseThrow {
+            notFoundEmployerVerification(verificationId)
+        }
+
+        return InternalModerationActionResultResponse(affectedUserId = verification.employerUserId)
+    }
+
+    private fun applyApplicantPatch(
+        profile: ApplicantProfileDto,
+        patch: JsonNode,
+    ) {
+        if (!patch.isObject) return
+
+        textField(patch, "firstName") { profile.firstName = it }
+        textField(patch, "lastName") { profile.lastName = it }
+        textField(patch, "middleName") { profile.middleName = it }
+        textField(patch, "universityName") { profile.universityName = it }
+        textField(patch, "facultyName") { profile.facultyName = it }
+        textField(patch, "studyProgram") { profile.studyProgram = it }
+        textField(patch, "about") { profile.about = it }
+        textField(patch, "resumeText") { profile.resumeText = it }
+
+        shortField(patch, "course") { profile.course = it }
+        shortField(patch, "graduationYear") { profile.graduationYear = it }
+
+        booleanField(patch, "openToWork") { profile.openToWork = it }
+        booleanField(patch, "openToEvents") { profile.openToEvents = it }
+
+        if (patch.has("portfolioLinks")) {
+            profile.portfolioLinks = profileLinks(patch.get("portfolioLinks"))
+        }
+
+        if (patch.has("contactLinks")) {
+            profile.contactLinks = contactMethods(patch.get("contactLinks"))
+        }
+
+        enumField<ProfileVisibility>(patch, "profileVisibility") { profile.profileVisibility = it }
+        enumField<ResumeVisibility>(patch, "resumeVisibility") { profile.resumeVisibility = it }
+        enumField<ApplicationsVisibility>(patch, "applicationsVisibility") { profile.applicationsVisibility = it }
+        enumField<ContactsVisibility>(patch, "contactsVisibility") { profile.contactsVisibility = it }
+
+        if (patch.has("cityId")) {
+            profile.city = patch.get("cityId")
+                .takeUnless { it.isNull }
+                ?.longValue()
+                ?.let { cityId ->
+                    cityDao.findById(cityId).orElseThrow {
+                        ProfileNotFoundException(
+                            message = "Город с идентификатором $cityId не найден",
+                            code = "city_not_found",
+                        )
+                    }
+                }
+        }
     }
 
     private fun applyEmployerPatch(
@@ -199,6 +318,15 @@ class InternalProfileModerationService(
                 ?.intValue()
                 ?.toShort(),
         )
+    }
+
+    private fun booleanField(
+        patch: JsonNode,
+        fieldName: String,
+        setter: (Boolean) -> Unit,
+    ) {
+        if (!patch.hasNonNull(fieldName)) return
+        setter(patch.get(fieldName).booleanValue())
     }
 
     private inline fun <reified E : Enum<E>> enumField(
@@ -348,6 +476,13 @@ class InternalProfileModerationService(
         } catch (_: IllegalArgumentException) {
             ContactType.OTHER
         }
+    }
+
+    private fun notFoundApplicantProfile(userId: Long): ProfileNotFoundException {
+        return ProfileNotFoundException(
+            message = "Профиль соискателя с идентификатором пользователя $userId не найден",
+            code = "applicant_profile_not_found",
+        )
     }
 
     private fun notFoundEmployerProfile(userId: Long): ProfileNotFoundException {

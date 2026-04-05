@@ -25,6 +25,7 @@ import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskReque
 import ru.itplanet.trampline.moderation.model.request.CreateManualModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.GetModerationTasksRequest
 import ru.itplanet.trampline.moderation.model.request.RejectModerationTaskRequest
+import ru.itplanet.trampline.moderation.model.request.RequestChangesModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.response.ModerationDashboardResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationEntityHistoryItemResponse
 import ru.itplanet.trampline.moderation.model.response.ModerationTaskDetailResponse
@@ -118,6 +119,16 @@ class ModerationController(
         @Valid @RequestBody request: RejectModerationTaskRequest,
     ): ModerationTaskDetailResponse {
         moderationCommandService.reject(taskId, currentUser, request)
+        return moderationQueryService.getTask(taskId, currentUser)
+    }
+
+    @PostMapping("/tasks/{taskId}/request-changes")
+    fun requestChangesTask(
+        @PathVariable @Positive(message = "Идентификатор задачи модерации должен быть положительным") taskId: Long,
+        @CurrentUser currentUser: AuthenticatedUser,
+        @Valid @RequestBody request: RequestChangesModerationTaskRequest,
+    ): ModerationTaskDetailResponse {
+        moderationCommandService.requestChanges(taskId, currentUser, request)
         return moderationQueryService.getTask(taskId, currentUser)
     }
 

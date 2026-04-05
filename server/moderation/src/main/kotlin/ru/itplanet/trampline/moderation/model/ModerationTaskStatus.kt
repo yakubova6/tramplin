@@ -5,5 +5,6 @@ enum class ModerationTaskStatus {
     IN_PROGRESS,
     APPROVED,
     REJECTED,
+    NEEDS_REVISION,
     CANCELLED
 }
