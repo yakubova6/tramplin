@@ -111,129 +111,208 @@
 
 ### Авторизация и регистрация
 
+<div align="center">
   <img src="https://i.postimg.cc/8CHgqmsv/auth.png" alt="Страница авторизации" width="500"/>
+</div>
+<div align="center">
   <img src="https://i.postimg.cc/Z5tBw416/reg2.png" alt="Страница регистрации соискателя" width="500" />
+</div>
+<div align="center">
   <img src="https://i.postimg.cc/63ynDzz7/reg1.png" alt="Страница регистрации работодателя" width="500" />
+</div>
 
 ### Восстановление пароля
 
+<div align="center">
   <img src="https://i.imgur.com/p98e8pX.png" alt="Форма восстановления пароля" width="700" />
+</div>
+<div align="center">
   <img src="https://i.imgur.com/PcdeNox.png" alt="Форма восстановления пароля" width="700" />
+</div>
+<div align="center">
   <img src="https://i.imgur.com/WuSInpv.png" alt="Форма восстановления пароля" width="700" />
+</div>
 
 ### 2FA аутентификация
 
-<div style="display: flex; gap: 10px; justify-content: flex-start;  margin-bottom: 20px;">
+<div align="center">
   <img src="https://i.imgur.com/4LThdvp.png" alt="2FA аутентификация" width="700" />
+</div>
+<div align="center">
   <img src="https://i.imgur.com/lwwiJuP.png" alt="2FA аутентификация" width="700" />
 </div>
-
-<div style="display: flex; gap: 10px; justify-content: flex-start;">
+<div align="center">
   <img src="https://i.imgur.com/AToAQtu.png" alt="2FA аутентификация" width="700" />
+</div>
+<div align="center">
   <img src="https://i.imgur.com/ghT9Z2j.png" alt="2FA аутентификация" width="700" />
 </div>
 
 ### Основная страница с фильтрацией
 
-<img src="https://i.imgur.com/eZta0yZ.png" alt="Основная страница" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/eZta0yZ.png" alt="Основная страница" width="800" />
+</div>
 
 #### Отображение на карте
-<img src="https://i.imgur.com/Vy1qg1l.png" alt="Отображение на карте" width="800" />
+
+<div align="center">
+  <img src="https://i.imgur.com/Vy1qg1l.png" alt="Отображение на карте" width="800" />
+</div>
 
 #### Отображение списком
-<img src="https://i.imgur.com/T8y63Fn.png" alt="Отображение списком" width="800" />
+
+<div align="center">
+  <img src="https://i.imgur.com/T8y63Fn.png" alt="Отображение списком" width="800" />
+</div>
 
 ### Детальная страница вакансии
 
-<img src="https://i.imgur.com/JiwSUUU.png" alt="Детальная страница вакансии" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/JiwSUUU.png" alt="Детальная страница вакансии" width="800" />
+</div>
 
 ### Профиль соискателя
 
-<img src="https://i.imgur.com/nwwuhLD.png" alt="Cтраница профиля соискателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/nwwuhLD.png" alt="Cтраница профиля соискателя" width="800" />
+</div>
 
 ### Редактирование профиля соискателя
 
-<img src="https://i.imgur.com/UjH1L8s.png" alt="Редактирование профиля соискателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/UjH1L8s.png" alt="Редактирование профиля соискателя" width="800" />
+</div>
 
 ### Отклики соискателя
 
-<img src="https://i.imgur.com/zTpBqJv.png" alt="Список откликов соискателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/zTpBqJv.png" alt="Список откликов соискателя" width="800" />
+</div>
 
 ### Избранное соискателя
 
-<img src="https://i.imgur.com/TQj1ucQ.png" alt="Список избранных вакансий" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/TQj1ucQ.png" alt="Список избранных вакансий" width="800" />
+</div>
 
 ### Контакты соискателя
 
-<img src="https://i.imgur.com/n37NbFW.png" alt="Контакты" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/n37NbFW.png" alt="Контакты" width="800" />
+</div>
 
 ### Взаимодействие пользователей
 
-  #### Профиль другого соискателя
+#### Профиль другого соискателя
+
+<div align="center">
   <img src="https://i.imgur.com/QedRUgF.png" alt="Профиль другого соискателя" width="800" />
+</div>
 
-  #### Добавление другого соискателя в контакты
+#### Добавление другого соискателя в контакты
+
+<div align="center">
   <img src="https://i.imgur.com/4kaydas.png" alt="Добавление другого соискателя в контакты" width="800" />
+</div>
 
-  #### Страница рекомендаций
+#### Страница рекомендаций
+
+<div align="center">
   <img src="https://i.imgur.com/ZOs6cvo.png" alt="Страница рекомендаций" width="800" />
-  
-  #### Создание новой рекомендации
+</div>
+
+#### Создание новой рекомендации
+
+<div align="center">
   <img src="https://i.imgur.com/Dje9sHK.png" alt="Создание новой рекомендации" width="400" />
+</div>
 
 ### Профиль работодателя - Управление компанией
 
-<img src="https://i.imgur.com/pZQMOlz.png" alt="Панель управления компанией" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/pZQMOlz.png" alt="Панель управления компанией" width="800" />
+</div>
 
 ### Редактирование профиля работодателя
 
-<img src="https://i.imgur.com/Spjb55Z.png" alt="Редактирование профиля работодателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/Spjb55Z.png" alt="Редактирование профиля работодателя" width="800" />
+</div>
 
 ### Верификация компании
 
-  #### Этап 1 - Заполнение обязательных и доп. полей
-  <img src="https://i.imgur.com/mjYPmTe.png" alt="Процесс верификации компании" width="700" />
-  <img src="https://i.imgur.com/UAfAQMv.png" alt="Процесс верификации компании" width="700" />
+#### Этап 1 - Заполнение обязательных и доп. полей
 
-  #### Этап 2 - Отправка заявки на верификацию по 1/3 возможных вариантов (Почта/ИНН/Проф.ссылки)
+<div align="center">
+  <img src="https://i.imgur.com/mjYPmTe.png" alt="Процесс верификации компании" width="700" />
+</div>
+<div align="center">
+  <img src="https://i.imgur.com/UAfAQMv.png" alt="Процесс верификации компании" width="700" />
+</div>
+
+#### Этап 2 - Отправка заявки на верификацию по 1/3 возможных вариантов (Почта/ИНН/Проф.ссылки)
+
+<div align="center">
   <img src="https://i.imgur.com/JXcjHZW.png" alt="Процесс верификации компании" width="700" />
+</div>
 
 ### Панель создания вакансии
 
-<img src="https://i.imgur.com/6pOQI54.png" alt="Панель создания вакансии" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/6pOQI54.png" alt="Панель создания вакансии" width="800" />
+</div>
 
 ### Вакансии работодателя
 
-<img src="https://i.imgur.com/b7ms76M.png" alt="Список вакансий работодателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/b7ms76M.png" alt="Список вакансий работодателя" width="800" />
+</div>
 
 ### Отклики работодателя
 
-<img src="https://i.imgur.com/ga7Ycwv.png" alt="Список откликов работодателя" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/ga7Ycwv.png" alt="Список откликов работодателя" width="800" />
+</div>
 
 ### Панель модерации (Администратор)
 
-<img src="https://i.imgur.com/it1fPk5.png" alt="Панель модерации со списком задач" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/it1fPk5.png" alt="Панель модерации со списком задач" width="800" />
+</div>
 
 ### Детальная информация задачи
 
-<img src="https://i.imgur.com/Wba0jY5.png" alt="Детальная информация задачи" width="700" />
-<img src="https://i.imgur.com/ETMBXqm.png" alt="Детальная информация задачи" width="700" />
+<div align="center">
+  <img src="https://i.imgur.com/Wba0jY5.png" alt="Детальная информация задачи" width="700" />
+</div>
+<div align="center">
+  <img src="https://i.imgur.com/ETMBXqm.png" alt="Детальная информация задачи" width="700" />
+</div>
 
 ### Редактор задачи
 
-<img src="https://i.imgur.com/b5Xci8s.png" alt="Редактор задачи" width="700" />
+<div align="center">
+  <img src="https://i.imgur.com/b5Xci8s.png" alt="Редактор задачи" width="700" />
+</div>
 
 ### Одобрение задачи
 
-<img src="https://i.imgur.com/TmhZ9DL.png" alt="Одобрение задачи" width="700" />
+<div align="center">
+  <img src="https://i.imgur.com/TmhZ9DL.png" alt="Одобрение задачи" width="700" />
+</div>
 
 ### История всех действий по задачам
 
-<img src="https://i.imgur.com/1ESYnx3.png" alt="История всех действий по задачам" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/1ESYnx3.png" alt="История всех действий по задачам" width="800" />
+</div>
 
 ### Создание куратора
 
-<img src="https://i.imgur.com/jGsZWHz.png" alt="Форма создания куратора" width="800" />
+<div align="center">
+  <img src="https://i.imgur.com/jGsZWHz.png" alt="Форма создания куратора" width="800" />
+</div>
 
 ---
 
