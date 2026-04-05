@@ -431,6 +431,7 @@ class ModerationQueryServiceImpl(
             ModerationTaskStatus.OPEN -> listOf(
                 "ASSIGN",
                 "APPROVE",
+                "REQUEST_CHANGES",
                 "REJECT",
                 "COMMENT",
                 "CANCEL",
@@ -442,7 +443,7 @@ class ModerationQueryServiceImpl(
                     assigneeId == currentUser.userId ||
                     currentUser.role.name == "ADMIN"
                 ) {
-                    listOf("APPROVE", "REJECT", "COMMENT", "CANCEL")
+                    listOf("APPROVE", "REQUEST_CHANGES", "REJECT", "COMMENT", "CANCEL")
                 } else {
                     listOf("COMMENT")
                 }
@@ -450,6 +451,7 @@ class ModerationQueryServiceImpl(
 
             ModerationTaskStatus.APPROVED,
             ModerationTaskStatus.REJECTED,
+            ModerationTaskStatus.NEEDS_REVISION,
             ModerationTaskStatus.CANCELLED -> emptyList()
         }
     }
@@ -466,6 +468,23 @@ class ModerationQueryServiceImpl(
         textValue(payload, "summary")?.let { return it }
 
         val summary = when (entityType) {
+            ModerationEntityType.APPLICANT_PROFILE -> {
+                val fullName = listOfNotNull(
+                    textValue(payload, "lastName"),
+                    textValue(payload, "firstName"),
+                    textValue(payload, "middleName"),
+                ).joinToString(" ").trim()
+
+                val universityName = textValue(payload, "universityName")
+                val studyProgram = textValue(payload, "studyProgram")
+
+                listOfNotNull(
+                    fullName.takeIf { it.isNotBlank() },
+                    universityName,
+                    studyProgram,
+                ).joinToString(" • ")
+            }
+
             ModerationEntityType.EMPLOYER_PROFILE -> {
                 val companyName = textValue(payload, "companyName")
                 val inn = textValue(payload, "inn")

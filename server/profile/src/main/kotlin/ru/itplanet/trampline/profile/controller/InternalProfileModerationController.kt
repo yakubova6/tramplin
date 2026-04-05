@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
 import ru.itplanet.trampline.profile.service.InternalProfileModerationService
 
 @Validated
@@ -19,6 +20,30 @@ import ru.itplanet.trampline.profile.service.InternalProfileModerationService
 class InternalProfileModerationController(
     private val internalProfileModerationService: InternalProfileModerationService,
 ) {
+
+    @PostMapping("/applicant-profiles/{userId}/approve")
+    fun approveApplicantProfile(
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+        @Valid @RequestBody request: InternalModerationApproveRequest,
+    ): InternalModerationActionResultResponse {
+        return internalProfileModerationService.approveApplicantProfile(userId, request)
+    }
+
+    @PostMapping("/applicant-profiles/{userId}/reject")
+    fun rejectApplicantProfile(
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+        @Valid @RequestBody request: InternalModerationRejectRequest,
+    ): InternalModerationActionResultResponse {
+        return internalProfileModerationService.rejectApplicantProfile(userId, request)
+    }
+
+    @PostMapping("/applicant-profiles/{userId}/request-changes")
+    fun requestChangesApplicantProfile(
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+        @Valid @RequestBody request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        return internalProfileModerationService.requestChangesApplicantProfile(userId, request)
+    }
 
     @PostMapping("/employer-profiles/{userId}/approve")
     fun approveEmployerProfile(
@@ -36,6 +61,14 @@ class InternalProfileModerationController(
         return internalProfileModerationService.rejectEmployerProfile(userId, request)
     }
 
+    @PostMapping("/employer-profiles/{userId}/request-changes")
+    fun requestChangesEmployerProfile(
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+        @Valid @RequestBody request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        return internalProfileModerationService.requestChangesEmployerProfile(userId, request)
+    }
+
     @PostMapping("/employer-verifications/{verificationId}/approve")
     fun approveEmployerVerification(
         @PathVariable @Positive(message = "Идентификатор запроса на верификацию должен быть положительным") verificationId: Long,
@@ -50,5 +83,13 @@ class InternalProfileModerationController(
         @Valid @RequestBody request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
         return internalProfileModerationService.rejectEmployerVerification(verificationId, request)
+    }
+
+    @PostMapping("/employer-verifications/{verificationId}/request-changes")
+    fun requestChangesEmployerVerification(
+        @PathVariable @Positive(message = "Идентификатор запроса на верификацию должен быть положительным") verificationId: Long,
+        @Valid @RequestBody request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        return internalProfileModerationService.requestChangesEmployerVerification(verificationId, request)
     }
 }

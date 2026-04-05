@@ -22,8 +22,10 @@ import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTa
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationTaskResponse
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationFieldIssue
 import ru.itplanet.trampline.moderation.client.MediaServiceClient
 import ru.itplanet.trampline.moderation.client.OpportunityModerationOwnerClient
 import ru.itplanet.trampline.moderation.client.ProfileModerationOwnerClient
@@ -46,6 +48,7 @@ import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskReques
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CreateManualModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.RejectModerationTaskRequest
+import ru.itplanet.trampline.moderation.model.request.RequestChangesModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.response.ModerationTaskAttachmentResponse
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 import java.time.OffsetDateTime
@@ -239,6 +242,57 @@ class ModerationCommandServiceImpl(
                 put("statusFrom", previousStatus.name)
                 put("statusTo", task.status.name)
                 set<JsonNode>("applyPatch", request.applyPatch.deepCopy())
+            },
+            createdAt = now,
+        )
+    }
+
+    @Transactional
+    override fun requestChanges(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        request: RequestChangesModerationTaskRequest,
+    ) {
+        val task = getTaskForUpdate(taskId)
+        ensureCurrentUserCanModerateTask(task, currentUser)
+        ensureTaskCanBeResolved(task, currentUser)
+
+        dispatchRequestChanges(
+            task = task,
+            request = InternalModerationRequestChangesRequest(
+                taskId = taskId,
+                moderatorUserId = currentUser.userId,
+                comment = request.comment.trim(),
+                reasonCode = request.reasonCode.trim(),
+                fieldIssues = request.fieldIssues,
+                notifyUser = request.notifyUser,
+            ),
+        )
+
+        val now = OffsetDateTime.now()
+        val previousStatus = task.status
+
+        if (task.assigneeUser == null) {
+            task.assigneeUser = userReference(currentUser.userId)
+        }
+        task.status = ModerationTaskStatus.NEEDS_REVISION
+        task.resolutionComment = request.comment.trim()
+        task.resolvedAt = now
+        task.updatedAt = now
+
+        moderationTaskDao.save(task)
+
+        saveLog(
+            task = task,
+            action = ModerationLogAction.REQUESTED_CHANGES,
+            actorUserId = currentUser.userId,
+            payload = JsonNodeFactory.instance.objectNode().apply {
+                put("comment", request.comment.trim())
+                put("reasonCode", request.reasonCode.trim())
+                put("notifyUser", request.notifyUser)
+                put("statusFrom", previousStatus.name)
+                put("statusTo", task.status.name)
+                set<JsonNode>("fieldIssues", buildFieldIssuesNode(request.fieldIssues))
             },
             createdAt = now,
         )
@@ -440,7 +494,11 @@ class ModerationCommandServiceImpl(
             return
         }
 
-        if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
+        if (
+            task.status == ModerationTaskStatus.APPROVED ||
+            task.status == ModerationTaskStatus.REJECTED ||
+            task.status == ModerationTaskStatus.NEEDS_REVISION
+        ) {
             throw conflict(
                 message = "Решённую задачу модерации нельзя отменить",
                 code = "resolved_task_cancel_not_allowed",
@@ -588,6 +646,9 @@ class ModerationCommandServiceImpl(
     ): InternalModerationActionResultResponse {
         return try {
             when (task.entityType) {
+                ModerationEntityType.APPLICANT_PROFILE ->
+                    profileModerationOwnerClient.approveApplicantProfile(task.entityId, request)
+
                 ModerationEntityType.EMPLOYER_PROFILE ->
                     profileModerationOwnerClient.approveEmployerProfile(task.entityId, request)
 
@@ -605,12 +666,41 @@ class ModerationCommandServiceImpl(
         }
     }
 
+    private fun dispatchRequestChanges(
+        task: ModerationTaskDto,
+        request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        return try {
+            when (task.entityType) {
+                ModerationEntityType.APPLICANT_PROFILE ->
+                    profileModerationOwnerClient.requestChangesApplicantProfile(task.entityId, request)
+
+                ModerationEntityType.EMPLOYER_PROFILE ->
+                    profileModerationOwnerClient.requestChangesEmployerProfile(task.entityId, request)
+
+                ModerationEntityType.EMPLOYER_VERIFICATION ->
+                    profileModerationOwnerClient.requestChangesEmployerVerification(task.entityId, request)
+
+                ModerationEntityType.OPPORTUNITY ->
+                    opportunityModerationOwnerClient.requestChangesOpportunity(task.entityId, request)
+
+                ModerationEntityType.TAG ->
+                    opportunityModerationOwnerClient.requestChangesTag(task.entityId, request)
+            }
+        } catch (ex: FeignException) {
+            throw translateOwnerServiceException(ex)
+        }
+    }
+
     private fun dispatchReject(
         task: ModerationTaskDto,
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
         return try {
             when (task.entityType) {
+                ModerationEntityType.APPLICANT_PROFILE ->
+                    profileModerationOwnerClient.rejectApplicantProfile(task.entityId, request)
+
                 ModerationEntityType.EMPLOYER_PROFILE ->
                     profileModerationOwnerClient.rejectEmployerProfile(task.entityId, request)
 
@@ -626,6 +716,24 @@ class ModerationCommandServiceImpl(
         } catch (ex: FeignException) {
             throw translateOwnerServiceException(ex)
         }
+    }
+
+    private fun buildFieldIssuesNode(
+        fieldIssues: List<ModerationFieldIssue>,
+    ): JsonNode {
+        val arrayNode = JsonNodeFactory.instance.arrayNode()
+
+        fieldIssues.forEach { issue ->
+            arrayNode.add(
+                JsonNodeFactory.instance.objectNode().apply {
+                    put("field", issue.field)
+                    put("message", issue.message)
+                    issue.code?.let { put("code", it) }
+                },
+            )
+        }
+
+        return arrayNode
     }
 
     private fun ensureTaskCanBeResolved(
@@ -657,7 +765,11 @@ class ModerationCommandServiceImpl(
         task: ModerationTaskDto,
         currentUser: AuthenticatedUser,
     ) {
-        if (task.status == ModerationTaskStatus.APPROVED || task.status == ModerationTaskStatus.REJECTED) {
+        if (
+            task.status == ModerationTaskStatus.APPROVED ||
+            task.status == ModerationTaskStatus.REJECTED ||
+            task.status == ModerationTaskStatus.NEEDS_REVISION
+        ) {
             throw conflict(
                 message = "Решённую задачу модерации нельзя отменить",
                 code = "resolved_task_cancel_not_allowed",

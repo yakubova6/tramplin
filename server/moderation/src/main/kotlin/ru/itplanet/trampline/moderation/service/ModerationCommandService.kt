@@ -8,6 +8,7 @@ import ru.itplanet.trampline.moderation.model.request.AssignModerationTaskReques
 import ru.itplanet.trampline.moderation.model.request.CommentModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.CreateManualModerationTaskRequest
 import ru.itplanet.trampline.moderation.model.request.RejectModerationTaskRequest
+import ru.itplanet.trampline.moderation.model.request.RequestChangesModerationTaskRequest
 import ru.itplanet.trampline.moderation.security.AuthenticatedUser
 
 interface ModerationCommandService {
@@ -37,6 +38,12 @@ interface ModerationCommandService {
         taskId: Long,
         currentUser: AuthenticatedUser,
         request: RejectModerationTaskRequest,
+    )
+
+    fun requestChanges(
+        taskId: Long,
+        currentUser: AuthenticatedUser,
+        request: RequestChangesModerationTaskRequest,
     )
 
     fun comment(

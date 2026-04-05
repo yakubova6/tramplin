@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
 
 @FeignClient(
     name = "moderation-opportunity-owner-client",
@@ -27,6 +28,12 @@ interface OpportunityModerationOwnerClient {
         @RequestBody request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse
 
+    @PostMapping("/internal/moderation/opportunities/{opportunityId}/request-changes")
+    fun requestChangesOpportunity(
+        @PathVariable opportunityId: Long,
+        @RequestBody request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse
+
     @PostMapping("/internal/moderation/tags/{tagId}/approve")
     fun approveTag(
         @PathVariable tagId: Long,
@@ -37,5 +44,11 @@ interface OpportunityModerationOwnerClient {
     fun rejectTag(
         @PathVariable tagId: Long,
         @RequestBody request: InternalModerationRejectRequest,
+    ): InternalModerationActionResultResponse
+
+    @PostMapping("/internal/moderation/tags/{tagId}/request-changes")
+    fun requestChangesTag(
+        @PathVariable tagId: Long,
+        @RequestBody request: InternalModerationRequestChangesRequest,
     ): InternalModerationActionResultResponse
 }

@@ -18,6 +18,7 @@ import ru.itplanet.trampline.commons.model.enums.WorkFormat
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
+import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
 import ru.itplanet.trampline.opportunity.dao.TagDao
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
@@ -66,6 +67,23 @@ class InternalOpportunityModerationService(
     }
 
     @Transactional
+    fun requestChangesOpportunity(
+        opportunityId: Long,
+        request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        val opportunity = opportunityDao.findById(opportunityId).orElseThrow {
+            opportunityNotFound(opportunityId)
+        }
+
+        opportunity.status = OpportunityStatus.DRAFT
+        opportunity.moderationComment = request.comment
+
+        return InternalModerationActionResultResponse(
+            affectedUserId = opportunity.employerUserId,
+        )
+    }
+
+    @Transactional
     fun rejectOpportunity(
         opportunityId: Long,
         request: InternalModerationRejectRequest,
@@ -103,6 +121,20 @@ class InternalOpportunityModerationService(
         tag.name = normalizedName
         tag.moderationStatus = TagModerationStatus.APPROVED
         tag.isActive = true
+
+        return InternalModerationActionResultResponse(
+            affectedUserId = tag.createdByUserId,
+        )
+    }
+
+    @Transactional
+    fun requestChangesTag(
+        tagId: Long,
+        request: InternalModerationRequestChangesRequest,
+    ): InternalModerationActionResultResponse {
+        val tag = tagDao.findById(tagId).orElseThrow {
+            tagNotFound(tagId)
+        }
 
         return InternalModerationActionResultResponse(
             affectedUserId = tag.createdByUserId,
