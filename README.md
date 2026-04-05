@@ -124,7 +124,7 @@
 ### 2FA аутентификация
 
 <div style="display: flex; gap: 10px; justify-content: flex-start;  margin-bottom: 20px;">
-  <img src="https://i.imgur.com/4LThdvp.png" alt="2FA аутентификация" width=700" />
+  <img src="https://i.imgur.com/4LThdvp.png" alt="2FA аутентификация" width="700" />
   <img src="https://i.imgur.com/lwwiJuP.png" alt="2FA аутентификация" width="700" />
 </div>
 
