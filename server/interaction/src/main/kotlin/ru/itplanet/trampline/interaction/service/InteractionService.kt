@@ -45,6 +45,11 @@ interface InteractionService {
         secondUserId: Long,
     ): Boolean
 
+    fun hasEmployerAccessToApplicantProfile(
+        employerUserId: Long,
+        applicantUserId: Long,
+    ): Boolean
+
     fun addOpportunityToFavorites(
         userId: Long,
         opportunityId: Long,

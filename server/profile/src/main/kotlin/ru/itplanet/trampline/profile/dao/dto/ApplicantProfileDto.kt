@@ -12,6 +12,7 @@ import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.type.SqlTypes
 import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.profile.model.ContactMethod
 import ru.itplanet.trampline.profile.model.ProfileLink
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
@@ -92,6 +93,10 @@ open class ApplicantProfileDto {
     @Column(name = "open_to_events")
     open var openToEvents: Boolean = true
 
+    @Column(name = "moderation_status", nullable = false, length = 32)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    open var moderationStatus: ApplicantProfileModerationStatus = ApplicantProfileModerationStatus.DRAFT
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     open var createdAt: OffsetDateTime? = null
@@ -127,6 +132,7 @@ open class ApplicantProfileDto {
         contactsVisibility: ContactsVisibility = ContactsVisibility.AUTHENTICATED,
         openToWork: Boolean = true,
         openToEvents: Boolean = true,
+        moderationStatus: ApplicantProfileModerationStatus = ApplicantProfileModerationStatus.DRAFT,
         createdAt: OffsetDateTime? = null,
         updatedAt: OffsetDateTime? = null,
     ) {
@@ -150,6 +156,7 @@ open class ApplicantProfileDto {
         this.contactsVisibility = contactsVisibility
         this.openToWork = openToWork
         this.openToEvents = openToEvents
+        this.moderationStatus = moderationStatus
         this.createdAt = createdAt
         this.updatedAt = updatedAt
     }

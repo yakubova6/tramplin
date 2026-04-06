@@ -32,6 +32,7 @@ class ApplicantProfileConverter(
             contactsVisibility = source.contactsVisibility,
             openToWork = source.openToWork,
             openToEvents = source.openToEvents,
+            moderationStatus = source.moderationStatus,
         )
     }
 
@@ -57,6 +58,7 @@ class ApplicantProfileConverter(
             contactsVisibility = source.contactsVisibility,
             openToWork = source.openToWork,
             openToEvents = source.openToEvents,
+            moderationStatus = source.moderationStatus,
         )
     }
 }

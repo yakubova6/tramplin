@@ -18,12 +18,14 @@ import ru.itplanet.trampline.opportunity.model.EmployerTagResponse
 import ru.itplanet.trampline.opportunity.model.enums.CreatedByType
 import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 import ru.itplanet.trampline.opportunity.model.request.CreateEmployerTagRequest
+import ru.itplanet.trampline.opportunity.service.policy.EmployerOpportunityCreatePolicy
 
 @Service
 class EmployerAndCuratorAndCuratorTagServiceImpl(
     private val tagDao: TagDao,
     private val moderationServiceClient: ModerationServiceClient,
     private val objectMapper: ObjectMapper,
+    private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
 ) : EmployerAndCuratorTagService {
 
     @Transactional
@@ -33,6 +35,10 @@ class EmployerAndCuratorAndCuratorTagServiceImpl(
         request: CreateEmployerTagRequest,
     ): EmployerTagResponse {
         ensureSupportedCreatedByType(createdByType)
+
+        if (createdByType == CreatedByType.EMPLOYER) {
+            employerOpportunityCreatePolicy.checkCreateAllowed(currentUserId)
+        }
 
         val normalizedName = normalizeName(request.name)
 

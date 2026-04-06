@@ -11,6 +11,7 @@ import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionRe
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
+import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerVerificationDao
@@ -50,6 +51,7 @@ class InternalProfileModerationService(
         }
 
         applyApplicantPatch(profile, request.applyPatch)
+        profile.moderationStatus = ApplicantProfileModerationStatus.APPROVED
 
         return InternalModerationActionResultResponse(affectedUserId = userId)
     }
@@ -59,9 +61,11 @@ class InternalProfileModerationService(
         userId: Long,
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
-        applicantProfileDao.findById(userId).orElseThrow {
+        val profile = applicantProfileDao.findById(userId).orElseThrow {
             notFoundApplicantProfile(userId)
         }
+
+        profile.moderationStatus = ApplicantProfileModerationStatus.NEEDS_REVISION
 
         return InternalModerationActionResultResponse(affectedUserId = userId)
     }
@@ -71,9 +75,11 @@ class InternalProfileModerationService(
         userId: Long,
         request: InternalModerationRequestChangesRequest,
     ): InternalModerationActionResultResponse {
-        applicantProfileDao.findById(userId).orElseThrow {
+        val profile = applicantProfileDao.findById(userId).orElseThrow {
             notFoundApplicantProfile(userId)
         }
+
+        profile.moderationStatus = ApplicantProfileModerationStatus.NEEDS_REVISION
 
         return InternalModerationActionResultResponse(affectedUserId = userId)
     }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController
 import ru.itplanet.trampline.interaction.model.response.InternalApplicantApplicationResponse
 import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactRelationResponse
 import ru.itplanet.trampline.interaction.model.response.InternalApplicantContactResponse
+import ru.itplanet.trampline.interaction.model.response.InternalEmployerApplicantProfileAccessResponse
 import ru.itplanet.trampline.interaction.service.InteractionService
 
 @Validated
@@ -40,6 +41,19 @@ class InternalApplicantPrivacyController(
     ): InternalApplicantContactRelationResponse {
         return InternalApplicantContactRelationResponse(
             accepted = interactionService.isAcceptedContact(firstUserId, secondUserId),
+        )
+    }
+
+    @GetMapping("/employer-access")
+    fun hasEmployerAccessToApplicantProfile(
+        @RequestParam @Positive(message = "Идентификатор работодателя должен быть положительным") employerUserId: Long,
+        @RequestParam @Positive(message = "Идентификатор соискателя должен быть положительным") applicantUserId: Long,
+    ): InternalEmployerApplicantProfileAccessResponse {
+        return InternalEmployerApplicantProfileAccessResponse(
+            canViewProfile = interactionService.hasEmployerAccessToApplicantProfile(
+                employerUserId = employerUserId,
+                applicantUserId = applicantUserId,
+            ),
         )
     }
 }

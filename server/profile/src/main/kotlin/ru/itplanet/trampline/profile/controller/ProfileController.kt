@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -44,6 +45,20 @@ class ProfileController(
         }
 
         return profileService.patchApplicantProfile(currentUser.userId, request)
+    }
+
+    @PostMapping("/applicant/moderation/submit")
+    fun submitApplicantProfileForModeration(
+        @CurrentUser currentUser: AuthenticatedUser,
+    ): ApplicantProfile {
+        if (currentUser.role != Role.APPLICANT) {
+            throw ProfileForbiddenException(
+                message = "Только соискатель может отправить профиль на модерацию",
+                code = "applicant_role_required",
+            )
+        }
+
+        return profileService.submitApplicantProfileForModeration(currentUser.userId)
     }
 
     @PatchMapping("/employer")
