@@ -12,6 +12,7 @@ import ru.itplanet.trampline.commons.model.enums.OpportunityStatus
 import ru.itplanet.trampline.commons.model.file.FileAssetKind
 import ru.itplanet.trampline.commons.model.file.FileAssetStatus
 import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
+import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.interaction.client.EmployerProfileSummary
 import ru.itplanet.trampline.interaction.client.MediaServiceClient
 import ru.itplanet.trampline.interaction.client.OpportunityServiceClient
@@ -233,6 +234,16 @@ class InteractionServiceImpl(
         )
     }
 
+    override fun hasEmployerAccessToApplicantProfile(
+        employerUserId: Long,
+        applicantUserId: Long,
+    ): Boolean {
+        return opportunityResponseDao.existsEmployerAccessToApplicantProfile(
+            employerUserId = employerUserId,
+            applicantUserId = applicantUserId,
+        )
+    }
+
     override fun addOpportunityToFavorites(
         userId: Long,
         opportunityId: Long,
@@ -319,12 +330,16 @@ class InteractionServiceImpl(
     }
 
     override fun addContact(userId: Long, request: ContactRequest): ContactResponse {
+        ensureApplicantApprovedForNetworking(userId)
+
         if (userId == request.contactUserId) {
             throw InteractionBadRequestException(
                 message = "Нельзя добавить самого себя в контакты",
                 code = "contact_self_add_forbidden",
             )
         }
+
+        ensureApplicantApprovedForNetworking(request.contactUserId)
 
         val (low, high) = orderedPair(userId, request.contactUserId)
 
@@ -347,6 +362,8 @@ class InteractionServiceImpl(
         contactUserId: Long,
         status: ContactStatus,
     ): ContactResponse {
+        ensureApplicantApprovedForNetworking(userId)
+
         val (low, high) = orderedPair(userId, contactUserId)
 
         val contact = contactRepository.findByIdUserLowIdAndIdUserHighId(low, high)
@@ -382,6 +399,8 @@ class InteractionServiceImpl(
     }
 
     override fun getUserContacts(userId: Long): List<ContactResponse> {
+        ensureApplicantApprovedForNetworking(userId)
+
         val acceptedContacts = getAcceptedContactDtos(userId)
         val incomingPendingContacts = getIncomingPendingContactDtos(userId)
 
@@ -404,6 +423,8 @@ class InteractionServiceImpl(
         val fromApplicant = loadApplicant(userId)
         val toApplicant = loadApplicant(request.toApplicantUserId)
 
+        ensureApplicantApprovedForNetworking(fromApplicant)
+        ensureApplicantApprovedForNetworking(toApplicant)
         ensureAcceptedContact(userId, request.toApplicantUserId)
 
         val opportunity = loadOpportunity(request.opportunityId)
@@ -454,14 +475,14 @@ class InteractionServiceImpl(
     }
 
     override fun getIncomingRecommendations(userId: Long): List<ContactRecommendationResponse> {
-        loadApplicant(userId)
+        ensureApplicantApprovedForNetworking(userId)
 
         val recommendations = contactRecommendationDao.findByToApplicantUserIdOrderByCreatedAtDescIdDesc(userId)
         return mapRecommendations(recommendations)
     }
 
     override fun getOutgoingRecommendations(userId: Long): List<ContactRecommendationResponse> {
-        loadApplicant(userId)
+        ensureApplicantApprovedForNetworking(userId)
 
         val recommendations = contactRecommendationDao.findByFromApplicantUserIdOrderByCreatedAtDescIdDesc(userId)
         return mapRecommendations(recommendations)
@@ -603,6 +624,25 @@ class InteractionServiceImpl(
                 code = "accepted_contact_required",
             )
         }
+    }
+
+    private fun ensureApplicantApprovedForNetworking(
+        userId: Long,
+    ) {
+        ensureApplicantApprovedForNetworking(loadApplicant(userId))
+    }
+
+    private fun ensureApplicantApprovedForNetworking(
+        applicant: ContactInfoApplicantProfileDto,
+    ) {
+        if (applicant.moderationStatus == ApplicantProfileModerationStatus.APPROVED) {
+            return
+        }
+
+        throw InteractionForbiddenException(
+            message = "Нетворкинг-функции доступны только после одобрения профиля соискателя куратором",
+            code = "applicant_networking_requires_approved_profile",
+        )
     }
 
     private fun loadApplicant(

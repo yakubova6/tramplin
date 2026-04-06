@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.profile.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
@@ -17,8 +18,14 @@ import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequ
 import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
 import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
+import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
+import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
+import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.profile.client.InteractionPrivacyClient
 import ru.itplanet.trampline.profile.client.MediaServiceClient
+import ru.itplanet.trampline.profile.client.ModerationServiceClient
 import ru.itplanet.trampline.profile.client.OpportunityTagClient
 import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
 import ru.itplanet.trampline.profile.converter.EmployerProfileConverter
@@ -29,6 +36,7 @@ import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.ApplicantTagDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.exception.ProfileBadRequestException
+import ru.itplanet.trampline.profile.exception.ProfileConflictException
 import ru.itplanet.trampline.profile.exception.ProfileForbiddenException
 import ru.itplanet.trampline.profile.exception.ProfileIntegrationException
 import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
@@ -57,8 +65,10 @@ class ProfileServiceImpl(
     private val locationDao: LocationDao,
     private val mediaServiceClient: MediaServiceClient,
     private val opportunityTagClient: OpportunityTagClient,
+    private val moderationServiceClient: ModerationServiceClient,
     private val interactionPrivacyClient: InteractionPrivacyClient,
     private val applicantProfileVisibilityService: ApplicantProfileVisibilityService,
+    private val objectMapper: ObjectMapper,
 ) : ProfileService {
 
     @Transactional
@@ -127,8 +137,66 @@ class ProfileServiceImpl(
             }
         }
 
+        handleApplicantProfileContentChanged(profile)
+
         val savedProfile = applicantProfileDao.save(profile)
         return buildApplicantProfile(savedProfile)
+    }
+
+    @Transactional
+    override fun submitApplicantProfileForModeration(
+        userId: Long,
+    ): ApplicantProfile {
+        val profile = loadApplicantProfileDto(userId)
+
+        when (profile.moderationStatus) {
+            ApplicantProfileModerationStatus.PENDING_MODERATION -> {
+                throw ProfileConflictException(
+                    message = "Профиль уже находится на модерации",
+                    code = "applicant_profile_already_on_moderation",
+                )
+            }
+
+            ApplicantProfileModerationStatus.APPROVED -> {
+                throw ProfileConflictException(
+                    message = "Профиль уже одобрен. После изменений он будет повторно отправлен на модерацию из статуса DRAFT",
+                    code = "applicant_profile_already_approved",
+                )
+            }
+
+            ApplicantProfileModerationStatus.DRAFT,
+            ApplicantProfileModerationStatus.NEEDS_REVISION -> Unit
+        }
+
+        val profileView = buildApplicantProfile(profile)
+        validateApplicantProfileCanBeSubmitted(profileView)
+
+        runModerationAction(
+            logMessage = "Не удалось создать задачу модерации профиля соискателя userId=$userId",
+            errorMessage = "Не удалось отправить профиль соискателя на модерацию",
+            code = "applicant_profile_task_create_failed",
+        ) {
+            moderationServiceClient.createTask(
+                CreateInternalModerationTaskRequest(
+                    entityType = ModerationEntityType.APPLICANT_PROFILE,
+                    entityId = userId,
+                    taskType = ModerationTaskType.PROFILE_REVIEW,
+                    priority = ModerationTaskPriority.MEDIUM,
+                    createdByUserId = userId,
+                    snapshot = objectMapper.valueToTree(
+                        profileView.copy(
+                            moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION,
+                        ),
+                    ),
+                    sourceService = "profile",
+                    sourceAction = "submitApplicantProfileForModeration",
+                ),
+            )
+        }
+
+        profile.moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION
+        val saved = applicantProfileDao.save(profile)
+        return buildApplicantProfile(saved)
     }
 
     override fun putApplicantAvatar(
@@ -148,8 +216,11 @@ class ProfileServiceImpl(
             logSubject = "аватар соискателя",
         )
 
+        handleApplicantProfileContentChanged(profile)
+        val savedProfile = applicantProfileDao.save(profile)
+
         return buildApplicantProfile(
-            profileDto = profile,
+            profileDto = savedProfile,
             avatar = avatar,
         )
     }
@@ -171,8 +242,11 @@ class ProfileServiceImpl(
             logSubject = "резюме соискателя",
         )
 
+        handleApplicantProfileContentChanged(profile)
+        val savedProfile = applicantProfileDao.save(profile)
+
         return buildApplicantProfile(
-            profileDto = profile,
+            profileDto = savedProfile,
             resumeFile = resumeFile,
         )
     }
@@ -212,6 +286,9 @@ class ProfileServiceImpl(
             )
         }
 
+        handleApplicantProfileContentChanged(profile)
+        applicantProfileDao.save(profile)
+
         return loadApplicantPortfolioAttachments(profile)
     }
 
@@ -247,7 +324,10 @@ class ProfileServiceImpl(
             mediaServiceClient.deleteAttachment(attachment.attachmentId)
         }
 
-        return buildApplicantProfile(profileDto = profile)
+        handleApplicantProfileContentChanged(profile)
+        val savedProfile = applicantProfileDao.save(profile)
+
+        return buildApplicantProfile(profileDto = savedProfile)
     }
 
     override fun patchEmployerProfile(
@@ -428,6 +508,24 @@ class ProfileServiceImpl(
         val profileDto = loadApplicantProfileDto(targetUserId)
         val fullProfile = buildApplicantProfile(profileDto)
 
+        val owner = currentUserId == targetUserId
+        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
+
+        if (
+            !owner &&
+            profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED &&
+            !employerAccess
+        ) {
+            throw ProfileForbiddenException(
+                message = "Профиль соискателя ещё не доступен другим пользователям",
+                code = "applicant_profile_not_moderated",
+            )
+        }
+
+        if (owner || employerAccess) {
+            return fullProfile
+        }
+
         return applicantProfileVisibilityService.sanitizeApplicantProfile(
             profile = fullProfile,
             currentUserId = currentUserId,
@@ -439,6 +537,13 @@ class ProfileServiceImpl(
         targetUserId: Long,
     ): List<ApplicantContactSummary> {
         val profileDto = loadApplicantProfileDto(targetUserId)
+
+        if (currentUserId != targetUserId && profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED) {
+            throw ProfileForbiddenException(
+                message = "Раздел контактов этого профиля пока недоступен",
+                code = "applicant_contacts_access_denied",
+            )
+        }
 
         if (
             !applicantProfileVisibilityService.canViewApplicantContacts(
@@ -461,6 +566,13 @@ class ProfileServiceImpl(
         targetUserId: Long,
     ): List<ApplicantApplicationSummary> {
         val profileDto = loadApplicantProfileDto(targetUserId)
+
+        if (currentUserId != targetUserId && profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED) {
+            throw ProfileForbiddenException(
+                message = "Раздел откликов этого профиля пока недоступен",
+                code = "applicant_applications_access_denied",
+            )
+        }
 
         if (
             !applicantProfileVisibilityService.canViewApplicantApplications(
@@ -510,7 +622,25 @@ class ProfileServiceImpl(
             code = "applicant_file_not_found",
         )
 
-        if (!canAccessApplicantAttachment(currentUserId, targetUserId, profileDto, requestedAttachment)) {
+        val owner = currentUserId == targetUserId
+        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
+
+        if (
+            !owner &&
+            profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED &&
+            !employerAccess
+        ) {
+            throw ProfileForbiddenException(
+                message = "У вас нет доступа к этому файлу",
+                code = "applicant_file_access_denied",
+            )
+        }
+
+        if (
+            !owner &&
+            !employerAccess &&
+            !canAccessApplicantAttachment(currentUserId, targetUserId, profileDto, requestedAttachment)
+        ) {
             throw ProfileForbiddenException(
                 message = "У вас нет доступа к этому файлу",
                 code = "applicant_file_access_denied",
@@ -750,6 +880,101 @@ class ProfileServiceImpl(
                 )
             },
         )
+    }
+
+    private fun validateApplicantProfileCanBeSubmitted(
+        profile: ApplicantProfile,
+    ) {
+        val issues = mutableListOf<String>()
+
+        if (profile.firstName.isNullOrBlank()) {
+            issues += "укажите имя"
+        }
+        if (profile.lastName.isNullOrBlank()) {
+            issues += "укажите фамилию"
+        }
+        if (profile.universityName.isNullOrBlank()) {
+            issues += "укажите вуз"
+        }
+        if (profile.course == null && profile.graduationYear == null) {
+            issues += "укажите курс или год выпуска"
+        }
+
+        val hasProfessionalSignal =
+            !profile.resumeText.isNullOrBlank() ||
+                    profile.resumeFile != null ||
+                    profile.portfolioLinks.isNotEmpty() ||
+                    profile.portfolioFiles.isNotEmpty() ||
+                    profile.skills.isNotEmpty()
+
+        if (!hasProfessionalSignal) {
+            issues += "добавьте хотя бы один профессиональный сигнал: resumeText, resumeFile, portfolio или skills"
+        }
+
+        if (issues.isNotEmpty()) {
+            throw ProfileBadRequestException(
+                message = "Профиль соискателя пока нельзя отправить на модерацию: ${issues.joinToString("; ")}",
+                code = "applicant_profile_moderation_submit_invalid",
+            )
+        }
+    }
+
+    private fun handleApplicantProfileContentChanged(
+        profile: ApplicantProfileDto,
+    ) {
+        when (profile.moderationStatus) {
+            ApplicantProfileModerationStatus.APPROVED -> {
+                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
+            }
+
+            ApplicantProfileModerationStatus.PENDING_MODERATION -> {
+                runModerationAction(
+                    logMessage = "Не удалось отменить активную модерацию профиля соискателя userId=${profile.userId}",
+                    errorMessage = "Не удалось обновить состояние модерации профиля соискателя",
+                    code = "applicant_profile_task_cancel_failed",
+                ) {
+                    val taskLookup = moderationServiceClient.getTaskByEntity(
+                        entityType = ModerationEntityType.APPLICANT_PROFILE,
+                        entityId = profile.userId,
+                        taskType = ModerationTaskType.PROFILE_REVIEW,
+                    )
+
+                    val taskId = taskLookup.taskId
+                    if (taskLookup.exists && taskId != null) {
+                        moderationServiceClient.cancelTask(taskId)
+                    }
+                }
+
+                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
+            }
+
+            ApplicantProfileModerationStatus.DRAFT,
+            ApplicantProfileModerationStatus.NEEDS_REVISION -> Unit
+        }
+    }
+
+    private fun hasEmployerAccessToApplicantProfile(
+        currentUserId: Long?,
+        targetUserId: Long,
+    ): Boolean {
+        if (currentUserId == null || currentUserId == targetUserId) {
+            return false
+        }
+
+        return try {
+            interactionPrivacyClient.hasEmployerAccessToApplicantProfile(
+                employerUserId = currentUserId,
+                applicantUserId = targetUserId,
+            ).canViewProfile
+        } catch (ex: Exception) {
+            logger.warn(
+                "Не удалось проверить доступ работодателя {} к профилю соискателя {}",
+                currentUserId,
+                targetUserId,
+                ex,
+            )
+            false
+        }
     }
 
     private fun loadApplicantPortfolioFiles(
@@ -1012,6 +1237,25 @@ class ProfileServiceImpl(
     }
 
     private inline fun <T> runMediaAction(
+        logMessage: String,
+        errorMessage: String,
+        code: String,
+        block: () -> T,
+    ): T {
+        return try {
+            block()
+        } catch (ex: ApiException) {
+            throw ex
+        } catch (ex: Exception) {
+            logger.warn(logMessage, ex)
+            throw ProfileIntegrationException(
+                message = errorMessage,
+                code = code,
+            )
+        }
+    }
+
+    private inline fun <T> runModerationAction(
         logMessage: String,
         errorMessage: String,
         code: String,

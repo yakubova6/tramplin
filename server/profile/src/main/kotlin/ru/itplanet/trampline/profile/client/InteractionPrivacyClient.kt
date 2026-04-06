@@ -29,8 +29,18 @@ interface InteractionPrivacyClient {
         @RequestParam firstUserId: Long,
         @RequestParam secondUserId: Long,
     ): InternalApplicantContactRelationResponse
+
+    @GetMapping("/internal/applicants/employer-access")
+    fun hasEmployerAccessToApplicantProfile(
+        @RequestParam employerUserId: Long,
+        @RequestParam applicantUserId: Long,
+    ): InternalEmployerApplicantProfileAccessResponse
 }
 
 data class InternalApplicantContactRelationResponse(
     val accepted: Boolean,
+)
+
+data class InternalEmployerApplicantProfileAccessResponse(
+    val canViewProfile: Boolean,
 )

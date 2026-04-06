@@ -14,6 +14,7 @@ import ru.itplanet.trampline.profile.model.request.GetApplicantProfileListReques
 
 interface ProfileService {
     fun patchApplicantProfile(userId: Long, request: ApplicantProfilePatchRequest): ApplicantProfile
+    fun submitApplicantProfileForModeration(userId: Long): ApplicantProfile
     fun putApplicantAvatar(userId: Long, file: MultipartFile): ApplicantProfile
     fun putApplicantResumeFile(userId: Long, file: MultipartFile): ApplicantProfile
     fun addApplicantPortfolioFile(userId: Long, file: MultipartFile): List<InternalFileAttachmentResponse>

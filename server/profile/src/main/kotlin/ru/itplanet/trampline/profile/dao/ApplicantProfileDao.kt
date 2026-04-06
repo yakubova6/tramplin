@@ -12,6 +12,7 @@ interface ApplicantProfileDao : JpaRepository<ApplicantProfileDto, Long> {
             SELECT ap.user_id
             FROM applicant_profile ap
             WHERE ap.user_id <> :currentUserId
+              AND ap.moderation_status = 'APPROVED'
               AND ap.profile_visibility IN ('PUBLIC', 'AUTHENTICATED')
               AND (
                     :search IS NULL
@@ -82,6 +83,7 @@ interface ApplicantProfileDao : JpaRepository<ApplicantProfileDto, Long> {
             SELECT COUNT(*)
             FROM applicant_profile ap
             WHERE ap.user_id <> :currentUserId
+              AND ap.moderation_status = 'APPROVED'
               AND ap.profile_visibility IN ('PUBLIC', 'AUTHENTICATED')
               AND (
                     :search IS NULL

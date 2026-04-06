@@ -107,6 +107,7 @@ class ModerationReadModelJdbcDao(
                 'contactsVisibility', ap.contacts_visibility,
                 'openToWork', ap.open_to_work,
                 'openToEvents', ap.open_to_events,
+                'moderationStatus', ap.moderation_status,
                 'city', case
                     when c.id is null then null
                     else jsonb_build_object(

@@ -2,10 +2,13 @@ package ru.itplanet.trampline.interaction.dao.dto
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import java.time.OffsetDateTime
 
 @Entity
@@ -23,6 +26,10 @@ class ContactInfoApplicantProfileDto {
 
     @Column(name = "middle_name", length = 100)
     open var middleName: String? = null
+
+    @Column(name = "moderation_status", nullable = false, length = 32)
+    @Enumerated(EnumType.STRING)
+    open var moderationStatus: ApplicantProfileModerationStatus = ApplicantProfileModerationStatus.DRAFT
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -43,6 +50,7 @@ class ContactInfoApplicantProfileDto {
         firstName: String,
         lastName: String,
         middleName: String? = null,
+        moderationStatus: ApplicantProfileModerationStatus = ApplicantProfileModerationStatus.DRAFT,
         createdAt: OffsetDateTime? = null,
         updatedAt: OffsetDateTime? = null
     ) {
@@ -50,6 +58,7 @@ class ContactInfoApplicantProfileDto {
         this.firstName = firstName
         this.lastName = lastName
         this.middleName = middleName
+        this.moderationStatus = moderationStatus
         this.createdAt = createdAt
         this.updatedAt = updatedAt
     }
