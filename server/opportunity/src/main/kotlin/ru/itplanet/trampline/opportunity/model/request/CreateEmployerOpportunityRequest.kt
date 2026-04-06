@@ -26,10 +26,6 @@ data class CreateEmployerOpportunityRequest(
 
     val requirements: String? = null,
 
-    @field:NotBlank(message = "Название компании обязательно")
-    @field:Size(max = 200, message = "Название компании не должно превышать 200 символов")
-    val companyName: String,
-
     val type: OpportunityType,
     val workFormat: WorkFormat,
     val employmentType: EmploymentType? = null,
