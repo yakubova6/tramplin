@@ -69,6 +69,7 @@ class ProfileServiceImpl(
     private val interactionPrivacyClient: InteractionPrivacyClient,
     private val applicantProfileVisibilityService: ApplicantProfileVisibilityService,
     private val objectMapper: ObjectMapper,
+    private val employerProfilePatchService: EmployerProfileDomainPatchService
 ) : ProfileService {
 
     @Transactional
@@ -334,39 +335,7 @@ class ProfileServiceImpl(
         userId: Long,
         request: EmployerProfilePatchRequest,
     ): EmployerProfile {
-        val profile = loadEmployerProfileDto(userId)
-
-        request.companyName?.let { profile.companyName = it }
-        request.legalName?.let { profile.legalName = it }
-        request.inn?.let { profile.inn = it }
-        request.description?.let { profile.description = it }
-        request.industry?.let { profile.industry = it }
-        request.websiteUrl?.let { profile.websiteUrl = it }
-        request.socialLinks?.let { profile.socialLinks = it }
-        request.publicContacts?.let { profile.publicContacts = it }
-        request.companySize?.let { profile.companySize = it }
-        request.foundedYear?.let { profile.foundedYear = it }
-        request.cityId?.let { cityId ->
-            profile.city = cityDao.findById(cityId)
-                .orElseThrow {
-                    ProfileNotFoundException(
-                        message = "Город с идентификатором $cityId не найден",
-                        code = "city_not_found",
-                    )
-                }
-        }
-        request.locationId?.let { locationId ->
-            profile.location = locationDao.findById(locationId)
-                .orElseThrow {
-                    ProfileNotFoundException(
-                        message = "Локация с идентификатором $locationId не найдена",
-                        code = "location_not_found",
-                    )
-                }
-        }
-
-        val savedProfile = employerProfileDao.save(profile)
-        return buildEmployerProfile(savedProfile)
+        return employerProfilePatchService.applyPatch(userId, request)
     }
 
     override fun putEmployerLogo(
