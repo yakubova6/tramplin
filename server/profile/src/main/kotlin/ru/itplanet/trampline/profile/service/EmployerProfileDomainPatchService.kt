@@ -51,7 +51,7 @@ class EmployerProfileDomainPatchService(
 
         if (request.legalName != null || request.inn != null) {
             throw ProfileBadRequestException(
-                message = "Данные компании редактируются отдельной ручкой /api/profile/employer/company",
+                message = "Название юрлица и ИНН нужно редактировать в отдельном разделе данных компании",
                 code = "employer_company_data_patch_separate_required",
             )
         }
