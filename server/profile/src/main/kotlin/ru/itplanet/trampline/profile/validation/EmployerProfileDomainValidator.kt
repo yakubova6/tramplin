@@ -60,7 +60,6 @@ class EmployerProfileDomainValidator {
             }
         }
 
-        // Проверяем локацию: если она задана, то у неё должен быть id
         profile.location?.let { location ->
             require(location.id != null && location.id!! > 0) {
                 "Локация должна быть сохранённой (id не может быть null или 0)"
@@ -73,7 +72,6 @@ class EmployerProfileDomainValidator {
             require(link.url.startsWith("http://") || link.url.startsWith("https://")) {
                 "Ссылка ${link.url} должна начинаться с http:// или https://"
             }
-            // при необходимости можно проверить title
         }
     }
 

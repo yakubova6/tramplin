@@ -6,18 +6,9 @@ import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
-import ru.itplanet.trampline.commons.dao.CityDao
-import ru.itplanet.trampline.commons.dao.LocationDao
 import ru.itplanet.trampline.commons.exception.ApiException
 import ru.itplanet.trampline.commons.model.Tag
-import ru.itplanet.trampline.commons.model.file.FileAssetKind
-import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
-import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
-import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
-import ru.itplanet.trampline.commons.model.file.InternalCreateFileAttachmentRequest
-import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
-import ru.itplanet.trampline.commons.model.file.InternalFileDownloadUrlResponse
-import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
+import ru.itplanet.trampline.commons.model.file.*
 import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
@@ -35,17 +26,8 @@ import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.ApplicantTagDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
-import ru.itplanet.trampline.profile.exception.ProfileBadRequestException
-import ru.itplanet.trampline.profile.exception.ProfileConflictException
-import ru.itplanet.trampline.profile.exception.ProfileForbiddenException
-import ru.itplanet.trampline.profile.exception.ProfileIntegrationException
-import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
-import ru.itplanet.trampline.profile.model.ApplicantApplicationSummary
-import ru.itplanet.trampline.profile.model.ApplicantContactSummary
-import ru.itplanet.trampline.profile.model.ApplicantProfile
-import ru.itplanet.trampline.profile.model.ApplicantProfileSearchItem
-import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
-import ru.itplanet.trampline.profile.model.EmployerProfile
+import ru.itplanet.trampline.profile.exception.*
+import ru.itplanet.trampline.profile.model.*
 import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.enums.ProfileVisibility
 import ru.itplanet.trampline.profile.model.enums.ResumeVisibility
@@ -61,15 +43,14 @@ class ProfileServiceImpl(
     private val employerProfileDao: EmployerProfileDao,
     private val applicantProfileConverter: ApplicantProfileConverter,
     private val employerProfileConverter: EmployerProfileConverter,
-    private val cityDao: CityDao,
-    private val locationDao: LocationDao,
     private val mediaServiceClient: MediaServiceClient,
     private val opportunityTagClient: OpportunityTagClient,
     private val moderationServiceClient: ModerationServiceClient,
     private val interactionPrivacyClient: InteractionPrivacyClient,
     private val applicantProfileVisibilityService: ApplicantProfileVisibilityService,
     private val objectMapper: ObjectMapper,
-    private val employerProfilePatchService: EmployerProfileDomainPatchService
+    private val employerProfilePatchService: EmployerProfileDomainPatchService,
+    private val applicantProfileDomainPatchService: ApplicantProfileDomainPatchService
 ) : ProfileService {
 
     @Transactional
@@ -77,71 +58,8 @@ class ProfileServiceImpl(
         userId: Long,
         request: ApplicantProfilePatchRequest,
     ): ApplicantProfile {
-        val profile = loadApplicantProfileDto(userId)
 
-        request.firstName?.let { profile.firstName = it }
-        request.lastName?.let { profile.lastName = it }
-        request.middleName?.let { profile.middleName = it }
-        request.universityName?.let { profile.universityName = it }
-        request.facultyName?.let { profile.facultyName = it }
-        request.studyProgram?.let { profile.studyProgram = it }
-        request.course?.let { profile.course = it }
-        request.graduationYear?.let { profile.graduationYear = it }
-        request.cityId?.let { cityId ->
-            profile.city = cityDao.findById(cityId)
-                .orElseThrow {
-                    ProfileNotFoundException(
-                        message = "Город с идентификатором $cityId не найден",
-                        code = "city_not_found",
-                    )
-                }
-        }
-        request.about?.let { profile.about = it }
-        request.resumeText?.let { profile.resumeText = it }
-        request.portfolioLinks?.let { profile.portfolioLinks = it }
-        request.contactLinks?.let { profile.contactLinks = it }
-        request.profileVisibility?.let { profile.profileVisibility = it }
-        request.resumeVisibility?.let { profile.resumeVisibility = it }
-        request.applicationsVisibility?.let { profile.applicationsVisibility = it }
-        request.contactsVisibility?.let { profile.contactsVisibility = it }
-        request.openToWork?.let { profile.openToWork = it }
-        request.openToEvents?.let { profile.openToEvents = it }
-
-        val requestedSkillTagIds = request.skillTagIds?.distinct()
-        val requestedInterestTagIds = request.interestTagIds?.distinct()
-
-        if (requestedSkillTagIds != null || requestedInterestTagIds != null) {
-            val tagIdsToValidate = buildSet {
-                requestedSkillTagIds?.let(::addAll)
-                requestedInterestTagIds?.let(::addAll)
-            }
-
-            val activeTagsById = requireActiveTagsByIds(tagIdsToValidate)
-                .associateBy { it.id }
-
-            requestedSkillTagIds?.let {
-                replaceApplicantTags(
-                    applicantUserId = userId,
-                    relationType = ApplicantTagRelationType.SKILL,
-                    tagIds = it,
-                    activeTagsById = activeTagsById,
-                )
-            }
-
-            requestedInterestTagIds?.let {
-                replaceApplicantTags(
-                    applicantUserId = userId,
-                    relationType = ApplicantTagRelationType.INTEREST,
-                    tagIds = it,
-                    activeTagsById = activeTagsById,
-                )
-            }
-        }
-
-        handleApplicantProfileContentChanged(profile)
-
-        val savedProfile = applicantProfileDao.save(profile)
-        return buildApplicantProfile(savedProfile)
+        return applicantProfileDomainPatchService.applyPatch(userId, request)
     }
 
     @Transactional
