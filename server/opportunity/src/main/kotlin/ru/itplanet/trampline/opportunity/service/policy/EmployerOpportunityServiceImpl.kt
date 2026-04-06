@@ -12,6 +12,7 @@ import ru.itplanet.trampline.commons.model.enums.OpportunityStatus
 import ru.itplanet.trampline.commons.model.enums.OpportunityType
 import ru.itplanet.trampline.commons.model.enums.WorkFormat
 import ru.itplanet.trampline.opportunity.converter.EmployerOpportunityConverter
+import ru.itplanet.trampline.opportunity.dao.EmployerProfileDao
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
 import ru.itplanet.trampline.opportunity.dao.TagDao
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
@@ -42,6 +43,7 @@ class EmployerOpportunityServiceImpl(
     private val tagDao: TagDao,
     private val cityDao: CityDao,
     private val locationDao: LocationDao,
+    private val employerProfileDao: EmployerProfileDao,
     private val employerOpportunityConverter: EmployerOpportunityConverter,
     private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
 ) : EmployerOpportunityService {
@@ -56,6 +58,15 @@ class EmployerOpportunityServiceImpl(
         validateSalary(request)
         validateTemporalFields(request)
 
+        val employerProfile = employerProfileDao.findByUserId(currentUserId)
+            .orElseThrow {
+                OpportunityValidationException(
+                    message = "Профиль работодателя не найден",
+                    details = mapOf("userId" to currentUserId.toString())
+                )
+            }
+        val companyNameFromProfile = employerProfile.companyName ?: employerProfile.legalName ?: ""
+
         val resolvedTags = resolveTags(request.tagIds.distinct())
         val resolvedPlace = resolvePlace(request)
 
@@ -64,6 +75,7 @@ class EmployerOpportunityServiceImpl(
             status = OpportunityStatus.DRAFT
             publishedAt = null
             moderationComment = null
+            companyName = companyNameFromProfile
         }
 
         applyEditableFieldsOnCreate(
@@ -320,7 +332,6 @@ class EmployerOpportunityServiceImpl(
         opportunity.shortDescription = request.shortDescription.trim()
         opportunity.fullDescription = request.fullDescription.normalizeNullableText()
         opportunity.requirements = request.requirements.normalizeNullableText()
-        opportunity.companyName = request.companyName.trim()
         opportunity.type = request.type
         opportunity.workFormat = request.workFormat
         opportunity.employmentType = request.employmentType
@@ -464,6 +475,7 @@ class EmployerOpportunityServiceImpl(
         return when (request.workFormat) {
             WorkFormat.OFFICE,
             WorkFormat.HYBRID -> resolveOfficeOrHybridPlace(request)
+
             WorkFormat.REMOTE,
             WorkFormat.ONLINE -> resolveRemoteOrOnlinePlace(request)
         }
