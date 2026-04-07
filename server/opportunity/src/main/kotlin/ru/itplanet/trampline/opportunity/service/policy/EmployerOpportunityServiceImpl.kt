@@ -33,6 +33,7 @@ import ru.itplanet.trampline.opportunity.model.request.CreateEmployerOpportunity
 import ru.itplanet.trampline.opportunity.model.request.GetEmployerOpportunityListRequest
 import ru.itplanet.trampline.opportunity.service.policy.EmployerOpportunityCreatePolicy
 import ru.itplanet.trampline.opportunity.util.OffsetBasedPageRequest
+import ru.itplanet.trampline.opportunity.validation.OpportunityDomainValidator
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.Locale
@@ -46,6 +47,7 @@ class EmployerOpportunityServiceImpl(
     private val employerProfileDao: EmployerProfileDao,
     private val employerOpportunityConverter: EmployerOpportunityConverter,
     private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
+    private val opportunityDomainValidator: OpportunityDomainValidator
 ) : EmployerOpportunityService {
 
     @Transactional
@@ -84,6 +86,7 @@ class EmployerOpportunityServiceImpl(
             resolvedTags = resolvedTags,
             resolvedPlace = resolvedPlace,
         )
+        opportunityDomainValidator.validate(opportunity)
 
         val saved = opportunityDao.saveAndFlush(opportunity)
         return employerOpportunityConverter.toCard(saved)
@@ -143,6 +146,7 @@ class EmployerOpportunityServiceImpl(
             resolvedTags = resolvedTags,
             resolvedPlace = resolvedPlace,
         )
+        opportunityDomainValidator.validate(opportunity)
 
         opportunity.status = OpportunityStatus.DRAFT
         opportunity.publishedAt = null
