@@ -3,7 +3,6 @@ package ru.itplanet.trampline.profile.service
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
@@ -22,6 +21,7 @@ import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.profile.dao.dto.EmployerVerificationDto
 import ru.itplanet.trampline.profile.exception.ProfileBadRequestException
+import ru.itplanet.trampline.profile.exception.ProfileConflictException
 import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
 import ru.itplanet.trampline.profile.model.ContactMethod
 import ru.itplanet.trampline.profile.model.ProfileLink
@@ -65,13 +65,10 @@ class InternalProfileModerationService(
         userId: Long,
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
-        val profile = applicantProfileDao.findById(userId).orElseThrow {
-            notFoundApplicantProfile(userId)
-        }
-
-        profile.moderationStatus = ApplicantProfileModerationStatus.NEEDS_REVISION
-
-        return InternalModerationActionResultResponse(affectedUserId = userId)
+        throw ProfileConflictException(
+            message = "Для профилей соискателей используйте сценарий запроса доработки. Жёсткое отклонение профиля не поддерживается",
+            code = "profile_reject_not_supported",
+        )
     }
 
     @Transactional
@@ -109,13 +106,10 @@ class InternalProfileModerationService(
         userId: Long,
         request: InternalModerationRejectRequest,
     ): InternalModerationActionResultResponse {
-        val profile = employerProfileDao.findById(userId).orElseThrow {
-            notFoundEmployerProfile(userId)
-        }
-
-        profile.moderationStatus = EmployerProfileModerationStatus.NEEDS_REVISION
-
-        return InternalModerationActionResultResponse(affectedUserId = userId)
+        throw ProfileConflictException(
+            message = "Для профилей работодателей используйте сценарий запроса доработки. Жёсткое отклонение профиля не поддерживается",
+            code = "profile_reject_not_supported",
+        )
     }
 
     @Transactional

@@ -308,6 +308,7 @@ class ModerationCommandServiceImpl(
         val task = getTaskForUpdate(taskId)
         ensureCurrentUserCanModerateTask(task, currentUser)
         ensureTaskCanBeResolved(task, currentUser)
+        ensureRejectSupported(task)
 
         val ownerActionResult = dispatchReject(
             task = task,
@@ -804,6 +805,26 @@ class ModerationCommandServiceImpl(
     ) {
         if (isOwnCreatedTagTask(task, currentUser)) {
             throw ModerationTaskNotFoundException(task.id ?: 0L)
+        }
+    }
+
+    private fun ensureRejectSupported(task: ModerationTaskDto) {
+        if (!supportsHardReject(task.entityType)) {
+            throw conflict(
+                message = "Для модерации профилей используйте сценарий запроса доработки. Жёсткое отклонение профиля не поддерживается",
+                code = "profile_reject_not_supported",
+            )
+        }
+    }
+
+    private fun supportsHardReject(entityType: ModerationEntityType): Boolean {
+        return when (entityType) {
+            ModerationEntityType.APPLICANT_PROFILE,
+            ModerationEntityType.EMPLOYER_PROFILE -> false
+
+            ModerationEntityType.EMPLOYER_VERIFICATION,
+            ModerationEntityType.OPPORTUNITY,
+            ModerationEntityType.TAG -> true
         }
     }
 

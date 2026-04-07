@@ -426,24 +426,35 @@ class ModerationQueryServiceImpl(
         currentUser: AuthenticatedUser,
     ): List<String> {
         val assigneeId = task.assigneeUser?.id
+        val canReject = supportsHardReject(task.entityType)
 
         return when (task.status) {
-            ModerationTaskStatus.OPEN -> listOf(
-                "ASSIGN",
-                "APPROVE",
-                "REQUEST_CHANGES",
-                "REJECT",
-                "COMMENT",
-                "CANCEL",
-            )
+            ModerationTaskStatus.OPEN -> buildList {
+                add("ASSIGN")
+                add("APPROVE")
+                add("REQUEST_CHANGES")
+                if (canReject) {
+                    add("REJECT")
+                }
+                add("COMMENT")
+                add("CANCEL")
+            }
 
             ModerationTaskStatus.IN_PROGRESS -> {
                 if (
                     assigneeId == null ||
                     assigneeId == currentUser.userId ||
-                    currentUser.role.name == "ADMIN"
+                    currentUser.role == Role.ADMIN
                 ) {
-                    listOf("APPROVE", "REQUEST_CHANGES", "REJECT", "COMMENT", "CANCEL")
+                    buildList {
+                        add("APPROVE")
+                        add("REQUEST_CHANGES")
+                        if (canReject) {
+                            add("REJECT")
+                        }
+                        add("COMMENT")
+                        add("CANCEL")
+                    }
                 } else {
                     listOf("COMMENT")
                 }
@@ -453,6 +464,17 @@ class ModerationQueryServiceImpl(
             ModerationTaskStatus.REJECTED,
             ModerationTaskStatus.NEEDS_REVISION,
             ModerationTaskStatus.CANCELLED -> emptyList()
+        }
+    }
+
+    private fun supportsHardReject(entityType: ModerationEntityType): Boolean {
+        return when (entityType) {
+            ModerationEntityType.APPLICANT_PROFILE,
+            ModerationEntityType.EMPLOYER_PROFILE -> false
+
+            ModerationEntityType.EMPLOYER_VERIFICATION,
+            ModerationEntityType.OPPORTUNITY,
+            ModerationEntityType.TAG -> true
         }
     }
 
