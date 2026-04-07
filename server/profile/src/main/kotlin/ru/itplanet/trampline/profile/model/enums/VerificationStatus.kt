@@ -4,4 +4,5 @@ enum class VerificationStatus {
     PENDING,
     APPROVED,
     REJECTED,
+    REVOKED
 }

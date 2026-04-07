@@ -44,9 +44,8 @@ import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.ApplicantProfileSearchItem
 import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
-import ru.itplanet.trampline.profile.model.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.EmployerProfile
-import ru.itplanet.trampline.profile.model.ProfileLink
+import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerCompanyPatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest

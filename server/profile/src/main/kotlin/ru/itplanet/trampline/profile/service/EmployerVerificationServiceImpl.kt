@@ -69,6 +69,13 @@ class EmployerVerificationServiceImpl(
             )
         }
 
+        if (profile.verificationStatus == VerificationStatus.APPROVED) {
+            throw ProfileConflictException(
+                message = "Компания уже верифицирована. Повторная отправка не требуется",
+                code = "employer_already_verified",
+            )
+        }
+
         val method = when (request.verificationMethod.uppercase()) {
             "EMAIL", "CORPORATE_EMAIL" -> VerificationMethod.CORPORATE_EMAIL
             "INN", "TIN" -> VerificationMethod.TIN
@@ -80,13 +87,10 @@ class EmployerVerificationServiceImpl(
             )
         }
 
-        val resolvedInn = profile.inn ?: request.inn
-
         validateVerificationRequest(
             profile = profile,
             method = method,
             corporateEmail = request.corporateEmail,
-            inn = resolvedInn,
             professionalLinks = request.professionalLinks,
         )
 
@@ -94,7 +98,7 @@ class EmployerVerificationServiceImpl(
             employerUserId = employerUserId,
             verificationMethod = method,
             corporateEmail = request.corporateEmail,
-            inn = resolvedInn,
+            inn = profile.inn,
             professionalLinks = request.professionalLinks,
             submittedComment = request.submittedComment,
         )
@@ -237,7 +241,6 @@ class EmployerVerificationServiceImpl(
         profile: EmployerProfileDto,
         method: VerificationMethod,
         corporateEmail: String?,
-        inn: String?,
         professionalLinks: List<String>,
     ) {
         when (method) {
@@ -257,9 +260,9 @@ class EmployerVerificationServiceImpl(
                         code = "employer_company_legal_name_required",
                     )
                 }
-                if (inn.isNullOrBlank()) {
+                if (profile.inn.isNullOrBlank()) {
                     throw ProfileBadRequestException(
-                        message = "Для верификации по ИНН заполните ИНН компании",
+                        message = "Для верификации по ИНН сначала заполните ИНН в данных компании",
                         code = "employer_company_inn_required",
                     )
                 }
