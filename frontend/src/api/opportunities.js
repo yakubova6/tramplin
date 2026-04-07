@@ -58,6 +58,21 @@ export async function listOpportunityMap(params = {}) {
     return httpJson(`${API_BASE}/opportunities/map${query ? `?${query}` : ''}`)
 }
 
+export async function listNearbyOpportunities(params = {}) {
+    const rawRadius = params.radius
+    const numericRadius = Number(rawRadius)
+    const normalizedRadius = Number.isFinite(numericRadius)
+        ? (numericRadius > 0 && numericRadius < 1000 ? numericRadius * 1000 : numericRadius)
+        : rawRadius
+
+    const query = toQuery({
+        ...params,
+        radius: normalizedRadius,
+    })
+
+    return httpJson(`${API_BASE}/geo/opportunities/nearby${query ? `?${query}` : ''}`)
+}
+
 export async function getOpportunity(id) {
     return httpJson(`${API_BASE}/opportunities/${id}`)
 }
