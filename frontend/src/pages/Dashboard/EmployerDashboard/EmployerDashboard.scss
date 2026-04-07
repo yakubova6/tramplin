@@ -918,6 +918,15 @@ $transition: all 0.2s ease;
   margin-top: 10px;
 }
 
+.employer-applicants .employer-opportunities__filters .button {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 900px) {
   .employer-applicants .employer-opportunities__filters {
     grid-template-columns: 1fr 1fr;
