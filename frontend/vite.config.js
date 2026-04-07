@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   const opportunityTarget = env.VITE_OPPORTUNITY_PROXY_TARGET || 'http://localhost:8081'
   const moderationTarget = env.VITE_MODERATION_PROXY_TARGET || 'http://localhost:8082'
   const interactionTarget = env.VITE_INTERACTION_PROXY_TARGET || 'http://localhost:8083'
+  const geoTarget = env.VITE_GEO_PROXY_TARGET || 'http://localhost:8084'
   const mediaTarget = env.VITE_MEDIA_PROXY_TARGET || 'http://localhost:8091'
 
   return {
@@ -68,7 +69,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-
+        '/api/geo': {
+          target: geoTarget,
+          changeOrigin: true,
+          secure: false,
+        },
         '/api/interaction': {
           target: interactionTarget,
           changeOrigin: true,
@@ -85,7 +90,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-
         '/api/media': {
           target: mediaTarget,
           changeOrigin: true,

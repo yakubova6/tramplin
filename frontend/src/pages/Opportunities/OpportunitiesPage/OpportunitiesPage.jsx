@@ -9,6 +9,7 @@ import { useToast } from '../../../hooks/use-toast'
 import {
     listOpportunityMap,
     listOpportunities,
+    listNearbyOpportunities,
     listTags,
     OPPORTUNITY_LABELS
 } from '../../../api/opportunities'
@@ -30,6 +31,7 @@ import companyIcon from '../../../assets/icons/company.svg'
 
 const PAGE_LIMIT = 12
 const MAP_SIDE_LIMIT = 8
+const DEFAULT_MAP_RADIUS = 100000
 
 const TYPE_OPTIONS = [
     { value: '', label: 'Любой тип' },
@@ -87,6 +89,97 @@ function useDebounce(value, delay) {
     return debouncedValue
 }
 
+function normalizeNearbyItem(item) {
+    const salaryFrom =
+        typeof item.salary === 'object' && item.salary !== null
+            ? item.salary.from ?? null
+            : typeof item.salary === 'number'
+                ? item.salary
+                : null
+
+    const salaryTo =
+        typeof item.salary === 'object' && item.salary !== null
+            ? item.salary.to ?? null
+            : null
+
+    const salaryCurrency =
+        typeof item.salary === 'object' && item.salary !== null
+            ? item.salary.currency ?? 'RUB'
+            : 'RUB'
+
+    const latitude =
+        item.point?.lat ??
+        item.location?.coordinates?.lat ??
+        null
+
+    const longitude =
+        item.point?.lng ??
+        item.location?.coordinates?.lng ??
+        null
+
+    const addressLine =
+        item.location?.addressLine ||
+        item.city?.name ||
+        'Адрес не указан'
+
+    const companyName =
+        item.employer?.companyName ||
+        'Компания не указана'
+
+    const shortDescription =
+        item.fullDescription ||
+        ''
+
+    return {
+        id: item.id,
+        title: item.title,
+        shortDescription,
+        fullDescription: item.fullDescription || '',
+        type: item.type,
+        workFormat: item.workFormat,
+
+        companyName,
+        employer: item.employer || null,
+
+        salaryFrom,
+        salaryTo,
+        salaryCurrency,
+
+        addressLine,
+        cityName: item.city?.name || '',
+
+        latitude,
+        longitude,
+
+        publishedAt: null,
+        distanceMeters: item.distanceMeters ?? null,
+
+        preview: {
+            title: item.title,
+            shortDescription,
+            companyName,
+            salaryFrom,
+            salaryTo,
+            salaryCurrency,
+            workFormat: item.workFormat,
+            tags: [],
+        },
+    }
+}
+
+function normalizeNearbyResponse(data) {
+    const rawItems = data?.items || data?.content || []
+    const items = rawItems.map(normalizeNearbyItem)
+
+    const total =
+        data?.total ??
+        data?.totalElements ??
+        data?.page?.totalElements ??
+        items.length
+
+    return { items, total }
+}
+
 function OpportunitiesPage() {
     const [, navigate] = useLocation()
     const { toast } = useToast()
@@ -102,13 +195,24 @@ function OpportunitiesPage() {
     const [salaryRange, setSalaryRange] = useState({ from: '', to: '' })
     const [selectedTags, setSelectedTags] = useState([])
     const [page, setPage] = useState(0)
+
     const [total, setTotal] = useState(0)
     const [opportunities, setOpportunities] = useState([])
-    const [mapPoints, setMapPoints] = useState([])
+
+    const [baseMapPoints, setBaseMapPoints] = useState([])
+    const [mapSearchResults, setMapSearchResults] = useState([])
+    const [mapTotal, setMapTotal] = useState(0)
+    const [isMapSearchActive, setIsMapSearchActive] = useState(false)
+
     const [isLoading, setIsLoading] = useState(false)
+    const [isMapSearchLoading, setIsMapSearchLoading] = useState(false)
     const [error, setError] = useState('')
     const [focusedOpportunityId, setFocusedOpportunityId] = useState(null)
     const [tags, setTags] = useState([])
+
+    const [pendingMapCenter, setPendingMapCenter] = useState(null)
+    const [appliedMapCenter, setAppliedMapCenter] = useState(null)
+    const [isMapDirty, setIsMapDirty] = useState(false)
 
     const [favoriteCompanies, setFavoriteCompanies] = useState(() =>
         getStorageSet('favorite_companies', getSessionUser())
@@ -118,10 +222,14 @@ function OpportunitiesPage() {
     )
 
     const isApplicant = currentUser?.role === 'APPLICANT'
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT))
 
     const debouncedSearch = useDebounce(filters.search, 500)
     const debouncedSkills = useDebounce(filters.skillsQuery, 500)
+
+    const visibleMapPoints = isMapSearchActive ? mapSearchResults : baseMapPoints
+    const visibleMapSideSource = isMapSearchActive ? mapSearchResults : opportunities
+    const visibleTotal = viewMode === 'map' && isMapSearchActive ? mapTotal : total
+    const totalPages = Math.max(1, Math.ceil(visibleTotal / PAGE_LIMIT))
 
     useEffect(() => {
         const unsubscribe = subscribeSessionChange((nextUser) => {
@@ -157,7 +265,6 @@ function OpportunitiesPage() {
 
             if ([401, 403, 500, 503].includes(syncError.status)) {
                 setFavoriteOpportunities(getStorageSet('favorite_opportunities', null))
-                return
             }
         }
     }, [currentUser])
@@ -173,24 +280,16 @@ function OpportunitiesPage() {
             sortDirection: 'DESC',
         }
 
-        if (salaryRange.from) {
-            params.salaryFrom = Number(salaryRange.from)
-        }
-        if (salaryRange.to) {
-            params.salaryTo = Number(salaryRange.to)
-        }
-        if (selectedTags.length > 0) {
-            params.tagIds = selectedTags
-        }
+        if (salaryRange.from) params.salaryFrom = Number(salaryRange.from)
+        if (salaryRange.to) params.salaryTo = Number(salaryRange.to)
+        if (selectedTags.length > 0) params.tagIds = selectedTags
 
         return params
     }, [debouncedSearch, debouncedSkills, filters.type, filters.format, page, salaryRange, selectedTags])
 
     useEffect(() => {
         listTags('TECH')
-            .then((data) => {
-                setTags(data || [])
-            })
+            .then((data) => setTags(data || []))
             .catch((err) => {
                 console.error('Error loading tags:', err)
                 setTags([])
@@ -225,7 +324,7 @@ function OpportunitiesPage() {
     useEffect(() => {
         let mounted = true
 
-        async function loadData() {
+        async function loadBaseData() {
             setIsLoading(true)
             setError('')
 
@@ -239,7 +338,7 @@ function OpportunitiesPage() {
 
                 setOpportunities(listData?.items || [])
                 setTotal(listData?.total || 0)
-                setMapPoints(mapData?.items || [])
+                setBaseMapPoints(mapData?.items || [])
             } catch (requestError) {
                 if (!mounted) return
                 setError(requestError?.message || 'Не удалось загрузить вакансии')
@@ -248,17 +347,18 @@ function OpportunitiesPage() {
             }
         }
 
-        loadData()
+        loadBaseData()
+
         return () => {
             mounted = false
         }
     }, [queryParams])
 
     const mapSideOpportunities = useMemo(() => {
-        return [...opportunities]
+        return [...visibleMapSideSource]
             .sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime())
             .slice(0, MAP_SIDE_LIMIT)
-    }, [opportunities])
+    }, [visibleMapSideSource])
 
     const toggleCompanyFavorite = (companyName) => {
         const next = new Set(favoriteCompanies)
@@ -279,7 +379,6 @@ function OpportunitiesPage() {
 
         if (!currentUser) {
             const next = new Set(favoriteOpportunities)
-
             if (isFavorite) next.delete(opportunity.id)
             else next.add(opportunity.id)
 
@@ -335,7 +434,7 @@ function OpportunitiesPage() {
                 return
             }
 
-            if (error.status === 401 || error.status === 403 || error.status === 500 || error.status === 503) {
+            if ([401, 403, 500, 503].includes(error.status)) {
                 toast({
                     title: 'Сессия недоступна',
                     description: 'Пожалуйста, войдите снова',
@@ -356,6 +455,7 @@ function OpportunitiesPage() {
     const handleShowOnMap = (id) => {
         setViewMode('map')
         setFocusedOpportunityId(null)
+
         setTimeout(() => {
             setFocusedOpportunityId(id)
         }, 100)
@@ -386,7 +486,6 @@ function OpportunitiesPage() {
             toast({
                 title: 'Отклик отправлен',
                 description: `Ваш отклик на "${opportunity.title}" успешно отправлен`,
-                variant: 'default'
             })
         } catch (applyError) {
             console.error('Apply error:', applyError)
@@ -400,7 +499,7 @@ function OpportunitiesPage() {
                 return
             }
 
-            if (applyError.status === 401 || applyError.status === 403 || applyError.status === 500 || applyError.status === 503) {
+            if ([401, 403, 500, 503].includes(applyError.status)) {
                 toast({
                     title: 'Сессия недоступна',
                     description: 'Пожалуйста, войдите снова',
@@ -425,44 +524,175 @@ function OpportunitiesPage() {
         }
     }
 
+    const resetMapSearchState = () => {
+        setIsMapSearchActive(false)
+        setMapSearchResults([])
+        setMapTotal(0)
+        setAppliedMapCenter(null)
+        setPendingMapCenter(null)
+        setIsMapDirty(false)
+        setFocusedOpportunityId(null)
+        setPage(0)
+    }
+
+    const applyMapSearch = async () => {
+        if (!pendingMapCenter) return
+
+        setIsMapSearchLoading(true)
+        setError('')
+
+        try {
+            const nearbyData = await listNearbyOpportunities({
+                lat: pendingMapCenter.lat,
+                lng: pendingMapCenter.lng,
+                pageNumber: 1,
+                pageSize: PAGE_LIMIT,
+                radius: DEFAULT_MAP_RADIUS,
+            })
+
+            const normalized = normalizeNearbyResponse(nearbyData)
+            console.log('NEARBY RAW:', nearbyData)
+            console.log('NEARBY NORMALIZED:', normalized)
+
+            setIsMapSearchActive(true)
+            setMapSearchResults(normalized.items)
+            setMapTotal(normalized.total)
+            setAppliedMapCenter(pendingMapCenter)
+            setIsMapDirty(false)
+            setPage(0)
+        } catch (requestError) {
+            setError(requestError?.message || 'Не удалось загрузить вакансии рядом с точкой')
+        } finally {
+            setIsMapSearchLoading(false)
+        }
+    }
+
+    const resetMapSearch = () => {
+        resetMapSearchState()
+    }
+
+    const clearMapSearchOnFiltersChange = () => {
+        resetMapSearchState()
+    }
+
     const handleSearchChange = (e) => {
         setPage(0)
+        clearMapSearchOnFiltersChange()
         setFilters((prev) => ({ ...prev, search: e.target.value }))
     }
 
     const handleSkillsChange = (e) => {
         setPage(0)
+        clearMapSearchOnFiltersChange()
         setFilters((prev) => ({ ...prev, skillsQuery: e.target.value }))
     }
 
     const handleTypeChange = (value) => {
         setPage(0)
+        clearMapSearchOnFiltersChange()
         setFilters((prev) => ({ ...prev, type: value }))
     }
 
     const handleFormatChange = (value) => {
         setPage(0)
+        clearMapSearchOnFiltersChange()
         setFilters((prev) => ({ ...prev, format: value }))
     }
 
     const handleSalaryFromChange = (e) => {
         setPage(0)
-        setSalaryRange({ ...salaryRange, from: e.target.value })
+        clearMapSearchOnFiltersChange()
+        setSalaryRange((prev) => ({ ...prev, from: e.target.value }))
     }
 
     const handleSalaryToChange = (e) => {
         setPage(0)
-        setSalaryRange({ ...salaryRange, to: e.target.value })
+        clearMapSearchOnFiltersChange()
+        setSalaryRange((prev) => ({ ...prev, to: e.target.value }))
     }
 
     const handleTagClick = (tagId) => {
         setPage(0)
+        clearMapSearchOnFiltersChange()
         setSelectedTags((prev) =>
             prev.includes(tagId)
                 ? prev.filter((id) => id !== tagId)
                 : [...prev, tagId]
         )
     }
+
+    const handleMapCenterChange = useCallback((center) => {
+        setPendingMapCenter(center)
+
+        const hasChanged =
+            !appliedMapCenter ||
+            Math.abs(center.lat - appliedMapCenter.lat) > 0.0001 ||
+            Math.abs(center.lng - appliedMapCenter.lng) > 0.0001
+
+        if (hasChanged) {
+            setIsMapDirty(true)
+        }
+    }, [appliedMapCenter])
+
+    const handleOpenCard = useCallback((id) => {
+        setFocusedOpportunityId(id)
+    }, [])
+
+    const showGlobalEmpty =
+        !isLoading &&
+        !error &&
+        viewMode === 'list' &&
+        opportunities.length === 0
+
+    const showMapEmpty =
+        !isLoading &&
+        !isMapSearchLoading &&
+        !error &&
+        viewMode === 'map' &&
+        isMapSearchActive &&
+        mapSideOpportunities.length === 0
+
+    const shouldShowMapControls =
+        viewMode === 'map' && (isMapSearchActive || (isMapDirty && pendingMapCenter))
+
+    const mapControlsContent = (
+        <div className="opportunities-page__map-controls">
+            <div className="opportunities-page__map-controls-inner">
+                {isMapDirty && pendingMapCenter && (
+                    <>
+                        <div className="opportunities-page__map-controls-badge">
+                            Область карты изменена
+                        </div>
+
+                        <button
+                            type="button"
+                            className="opportunities-page__map-controls-btn opportunities-page__map-controls-btn--primary"
+                            onClick={applyMapSearch}
+                            disabled={isMapSearchLoading}
+                        >
+                            {isMapSearchLoading ? 'Поиск...' : 'Искать в этой области'}
+                        </button>
+                    </>
+                )}
+
+                {isMapSearchActive && !isMapDirty && (
+                    <>
+                        <div className="opportunities-page__map-controls-badge">
+                            На карте показаны результаты в выбранной области
+                        </div>
+
+                        <button
+                            type="button"
+                            className="opportunities-page__map-controls-btn opportunities-page__map-controls-btn--secondary"
+                            onClick={resetMapSearch}
+                        >
+                            Сбросить поиск по карте
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    )
 
     return (
         <div className="opportunities-page">
@@ -537,7 +767,14 @@ function OpportunitiesPage() {
 
             <main className="container opportunities-page__main">
                 <section className="opportunities-page__toolbar">
-                    <h2>Найдено возможностей: {total}</h2>
+                    <h2>Найдено возможностей: {visibleTotal}</h2>
+
+                    {shouldShowMapControls && (
+                        <div className="opportunities-page__toolbar-map-controls">
+                            {mapControlsContent}
+                        </div>
+                    )}
+
                     <div className="opportunities-page__view-switcher">
                         <button className={viewMode === 'map' ? 'is-active' : ''} onClick={() => setViewMode('map')}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -546,6 +783,7 @@ function OpportunitiesPage() {
                             </svg>
                             <span>На карте</span>
                         </button>
+
                         <button className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <line x1="8" y1="6" x2="21" y2="6" />
@@ -560,22 +798,33 @@ function OpportunitiesPage() {
                     </div>
                 </section>
 
+                {shouldShowMapControls && (
+                    <div className="opportunities-page__map-controls-row">
+                        {mapControlsContent}
+                    </div>
+                )}
+
                 {error && <p className="opportunities-page__error">{error}</p>}
                 {isLoading && <p className="opportunities-page__state">Загрузка...</p>}
 
-                {!isLoading && !error && opportunities.length === 0 && (
+                {showGlobalEmpty && (
                     <div className="opportunities-page__empty">
                         <h3>Ничего не найдено</h3>
                         <p>Попробуй изменить фильтры и параметры поиска.</p>
                     </div>
                 )}
 
-                {!isLoading && !error && opportunities.length > 0 && (
+                {!isLoading && !error && viewMode === 'map' && (
                     <section className="opportunities-page__content">
-                        {viewMode === 'map' ? (
-                            <div className="opportunities-page__map-layout">
-                                <div className="opportunities-page__map-side-list">
-                                    {mapSideOpportunities.map((item) => (
+                        <div className="opportunities-page__map-layout">
+                            <div className="opportunities-page__map-side-list">
+                                {showMapEmpty ? (
+                                    <div className="opportunities-page__empty">
+                                        <h3>В выбранной области пока нет результатов</h3>
+                                        <p>Передвинь карту ближе к нужному району или нажми «Показать все», чтобы вернуться к общему списку.</p>
+                                    </div>
+                                ) : (
+                                    mapSideOpportunities.map((item) => (
                                         <article key={item.id} className="opportunities-page__compact-card">
                                             <div className="opportunities-page__compact-header">
                                                 <h3>{item.title}</h3>
@@ -587,8 +836,9 @@ function OpportunitiesPage() {
                                                     ★
                                                 </button>
                                             </div>
+
                                             <p className="opportunities-page__company">
-                                                <img src={companyIcon} alt="" className="icon" />
+                                                <img src={companyIcon} alt="" className="icon"/>
                                                 <span>{item.companyName}</span>
                                                 <button
                                                     type="button"
@@ -598,6 +848,7 @@ function OpportunitiesPage() {
                                                     ★
                                                 </button>
                                             </p>
+
                                             <div className="opportunities-page__compact-meta">
                                                 <span className="opportunities-page__badge">
                                                     {OPPORTUNITY_LABELS.type[item.type] || 'Возможность'}
@@ -606,138 +857,158 @@ function OpportunitiesPage() {
                                                     {OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat}
                                                 </span>
                                             </div>
+
                                             <p className="opportunities-page__salary">
-                                                <img src={briefcaseIcon} alt="" className="icon" />
+                                                <img src={briefcaseIcon} alt="" className="icon"/>
                                                 <span>{formatMoney(item.salaryFrom, item.salaryTo, item.salaryCurrency)}</span>
                                             </p>
+
                                             <p className="opportunities-page__short-desc">{item.shortDescription}</p>
+
                                             <div className="opportunities-page__compact-actions">
                                                 <button
                                                     type="button"
                                                     className="opportunities-page__map-btn"
                                                     onClick={() => handleShowOnMap(item.id)}
                                                 >
-                                                    <img src={locationIcon} alt="" className="icon" />
+                                                    <img src={locationIcon} alt="" className="icon"/>
                                                     <span>Показать на карте</span>
                                                 </button>
+
                                                 <Link href={`/opportunities/${item.id}`}>
                                                     <button type="button" className="opportunities-page__detail-btn">
                                                         <span>Подробнее</span>
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M9 18L15 12L9 6" />
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                             stroke="currentColor" strokeWidth="2">
+                                                            <path d="M9 18L15 12L9 6"/>
                                                         </svg>
                                                     </button>
                                                 </Link>
                                             </div>
                                         </article>
-                                    ))}
-                                    {total > MAP_SIDE_LIMIT && (
-                                        <div className="opportunities-page__map-pagination">
-                                            <button type="button" onClick={() => goToPage(page - 1)} disabled={page === 0}>
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    <path d="M15 18L9 12L15 6" />
-                                                </svg>
-                                            </button>
-                                            <span>{page + 1} / {totalPages}</span>
-                                            <button type="button" onClick={() => goToPage(page + 1)} disabled={page + 1 >= totalPages}>
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    <path d="M9 18L15 12L9 6" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="opportunities-page__map-wrap">
-                                    <YandexOpportunityMap
-                                        points={mapPoints}
-                                        favoriteCompanies={favoriteCompanies}
-                                        focusedOpportunityId={focusedOpportunityId}
-                                        onOpenCard={(id) => {
-                                            setFocusedOpportunityId(id)
-                                        }}
-                                        isDetailPage={false}
-                                    />
-                                </div>
+                                    ))
+                                )}
+
+                                {visibleTotal > MAP_SIDE_LIMIT && !showMapEmpty && (
+                                    <div className="opportunities-page__map-pagination">
+                                        <button type="button" onClick={() => goToPage(page - 1)} disabled={page === 0}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                 stroke="currentColor" strokeWidth="2">
+                                                <path d="M15 18L9 12L15 6"/>
+                                            </svg>
+                                        </button>
+                                        <span>{page + 1} / {totalPages}</span>
+                                        <button type="button" onClick={() => goToPage(page + 1)}
+                                                disabled={page + 1 >= totalPages}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                                 stroke="currentColor" strokeWidth="2">
+                                                <path d="M9 18L15 12L9 6"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            <>
-                                <div className="opportunities-page__cards-grid">
-                                    {opportunities.map((item) => (
-                                        <article key={item.id} className="opportunities-page__card">
-                                            <div className="opportunities-page__card-header">
-                                                <div className="opportunities-page__card-badges">
-                                                    <span className="opportunities-page__badge opportunities-page__badge--type">
-                                                        {OPPORTUNITY_LABELS.type[item.type] || item.type}
-                                                    </span>
-                                                    <span className="opportunities-page__badge">
-                                                        {OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className={`opportunities-page__fav-star ${favoriteOpportunities.has(item.id) ? 'is-favorite' : ''}`}
-                                                    onClick={() => toggleOpportunityFavorite(item)}
-                                                >
-                                                    ★
-                                                </button>
-                                            </div>
-                                            <h3>{item.title}</h3>
-                                            <p className="opportunities-page__company">
-                                                <img src={companyIcon} alt="" className="icon" />
-                                                <span>{item.companyName}</span>
-                                                <button
-                                                    type="button"
-                                                    className={`opportunities-page__company-fav ${favoriteCompanies.has(item.companyName) ? 'is-favorite' : ''}`}
-                                                    onClick={() => toggleCompanyFavorite(item.companyName)}
-                                                >
-                                                    ★
-                                                </button>
-                                            </p>
-                                            <p className="opportunities-page__salary">
-                                                <img src={briefcaseIcon} alt="" className="icon" />
-                                                <span>{formatMoney(item.salaryFrom, item.salaryTo, item.salaryCurrency)}</span>
-                                            </p>
-                                            <p className="opportunities-page__desc">{item.shortDescription}</p>
-                                            <div className="opportunities-page__card-footer">
-                                                <button
-                                                    type="button"
-                                                    className="opportunities-page__map-link"
-                                                    onClick={() => handleShowOnMap(item.id)}
-                                                >
-                                                    <img src={locationIcon} alt="" className="icon" />
-                                                    <span>На карту</span>
-                                                </button>
-                                                <div className="opportunities-page__card-actions">
-                                                    {isApplicant && (
-                                                        <Button className="button--primary" onClick={() => handleApply(item)}>
-                                                            Откликнуться
-                                                        </Button>
-                                                    )}
-                                                    <Link href={`/opportunities/${item.id}`}>
-                                                        <Button className="button--outline">Подробнее</Button>
-                                                    </Link>
-                                                </div>
-                                            </div>
-                                        </article>
-                                    ))}
-                                </div>
-                                <div className="opportunities-page__pagination">
-                                    <button type="button" onClick={() => goToPage(page - 1)} disabled={page === 0}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M15 18L9 12L15 6" />
-                                        </svg>
-                                        <span>Назад</span>
-                                    </button>
-                                    <span>{page + 1} / {totalPages}</span>
-                                    <button type="button" onClick={() => goToPage(page + 1)} disabled={page + 1 >= totalPages}>
-                                        <span>Вперёд</span>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M9 18L15 12L9 6" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </>
-                        )}
+
+                            <div className="opportunities-page__map-wrap">
+                                <YandexOpportunityMap
+                                    points={visibleMapPoints}
+                                    favoriteCompanies={favoriteCompanies}
+                                    focusedOpportunityId={focusedOpportunityId}
+                                    onOpenCard={handleOpenCard}
+                                    onCenterChange={handleMapCenterChange}
+                                />
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {!isLoading && !error && viewMode === 'list' && opportunities.length > 0 && (
+                    <section className="opportunities-page__content">
+                        <div className="opportunities-page__cards-grid">
+                            {opportunities.map((item) => (
+                                <article key={item.id} className="opportunities-page__card">
+                                    <div className="opportunities-page__card-header">
+                                        <div className="opportunities-page__card-badges">
+                                            <span className="opportunities-page__badge opportunities-page__badge--type">
+                                                {OPPORTUNITY_LABELS.type[item.type] || item.type}
+                                            </span>
+                                            <span className="opportunities-page__badge">
+                                                {OPPORTUNITY_LABELS.workFormat[item.workFormat] || item.workFormat}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className={`opportunities-page__fav-star ${favoriteOpportunities.has(item.id) ? 'is-favorite' : ''}`}
+                                            onClick={() => toggleOpportunityFavorite(item)}
+                                        >
+                                            ★
+                                        </button>
+                                    </div>
+
+                                    <h3>{item.title}</h3>
+
+                                    <p className="opportunities-page__company">
+                                        <img src={companyIcon} alt="" className="icon"/>
+                                        <span>{item.companyName}</span>
+                                        <button
+                                            type="button"
+                                            className={`opportunities-page__company-fav ${favoriteCompanies.has(item.companyName) ? 'is-favorite' : ''}`}
+                                            onClick={() => toggleCompanyFavorite(item.companyName)}
+                                        >
+                                            ★
+                                        </button>
+                                    </p>
+
+                                    <p className="opportunities-page__salary">
+                                        <img src={briefcaseIcon} alt="" className="icon"/>
+                                        <span>{formatMoney(item.salaryFrom, item.salaryTo, item.salaryCurrency)}</span>
+                                    </p>
+
+                                    <p className="opportunities-page__desc">{item.shortDescription}</p>
+
+                                    <div className="opportunities-page__card-footer">
+                                        <button
+                                            type="button"
+                                            className="opportunities-page__map-link"
+                                            onClick={() => handleShowOnMap(item.id)}
+                                        >
+                                            <img src={locationIcon} alt="" className="icon"/>
+                                            <span>На карту</span>
+                                        </button>
+
+                                        <div className="opportunities-page__card-actions">
+                                            {isApplicant && (
+                                                <Button className="button--primary" onClick={() => handleApply(item)}>
+                                                    Откликнуться
+                                                </Button>
+                                            )}
+                                            <Link href={`/opportunities/${item.id}`}>
+                                                <Button className="button--outline">Подробнее</Button>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <div className="opportunities-page__pagination">
+                            <button type="button" onClick={() => goToPage(page - 1)} disabled={page === 0}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     strokeWidth="2">
+                                    <path d="M15 18L9 12L15 6"/>
+                                </svg>
+                                <span>Назад</span>
+                            </button>
+                            <span>{page + 1} / {totalPages}</span>
+                            <button type="button" onClick={() => goToPage(page + 1)} disabled={page + 1 >= totalPages}>
+                                <span>Вперёд</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     strokeWidth="2">
+                                    <path d="M9 18L15 12L9 6"/>
+                                </svg>
+                            </button>
+                        </div>
                     </section>
                 )}
             </main>
