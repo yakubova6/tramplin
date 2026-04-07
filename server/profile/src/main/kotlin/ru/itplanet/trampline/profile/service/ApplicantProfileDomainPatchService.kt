@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.profile.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -7,7 +8,9 @@ import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.exception.ApiException
 import ru.itplanet.trampline.commons.model.Tag
 import ru.itplanet.trampline.commons.model.file.*
+import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
+import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskType
 import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.profile.client.MediaServiceClient
@@ -37,7 +40,8 @@ class ApplicantProfileDomainPatchService(
     private val moderationServiceClient: ModerationServiceClient,
     private val mediaServiceClient: MediaServiceClient,
     private val opportunityTagClient: OpportunityTagClient,
-    private val validator: ApplicantProfileDomainValidator
+    private val validator: ApplicantProfileDomainValidator,
+    private val objectMapper: ObjectMapper,
 ) {
 
     @Transactional
@@ -80,7 +84,7 @@ class ApplicantProfileDomainPatchService(
             profile.city = cityDao.findById(cityId).orElseThrow {
                 ProfileNotFoundException(
                     message = "Город с идентификатором $cityId не найден",
-                    code = "city_not_found"
+                    code = "city_not_found",
                 )
             }
         }
@@ -141,29 +145,10 @@ class ApplicantProfileDomainPatchService(
         profile: ApplicantProfileDto,
     ) {
         when (profile.moderationStatus) {
-            ApplicantProfileModerationStatus.APPROVED -> {
-                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
-            }
-
+            ApplicantProfileModerationStatus.APPROVED,
             ApplicantProfileModerationStatus.PENDING_MODERATION -> {
-                runModerationAction(
-                    logMessage = "Не удалось отменить активную модерацию профиля соискателя userId=${profile.userId}",
-                    errorMessage = "Не удалось обновить состояние модерации профиля соискателя",
-                    code = "applicant_profile_task_cancel_failed",
-                ) {
-                    val taskLookup = moderationServiceClient.getTaskByEntity(
-                        entityType = ModerationEntityType.APPLICANT_PROFILE,
-                        entityId = profile.userId,
-                        taskType = ModerationTaskType.PROFILE_REVIEW,
-                    )
-
-                    val taskId = taskLookup.taskId
-                    if (taskLookup.exists && taskId != null) {
-                        moderationServiceClient.cancelTask(taskId)
-                    }
-                }
-
-                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
+                recreateModerationTask(profile)
+                profile.moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION
             }
 
             ApplicantProfileModerationStatus.DRAFT,
@@ -171,10 +156,64 @@ class ApplicantProfileDomainPatchService(
         }
     }
 
-    // Эти методы должны быть реализованы или перенесены из исходного сервиса
+    private fun recreateModerationTask(
+        profile: ApplicantProfileDto,
+    ) {
+        cancelActiveTask(profile.userId)
+
+        runModerationAction(
+            logMessage = "Не удалось создать задачу модерации профиля соискателя userId=${profile.userId}",
+            errorMessage = "Не удалось обновить задачу модерации профиля соискателя",
+            code = "applicant_profile_task_create_failed",
+        ) {
+            moderationServiceClient.createTask(
+                CreateInternalModerationTaskRequest(
+                    entityType = ModerationEntityType.APPLICANT_PROFILE,
+                    entityId = profile.userId,
+                    taskType = ModerationTaskType.PROFILE_REVIEW,
+                    priority = ModerationTaskPriority.MEDIUM,
+                    createdByUserId = profile.userId,
+                    snapshot = objectMapper.valueToTree(
+                        buildApplicantProfile(profile).copy(
+                            moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION,
+                        ),
+                    ),
+                    sourceService = "profile",
+                    sourceAction = "patchApplicantProfileAutoSubmit",
+                ),
+            )
+        }
+    }
+
+    private fun cancelActiveTask(
+        userId: Long,
+    ) {
+        runModerationAction(
+            logMessage = "Не удалось отменить активную модерацию профиля соискателя userId=$userId",
+            errorMessage = "Не удалось обновить состояние модерации профиля соискателя",
+            code = "applicant_profile_task_cancel_failed",
+        ) {
+            val taskLookup = moderationServiceClient.getTaskByEntity(
+                entityType = ModerationEntityType.APPLICANT_PROFILE,
+                entityId = userId,
+                taskType = ModerationTaskType.PROFILE_REVIEW,
+            )
+
+            val taskId = taskLookup.taskId
+            if (taskLookup.exists && taskId != null) {
+                moderationServiceClient.cancelTask(taskId)
+            }
+        }
+    }
+
     private fun loadApplicantProfileDto(userId: Long): ApplicantProfileDto {
         return applicantProfileDao.findById(userId)
-            .orElseThrow { ProfileNotFoundException("Профиль соискателя не найден", "profile_not_found") }
+            .orElseThrow {
+                ProfileNotFoundException(
+                    message = "Профиль соискателя не найден",
+                    code = "profile_not_found",
+                )
+            }
     }
 
     private fun replaceApplicantTags(
@@ -380,7 +419,7 @@ class ApplicantProfileDomainPatchService(
     )
 
     private companion object {
-        private val logger = LoggerFactory.getLogger(ProfileServiceImpl::class.java)
+        private val logger = LoggerFactory.getLogger(ApplicantProfileDomainPatchService::class.java)
 
         private const val NO_TAG_ID_PLACEHOLDER = -1L
 
