@@ -67,8 +67,8 @@ class EmployerOpportunityController(
         @PathVariable @Positive(message = "Идентификатор возможности должен быть положительным") id: Long,
         @Valid @RequestBody request: CreateEmployerOpportunityRequest,
         @CurrentUser currentUserId: Long,
-    ): EmployerOpportunityEditPayload {
-        return employerOpportunityService.update(currentUserId, id, request)
+    ): EmployerOpportunityCard {
+        return employerOpportunityModerationService.update(currentUserId, id, request)
     }
 
     @PostMapping(

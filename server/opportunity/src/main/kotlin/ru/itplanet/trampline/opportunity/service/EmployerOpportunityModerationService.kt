@@ -54,6 +54,30 @@ class EmployerOpportunityModerationService(
     }
 
     @Transactional
+    fun update(
+        employerUserId: Long,
+        opportunityId: Long,
+        request: CreateEmployerOpportunityRequest,
+    ): EmployerOpportunityCard {
+        val updated = employerOpportunityService.update(employerUserId, opportunityId, request)
+        val opportunity = getOwnedOpportunity(employerUserId, updated.id)
+
+        if (opportunity.status == OpportunityStatus.DRAFT || opportunity.status == OpportunityStatus.REJECTED) {
+            opportunity.status = OpportunityStatus.PENDING_MODERATION
+            opportunity.publishedAt = null
+        }
+
+        ensureModerationTask(
+            employerUserId = employerUserId,
+            opportunity = opportunity,
+            sourceAction = "updateEmployerOpportunity",
+            mediaAttachments = emptyList(),
+        )
+
+        return employerOpportunityConverter.toCard(opportunity)
+    }
+
+    @Transactional
     fun submitAfterMediaChanged(
         employerUserId: Long,
         opportunityId: Long,
