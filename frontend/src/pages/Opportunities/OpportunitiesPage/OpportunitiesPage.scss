@@ -82,8 +82,9 @@
 
       .salary-input {
         width: 100px;
-        min-height: 36px;
-        padding: 0 8px;
+        height: 42px;
+        min-height: 42px;
+        padding: 0 12px;
         text-align: center;
       }
 
@@ -801,5 +802,21 @@
         justify-content: center;
       }
     }
+  }
+}
+
+.opportunities-page__search-bar input,
+.opportunities-page__search-bar .custom-select__button,
+.opportunities-page__salary-filter .salary-input {
+  height: 42px;
+  min-height: 42px;
+}
+
+.opportunities-page__salary-filter {
+  .salary-filter__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #113338;
+    line-height: 1.2;
   }
 }

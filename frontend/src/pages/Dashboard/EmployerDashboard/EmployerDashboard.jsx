@@ -1383,34 +1383,57 @@ function EmployerDashboard() {
                             <div className="employer-profile__edit">
                                 <div className="employer-profile__edit-header">
                                     <h2>Редактирование компании</h2>
+
+                                    <button
+                                        type="button"
+                                        className="employer-profile__edit-close"
+                                        onClick={() => setIsEditingProfile(false)}
+                                        aria-label="Закрыть форму редактирования"
+                                    >
+                                        ×
+                                    </button>
                                 </div>
 
                                 <div className="employer-profile__edit-grid">
                                     <div className="employer-profile__edit-field">
                                         <Label>Название компании <span className="required-star">*</span></Label>
-                                        <Input value={profile.companyName} onChange={(e) => setProfile((prev) => ({ ...prev, companyName: e.target.value }))} disabled />
+                                        <Input value={profile.companyName} onChange={(e) => setProfile((prev) => ({
+                                            ...prev,
+                                            companyName: e.target.value
+                                        }))} disabled/>
                                         {errors.companyName && <p className="field-error">{errors.companyName}</p>}
                                     </div>
                                     <div className="employer-profile__edit-field">
                                         <Label>ИНН <span className="required-star">*</span></Label>
-                                        <Input value={profile.inn} onChange={(e) => setProfile((prev) => ({ ...prev, inn: e.target.value }))} disabled />
+                                        <Input value={profile.inn}
+                                               onChange={(e) => setProfile((prev) => ({...prev, inn: e.target.value}))}
+                                               disabled/>
                                         {errors.inn && <p className="field-error">{errors.inn}</p>}
                                     </div>
                                 </div>
 
                                 <div className="employer-profile__edit-field">
                                     <Label>Юридическое название</Label>
-                                    <Input value={profile.legalName} onChange={(e) => setProfile((prev) => ({ ...prev, legalName: e.target.value }))} />
+                                    <Input value={profile.legalName} onChange={(e) => setProfile((prev) => ({
+                                        ...prev,
+                                        legalName: e.target.value
+                                    }))}/>
                                 </div>
 
                                 <div className="employer-profile__edit-grid">
                                     <div className="employer-profile__edit-field">
                                         <Label>Сфера деятельности</Label>
-                                        <Input value={profile.industry} onChange={(e) => setProfile((prev) => ({ ...prev, industry: e.target.value }))} />
+                                        <Input value={profile.industry} onChange={(e) => setProfile((prev) => ({
+                                            ...prev,
+                                            industry: e.target.value
+                                        }))}/>
                                     </div>
                                     <div className="employer-profile__edit-field">
                                         <Label>Сайт компании</Label>
-                                        <Input value={profile.websiteUrl} onChange={(e) => setProfile((prev) => ({ ...prev, websiteUrl: e.target.value }))} />
+                                        <Input value={profile.websiteUrl} onChange={(e) => setProfile((prev) => ({
+                                            ...prev,
+                                            websiteUrl: e.target.value
+                                        }))}/>
                                     </div>
                                 </div>
 
@@ -1445,19 +1468,26 @@ function EmployerDashboard() {
                                     <CustomSelect
                                         label="Размер компании"
                                         value={profile.companySize}
-                                        onChange={(val) => setProfile((prev) => ({ ...prev, companySize: val }))}
+                                        onChange={(val) => setProfile((prev) => ({...prev, companySize: val}))}
                                         options={COMPANY_SIZE_OPTIONS}
                                     />
                                 </div>
 
                                 <div className="employer-profile__edit-field">
                                     <Label>Год основания</Label>
-                                    <Input value={profile.foundedYear || ''} onChange={(e) => setProfile((prev) => ({ ...prev, foundedYear: e.target.value }))} />
+                                    <Input value={profile.foundedYear || ''} onChange={(e) => setProfile((prev) => ({
+                                        ...prev,
+                                        foundedYear: e.target.value
+                                    }))}/>
                                 </div>
 
                                 <div className="employer-profile__edit-field">
                                     <Label>Описание компании</Label>
-                                    <Textarea rows={4} value={profile.description} onChange={(e) => setProfile((prev) => ({ ...prev, description: e.target.value }))} />
+                                    <Textarea rows={4} value={profile.description}
+                                              onChange={(e) => setProfile((prev) => ({
+                                                  ...prev,
+                                                  description: e.target.value
+                                              }))}/>
                                 </div>
 
                                 <LinksEditor
@@ -1468,16 +1498,19 @@ function EmployerDashboard() {
                                     placeholderUrl="https://..."
                                 />
 
-                                <LinksEditor
-                                    label="Контакты для связи"
-                                    rows={contactRows}
-                                    setRows={setContactRows}
-                                    placeholderTitle="Тип контакта"
-                                    placeholderUrl="mailto: / tel: / https://..."
-                                />
+                                <div className="employer-profile__contacts-block">
+                                    <LinksEditor
+                                        label="Контакты для связи"
+                                        rows={contactRows}
+                                        setRows={setContactRows}
+                                        placeholderTitle="Тип контакта"
+                                        placeholderUrl="mailto: / tel: / https://..."
+                                    />
+                                </div>
 
                                 <div className="employer-profile__edit-actions">
-                                    <Button className="button--primary" onClick={handleSaveProfile} disabled={isLoading}>
+                                    <Button className="button--primary" onClick={handleSaveProfile}
+                                            disabled={isLoading}>
                                         {isLoading ? 'Сохранение...' : 'Сохранить'}
                                     </Button>
                                     <Button className="button--ghost" onClick={() => setIsEditingProfile(false)}>

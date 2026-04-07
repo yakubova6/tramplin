@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { OPPORTUNITY_LABELS } from '../../api/opportunities'
+import './YandexOpportunityMap.scss'
 
 const YMAPS_API_KEY = import.meta.env.VITE_YMAPS_API_KEY
 
@@ -65,51 +66,65 @@ function buildBalloon(point) {
     const tags = (preview.tags || [])
         .slice(0, 4)
         .map(
-            (tag) =>
-                `<span style="display:inline-block;background:#edf6f7;color:#365f65;padding:3px 8px;border-radius:8px;font-size:11px;margin:2px;">${escapeHtml(tag.name)}</span>`
+            (tag) => `
+                <span class="yandex-opportunity-map__tag">
+                    ${escapeHtml(tag.name)}
+                </span>
+            `
         )
         .join('')
 
     const title = preview.title || point.title
     const companyName = preview.companyName || point.companyName
     const typeLabel = OPPORTUNITY_LABELS.type[point.type] || 'Возможность'
-    const formatLabel =
-        OPPORTUNITY_LABELS.workFormat[point.workFormat] ||
+    const rawWorkFormat =
+        preview.workFormat ||
         point.workFormat ||
+        preview.format ||
+        point.format ||
+        ''
+
+    const formatLabel =
+        OPPORTUNITY_LABELS.workFormat[rawWorkFormat] ||
+        rawWorkFormat ||
         'Формат не указан'
     const salary = formatMoney(preview.salaryFrom, preview.salaryTo, preview.salaryCurrency)
 
     return `
-        <div style="max-width:320px;font-family:Manrope,Arial,sans-serif;">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px;">
-            <h4 style="margin:0;color:#10272b;font-size:15px;line-height:1.35;">${escapeHtml(title)}</h4>
-            <span style="flex-shrink:0;font-size:11px;color:#0f5f68;background:#dceff1;padding:2px 8px;border-radius:999px;">
-              ${escapeHtml(typeLabel)}
-            </span>
-          </div>
+        <div class="yandex-opportunity-map__popup yandex-opportunity-map__popup--balloon">
+            <div class="yandex-opportunity-map__header">
+                <h4 class="yandex-opportunity-map__title">
+                    ${escapeHtml(title)}
+                </h4>
 
-          <p style="margin:0 0 6px;color:#264a50;font-weight:700;">
-            ${escapeHtml(companyName)}
-          </p>
+                <span class="yandex-opportunity-map__badge yandex-opportunity-map__badge--type">
+                    ${escapeHtml(typeLabel)}
+                </span>
+            </div>
 
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px;">
-            <span style="font-size:11px;color:#45666b;background:#f1f5f9;padding:2px 7px;border-radius:999px;">
-              ${escapeHtml(formatLabel)}
-            </span>
-            <span style="font-size:11px;color:#10272b;background:#fef3c7;padding:2px 7px;border-radius:999px;font-weight:700;">
-              ${escapeHtml(salary)}
-            </span>
-          </div>
+            <p class="yandex-opportunity-map__company">
+                ${escapeHtml(companyName)}
+            </p>
 
-          <p style="margin:0 0 6px;color:#547379;font-size:12px;">
-            ${escapeHtml(point.addressLine || point.cityName || 'Адрес не указан')}
-          </p>
+            <div class="yandex-opportunity-map__badges">
+                <span class="yandex-opportunity-map__badge">
+                    ${escapeHtml(formatLabel)}
+                </span>
 
-          <p style="margin:0 0 8px;color:#45666b;font-size:13px;line-height:1.45;">
-            ${escapeHtml(preview.shortDescription || '')}
-          </p>
+                <span class="yandex-opportunity-map__badge yandex-opportunity-map__badge--salary">
+                    ${escapeHtml(salary)}
+                </span>
+            </div>
 
-          ${tags ? `<div>${tags}</div>` : ''}
+            <p class="yandex-opportunity-map__address">
+                ${escapeHtml(point.addressLine || point.cityName || 'Адрес не указан')}
+            </p>
+
+            <p class="yandex-opportunity-map__description">
+                ${escapeHtml(preview.shortDescription || '')}
+            </p>
+
+            ${tags ? `<div class="yandex-opportunity-map__tags">${tags}</div>` : ''}
         </div>
     `
 }
@@ -120,7 +135,7 @@ function buildHint(point) {
         .slice(0, 3)
         .map(
             (tag) => `
-                <span style="display:inline-block;background:#edf6f7;color:#365f65;padding:2px 7px;border-radius:8px;font-size:10px;margin:2px;">
+                <span class="yandex-opportunity-map__tag yandex-opportunity-map__tag--hint">
                     ${escapeHtml(tag.name)}
                 </span>
             `
@@ -130,37 +145,46 @@ function buildHint(point) {
     const title = preview.title || point.title
     const companyName = preview.companyName || point.companyName
     const typeLabel = OPPORTUNITY_LABELS.type[point.type] || 'Возможность'
-    const formatLabel =
-        OPPORTUNITY_LABELS.workFormat[point.workFormat] ||
+    const rawWorkFormat =
+        preview.workFormat ||
         point.workFormat ||
+        preview.format ||
+        point.format ||
+        ''
+
+    const formatLabel =
+        OPPORTUNITY_LABELS.workFormat[rawWorkFormat] ||
+        rawWorkFormat ||
         'Формат не указан'
     const salary = formatMoney(preview.salaryFrom, preview.salaryTo, preview.salaryCurrency)
 
     return `
-        <div style="max-width:280px;font-family:Manrope,Arial,sans-serif;padding:2px 2px 0;">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:6px;">
-            <h4 style="margin:0;color:#10272b;font-size:14px;line-height:1.35;">
-              ${escapeHtml(title)}
-            </h4>
-            <span style="flex-shrink:0;font-size:10px;color:#0f5f68;background:#dceff1;padding:2px 8px;border-radius:999px;">
-              ${escapeHtml(typeLabel)}
-            </span>
-          </div>
+        <div class="yandex-opportunity-map__popup yandex-opportunity-map__popup--hint">
+            <div class="yandex-opportunity-map__header">
+                <h4 class="yandex-opportunity-map__title">
+                    ${escapeHtml(title)}
+                </h4>
 
-          <p style="margin:0 0 4px;color:#264a50;font-weight:700;">
-            ${escapeHtml(companyName)}
-          </p>
+                <span class="yandex-opportunity-map__badge yandex-opportunity-map__badge--type">
+                    ${escapeHtml(typeLabel)}
+                </span>
+            </div>
 
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px;">
-            <span style="font-size:10px;color:#45666b;background:#f1f5f9;padding:2px 7px;border-radius:999px;">
-              ${escapeHtml(formatLabel)}
-            </span>
-            <span style="font-size:10px;color:#10272b;background:#fef3c7;padding:2px 7px;border-radius:999px;font-weight:700;">
-              ${escapeHtml(salary)}
-            </span>
-          </div>
+            <p class="yandex-opportunity-map__company">
+                ${escapeHtml(companyName)}
+            </p>
 
-          ${tags ? `<div>${tags}</div>` : ''}
+            <div class="yandex-opportunity-map__badges">
+                <span class="yandex-opportunity-map__badge">
+                    ${escapeHtml(formatLabel)}
+                </span>
+
+                <span class="yandex-opportunity-map__badge yandex-opportunity-map__badge--salary">
+                    ${escapeHtml(salary)}
+                </span>
+            </div>
+
+            ${tags ? `<div class="yandex-opportunity-map__tags">${tags}</div>` : ''}
         </div>
     `
 }
@@ -211,17 +235,27 @@ export default function YandexOpportunityMap({
                         {
                             balloonContentBody: buildBalloon(point),
                             hintContent: buildHint(point),
-                            iconCaption: `${point.companyName || ''} · ${point.title || ''}`.slice(0, 45),
                         },
                         {
                             iconLayout: 'default#imageWithContent',
                             iconImageHref: markerSvg(isFavorite ? '#f59f0a' : '#0f5f68'),
                             iconImageSize: [34, 44],
                             iconImageOffset: [-17, -44],
-                            iconContentOffset: [0, 0],
-                            iconCaptionMaxWidth: '220',
+
                             hintOpenTimeout: 80,
                             hintCloseTimeout: 0,
+                            hintFitPane: true,
+                            hintOffset: [18, -12],
+
+                            balloonMaxWidth: 340,
+                            balloonPanelMaxMapArea: 0,
+                            balloonAutoPan: true,
+                            balloonAutoPanDuration: 300,
+                            balloonAutoPanCheckZoomRange: true,
+                            balloonAutoPanMargin: [40, 40, 40, 40],
+                            balloonAutoPanUseMapMargin: true,
+
+                            hideIconOnBalloonOpen: false,
                         }
                     )
 
@@ -247,7 +281,9 @@ export default function YandexOpportunityMap({
             map.container.fitToViewport()
         }
 
-        initMap().catch((error) => console.error('[YandexOpportunityMap] init error', error))
+        initMap().catch((error) =>
+            console.error('[YandexOpportunityMap] init error', error)
+        )
 
         return () => {
             isDisposed = true
@@ -266,7 +302,10 @@ export default function YandexOpportunityMap({
 
             if (!map || !placemark) {
                 if (attempt < 8) {
-                    focusRetryRef.current = setTimeout(() => tryFocus(attempt + 1), 120)
+                    focusRetryRef.current = setTimeout(
+                        () => tryFocus(attempt + 1),
+                        120
+                    )
                 }
                 return
             }
