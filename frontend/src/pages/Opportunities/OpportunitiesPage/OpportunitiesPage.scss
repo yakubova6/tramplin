@@ -82,8 +82,9 @@
 
       .salary-input {
         width: 100px;
-        min-height: 36px;
-        padding: 0 8px;
+        height: 42px;
+        min-height: 42px;
+        padding: 0 12px;
         text-align: center;
       }
 
@@ -802,4 +803,11 @@
       }
     }
   }
+}
+
+.opportunities-page__search-bar input,
+.opportunities-page__search-bar .custom-select__button,
+.opportunities-page__salary-filter .salary-input {
+  height: 42px;
+  min-height: 42px;
 }

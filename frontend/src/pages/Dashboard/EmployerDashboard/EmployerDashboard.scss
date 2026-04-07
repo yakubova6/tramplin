@@ -111,7 +111,6 @@ $transition: all 0.2s ease;
   font-weight: 500;
   color: $gray-600;
   cursor: pointer;
-  transition: $transition;
 
   .icon {
     width: 14px;
@@ -168,8 +167,16 @@ $transition: all 0.2s ease;
   }
 }
 
-// ===== РЕДАКТИРОВАНИЕ ПРОФИЛЯ (как у соискателя) =====
+// ===== РЕДАКТИРОВАНИЕ ПРОФИЛЯ =====
+.employer-profile__edit {
+  width: 100%;
+}
+
 .employer-profile__edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 24px;
 
   h2 {
@@ -179,8 +186,51 @@ $transition: all 0.2s ease;
   }
 }
 
-.employer-profile__edit {
-  width: 100%;
+.employer-profile__edit-close {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: $gray-600;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transform: none !important;
+  scale: 1 !important;
+  animation: none !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    background: $gray-200;
+    color: $gray-800;
+    transform: none !important;
+    scale: 1 !important;
+    animation: none !important;
+    box-shadow: none;
+  }
+
+  &:focus,
+  &:focus-visible,
+  &:active {
+    outline: none;
+    box-shadow: none;
+    transform: none !important;
+    scale: 1 !important;
+    animation: none !important;
+  }
 }
 
 .employer-profile__edit-grid {
@@ -221,6 +271,10 @@ $transition: all 0.2s ease;
 // Для полей внутри сетки отступы уже есть через gap
 .employer-profile__edit-grid .employer-profile__edit-field {
   margin-bottom: 0;
+}
+
+.employer-profile__contacts-block {
+  margin-top: 24px;
 }
 
 .employer-profile__edit-actions {
@@ -795,8 +849,38 @@ $transition: all 0.2s ease;
   font-size: 14px;
 }
 
-.employer-applicants .employer-opportunities__filters > *:first-child {
-  min-width: 280px;
+.employer-applicants .employer-opportunities__filters {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 200px 200px auto;
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+}
+
+.employer-applicants .employer-opportunities__filters > * {
+  min-width: 0;
+}
+
+.employer-applicants .employer-opportunities__filters .custom-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.employer-applicants .employer-opportunities__filters input {
+  width: 100%;
+  min-width: 0;
+}
+
+.employer-applicants .employer-opportunities__filters input,
+.employer-applicants .employer-opportunities__filters .custom-select__button {
+  height: 44px;
+  min-height: 44px;
+}
+
+.employer-applicants .employer-opportunities__filters .custom-select__button {
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
 }
 
 .employer-opportunities__filters .custom-select__button,
@@ -832,4 +916,16 @@ $transition: all 0.2s ease;
 
 .employer-applicants__actions .employer-opportunities__view {
   margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .employer-applicants .employer-opportunities__filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .employer-applicants .employer-opportunities__filters {
+    grid-template-columns: 1fr;
+  }
 }

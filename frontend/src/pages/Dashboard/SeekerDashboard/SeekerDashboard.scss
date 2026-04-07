@@ -1073,38 +1073,6 @@ $transition: all 0.2s ease;
   }
 }
 
-.modal__empty-state {
-  margin-bottom: 16px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
-
-  p {
-    margin: 0;
-    line-height: 1.5;
-  }
-}
-
-.modal__placeholder-box {
-  width: 100%;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px dashed #d1d5db;
-  border-radius: 12px;
-  background: #f9fafb;
-  color: #6b7280;
-}
-
-.profile-card__header-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 @media (max-width: 768px) {
   .profile-card__header-actions {
     width: 100%;
@@ -1664,58 +1632,6 @@ $transition: all 0.2s ease;
   }
 }
 
-.profile-card__avatar-wrap {
-  position: relative;
-  width: fit-content;
-  cursor: pointer;
-
-  &:hover .profile-card__avatar-overlay,
-  &:focus-within .profile-card__avatar-overlay {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-  }
-}
-
-.profile-card__avatar-overlay {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(8px);
-  min-width: 220px;
-  padding: 10px;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.96);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.25);
-  display: grid;
-  gap: 8px;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
-  z-index: 20;
-}
-
-.profile-card__avatar-action {
-  width: 100%;
-  border: none;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.14);
-  }
-
-  &--danger {
-    color: #fecaca;
-  }
-}
-
 .info-block__file-tools {
   margin-top: 16px;
   margin-bottom: 16px;
@@ -1766,24 +1682,6 @@ $transition: all 0.2s ease;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .embedded-file-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .profile-card__avatar-overlay {
-    left: 0;
-    transform: translateX(0) translateY(8px);
-    min-width: 200px;
-  }
-
-  .profile-card__avatar-wrap:hover .profile-card__avatar-overlay,
-  .profile-card__avatar-wrap:focus-within .profile-card__avatar-overlay {
-    transform: translateX(0) translateY(0);
-  }
 }
 
 .info-block__hint {
