@@ -11,6 +11,7 @@ import ru.itplanet.trampline.commons.model.enums.OpportunityType
 import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 import ru.itplanet.trampline.commons.model.enums.WorkFormat
 import ru.itplanet.trampline.opportunity.model.request.GetOpportunityListRequest
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
@@ -18,7 +19,7 @@ object OpportunitySpecification {
 
     fun build(
         request: GetOpportunityListRequest,
-        now: OffsetDateTime
+        now: OffsetDateTime,
     ): Specification<OpportunityDto> {
         return Specification.allOf(
             publicVisible(now),
@@ -28,17 +29,27 @@ object OpportunitySpecification {
             matchesSearch(request.search),
             matchesSalaryFrom(request.salaryFrom),
             matchesSalaryTo(request.salaryTo),
-            hasAnyTagIds(request.tagIds)
+            hasAnyTagIds(request.tagIds),
+        )
+    }
+
+    fun buildForMap(
+        request: GetOpportunityListRequest,
+        now: OffsetDateTime,
+    ): Specification<OpportunityDto> {
+        return Specification.allOf(
+            build(request, now),
+            mappableForMap(),
         )
     }
 
     fun publicById(
         id: Long,
-        now: OffsetDateTime
+        now: OffsetDateTime,
     ): Specification<OpportunityDto> {
         return Specification.allOf(
             publicVisible(now),
-            hasId(id)
+            hasId(id),
         )
     }
 
@@ -49,25 +60,25 @@ object OpportunitySpecification {
             val publishedPredicate = cb.and(
                 cb.equal(root.get<OpportunityStatus>("status"), OpportunityStatus.PUBLISHED),
                 cb.isNotNull(root.get<OffsetDateTime>("publishedAt")),
-                cb.lessThanOrEqualTo(root.get("publishedAt"), now)
+                cb.lessThanOrEqualTo(root.get("publishedAt"), now),
             )
 
             val notEventAndNotExpired = cb.and(
                 cb.notEqual(root.get<OpportunityType>("type"), OpportunityType.EVENT),
                 cb.or(
                     cb.isNull(root.get<OffsetDateTime>("expiresAt")),
-                    cb.greaterThanOrEqualTo(root.get("expiresAt"), now)
-                )
+                    cb.greaterThanOrEqualTo(root.get("expiresAt"), now),
+                ),
             )
 
             val eventAndNotPassed = cb.and(
                 cb.equal(root.get<OpportunityType>("type"), OpportunityType.EVENT),
-                cb.greaterThanOrEqualTo(root.get<LocalDate>("eventDate"), today)
+                cb.greaterThanOrEqualTo(root.get<LocalDate>("eventDate"), today),
             )
 
             cb.and(
                 publishedPredicate,
-                cb.or(notEventAndNotExpired, eventAndNotPassed)
+                cb.or(notEventAndNotExpired, eventAndNotPassed),
             )
         }
     }
@@ -111,7 +122,7 @@ object OpportunitySpecification {
 
             cb.or(
                 cb.equal(root.get<Long>("cityId"), cityId),
-                cb.equal(locationCityJoin.get<Long>("id"), cityId)
+                cb.equal(locationCityJoin.get<Long>("id"), cityId),
             )
         }
     }
@@ -130,7 +141,7 @@ object OpportunitySpecification {
                 cb.like(cb.lower(root.get<String>("shortDescription")), pattern),
                 cb.like(cb.lower(root.get<String>("companyName")), pattern),
                 cb.like(cb.lower(root.get<String>("requirements")), pattern),
-                cb.like(cb.lower(root.get<String>("fullDescription")), pattern)
+                cb.like(cb.lower(root.get<String>("fullDescription")), pattern),
             )
         }
     }
@@ -147,13 +158,13 @@ object OpportunitySpecification {
             cb.or(
                 cb.and(
                     cb.isNotNull(salaryTo),
-                    cb.greaterThanOrEqualTo(salaryTo, minSalary)
+                    cb.greaterThanOrEqualTo(salaryTo, minSalary),
                 ),
                 cb.and(
                     cb.isNull(salaryTo),
                     cb.isNotNull(salaryFrom),
-                    cb.greaterThanOrEqualTo(salaryFrom, minSalary)
-                )
+                    cb.greaterThanOrEqualTo(salaryFrom, minSalary),
+                ),
             )
         }
     }
@@ -166,7 +177,7 @@ object OpportunitySpecification {
         return Specification { root, _, cb ->
             cb.or(
                 cb.isNull(root.get<Int>("salaryFrom")),
-                cb.lessThanOrEqualTo(root.get("salaryFrom"), maxSalary)
+                cb.lessThanOrEqualTo(root.get("salaryFrom"), maxSalary),
             )
         }
     }
@@ -186,8 +197,41 @@ object OpportunitySpecification {
                 cb.isTrue(tagsJoin.get("isActive")),
                 cb.equal(
                     tagsJoin.get<TagModerationStatus>("moderationStatus"),
-                    TagModerationStatus.APPROVED
-                )
+                    TagModerationStatus.APPROVED,
+                ),
+            )
+        }
+    }
+
+    private fun mappableForMap(): Specification<OpportunityDto> {
+        return Specification { root, query, cb ->
+            query?.distinct(true)
+
+            val locationJoin = root.join<OpportunityDto, LocationDto>("location", JoinType.LEFT)
+            val cityJoin = root.join<OpportunityDto, CityDto>("city", JoinType.LEFT)
+
+            val officeOrHybrid = root.get<WorkFormat>("workFormat").`in`(
+                WorkFormat.OFFICE,
+                WorkFormat.HYBRID,
+            )
+            val remoteOrOnline = root.get<WorkFormat>("workFormat").`in`(
+                WorkFormat.REMOTE,
+                WorkFormat.ONLINE,
+            )
+
+            val hasLocationCoordinates = cb.and(
+                cb.isNotNull(locationJoin.get<BigDecimal>("latitude")),
+                cb.isNotNull(locationJoin.get<BigDecimal>("longitude")),
+            )
+
+            val hasCityCoordinates = cb.and(
+                cb.isNotNull(cityJoin.get<BigDecimal>("latitude")),
+                cb.isNotNull(cityJoin.get<BigDecimal>("longitude")),
+            )
+
+            cb.or(
+                cb.and(officeOrHybrid, hasLocationCoordinates),
+                cb.and(remoteOrOnline, hasCityCoordinates),
             )
         }
     }

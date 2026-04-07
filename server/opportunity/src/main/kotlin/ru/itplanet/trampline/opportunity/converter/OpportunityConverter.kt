@@ -13,11 +13,12 @@ import ru.itplanet.trampline.opportunity.model.OpportunityListItem
 import ru.itplanet.trampline.opportunity.model.OpportunityMapPoint
 import ru.itplanet.trampline.opportunity.model.OpportunityMarkerPreview
 import ru.itplanet.trampline.commons.model.OpportunityResourceLink
+import ru.itplanet.trampline.commons.model.enums.WorkFormat
 import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 
 @Component
 class OpportunityConverter(
-    private val tagConverter: TagConverter
+    private val tagConverter: TagConverter,
 ) {
 
     fun toListItem(source: OpportunityDto): OpportunityListItem {
@@ -40,7 +41,7 @@ class OpportunityConverter(
             locationPreview = toLocationPreview(source.location),
             tags = source.tags
                 .approvedActiveTags()
-                .map(tagConverter::toModel)
+                .map(tagConverter::toModel),
         )
     }
 
@@ -73,7 +74,7 @@ class OpportunityConverter(
                 .approvedActiveTags()
                 .map(tagConverter::toModel),
             mediaLinks = emptyList(),
-            status = source.status
+            status = source.status,
         )
     }
 
@@ -85,6 +86,8 @@ class OpportunityConverter(
             .take(5)
             .map(tagConverter::toModel)
 
+        val mapCoordinates = resolveMapCoordinates(source, city, location)
+
         return OpportunityMapPoint(
             id = requireNotNull(source.id),
             type = source.type,
@@ -94,9 +97,13 @@ class OpportunityConverter(
             salaryTo = source.salaryTo,
             salaryCurrency = source.salaryCurrency,
             cityName = city?.name,
-            addressLine = location?.addressLine,
-            latitude = location?.latitude?.toDouble() ?: city?.latitude?.toDouble(),
-            longitude = location?.longitude?.toDouble() ?: city?.longitude?.toDouble(),
+            addressLine = if (source.workFormat == WorkFormat.OFFICE || source.workFormat == WorkFormat.HYBRID) {
+                location?.addressLine
+            } else {
+                null
+            },
+            latitude = mapCoordinates.first,
+            longitude = mapCoordinates.second,
             preview = OpportunityMarkerPreview(
                 title = source.title,
                 companyName = source.companyName,
@@ -105,9 +112,24 @@ class OpportunityConverter(
                 salaryFrom = source.salaryFrom,
                 salaryTo = source.salaryTo,
                 salaryCurrency = source.salaryCurrency,
-                tags = previewTags
-            )
+                tags = previewTags,
+            ),
         )
+    }
+
+    private fun resolveMapCoordinates(
+        source: OpportunityDto,
+        city: CityDto?,
+        location: LocationDto?,
+    ): Pair<Double?, Double?> {
+        return when (source.workFormat) {
+            WorkFormat.OFFICE, WorkFormat.HYBRID -> {
+                location?.latitude?.toDouble() to location?.longitude?.toDouble()
+            }
+            WorkFormat.REMOTE, WorkFormat.ONLINE -> {
+                city?.latitude?.toDouble() to city?.longitude?.toDouble()
+            }
+        }
     }
 
     private fun resolveCity(source: OpportunityDto): CityDto? {
@@ -125,7 +147,7 @@ class OpportunityConverter(
             regionName = source.regionName,
             countryCode = source.countryCode,
             latitude = source.latitude,
-            longitude = source.longitude
+            longitude = source.longitude,
         )
     }
 
@@ -143,7 +165,7 @@ class OpportunityConverter(
             postalCode = source.postalCode,
             latitude = source.latitude,
             longitude = source.longitude,
-            city = toCitySummary(source.city)
+            city = toCitySummary(source.city),
         )
     }
 
@@ -152,7 +174,7 @@ class OpportunityConverter(
             sortOrder = source.id.sortOrder,
             label = source.label,
             linkType = source.linkType,
-            url = source.url
+            url = source.url,
         )
     }
 

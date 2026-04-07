@@ -62,7 +62,7 @@ class OpportunityServiceImpl(
         )
 
         val page = opportunityDao.findAll(
-            OpportunitySpecification.build(request, now),
+            OpportunitySpecification.buildForMap(request, now),
             pageable,
         )
 

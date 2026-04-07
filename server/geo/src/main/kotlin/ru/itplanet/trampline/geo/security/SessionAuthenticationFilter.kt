@@ -33,6 +33,10 @@ class SessionAuthenticationFilter(
             return true
         }
 
+        if (path == "/api/geo/opportunities/nearby") {
+            return true
+        }
+
         if (request.method == HttpMethod.OPTIONS.name()) {
             return true
         }

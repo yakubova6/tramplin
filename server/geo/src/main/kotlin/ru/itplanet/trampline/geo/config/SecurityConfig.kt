@@ -22,14 +22,14 @@ import ru.itplanet.trampline.geo.security.SessionAuthenticationFilter
 @EnableConfigurationProperties(
     value = [
         AuthServiceProperties::class,
-        InternalApiProperties::class
-    ]
+        InternalApiProperties::class,
+    ],
 )
 class SecurityConfig(
     private val sessionAuthenticationFilter: SessionAuthenticationFilter,
     private val internalApiRequestFilter: InternalApiRequestFilter,
     private val apiAuthenticationEntryPoint: ApiAuthenticationEntryPoint,
-    private val apiAccessDeniedHandler: ApiAccessDeniedHandler
+    private val apiAccessDeniedHandler: ApiAccessDeniedHandler,
 ) {
 
     @Bean
@@ -60,7 +60,7 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers(HttpMethod.GET, "/api/geo/opportunities/nearby").authenticated()
+                    .requestMatchers(HttpMethod.GET, "/api/geo/opportunities/nearby").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/error")).permitAll()
                     .anyRequest().authenticated()
