@@ -43,6 +43,7 @@ import ru.itplanet.trampline.interaction.model.request.GetEmployerResponseListRe
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseRequest
 import ru.itplanet.trampline.interaction.model.request.OpportunityResponseStatusUpdateRequest
 import ru.itplanet.trampline.interaction.model.request.UpdateContactRecommendationStatusRequest
+import ru.itplanet.trampline.interaction.model.response.ContactDirection
 import ru.itplanet.trampline.interaction.model.response.ContactRecommendationResponse
 import ru.itplanet.trampline.interaction.model.response.ContactResponse
 import ru.itplanet.trampline.interaction.model.response.EmployerOpportunityResponseItem
@@ -143,7 +144,7 @@ class InteractionServiceImpl(
         return opportunityResponseDao.findByApplicantUserId(userId)
             .sortedWith(
                 compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
-                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+                    .thenByDescending { it.id ?: Long.MIN_VALUE }
             )
             .map { app ->
                 val opportunity = loadOpportunity(app.opportunityId)
@@ -197,7 +198,7 @@ class InteractionServiceImpl(
         return opportunityResponseDao.findByApplicantUserId(userId)
             .sortedWith(
                 compareByDescending<OpportunityResponseDto> { it.createdAt ?: OffsetDateTime.MIN }
-                    .thenByDescending { it.id ?: Long.MIN_VALUE },
+                    .thenByDescending { it.id ?: Long.MIN_VALUE }
             )
             .map { app ->
                 val opportunity = loadOpportunity(app.opportunityId)
@@ -218,7 +219,7 @@ class InteractionServiceImpl(
             .map { toContactResponse(userId, it) }
             .sortedWith(
                 compareByDescending<ContactResponse> { it.createdAt ?: OffsetDateTime.MIN }
-                    .thenByDescending { it.contactUserId },
+                    .thenByDescending { it.contactUserId }
             )
             .map { contact ->
                 InternalApplicantContactResponse(
@@ -263,7 +264,7 @@ class InteractionServiceImpl(
                 FavoriteDto.forOpportunity(
                     userId = userId,
                     opportunityId = opportunityId,
-                ),
+                )
             )
 
         val employer = loadEmployerProfileSummaryOrNull(opportunity.employerUserId)
@@ -288,7 +289,7 @@ class InteractionServiceImpl(
                 FavoriteDto.forEmployer(
                     userId = userId,
                     employerUserId = employerUserId,
-                ),
+                )
             )
 
         return toEmployerFavoriteResponse(favorite, employer)
@@ -350,17 +351,28 @@ class InteractionServiceImpl(
         ensureApplicantApprovedForNetworking(request.contactUserId)
 
         val (low, high) = orderedPair(userId, request.contactUserId)
+        val existingContact = contactRepository.findByIdUserLowIdAndIdUserHighId(low, high)
 
-        if (contactRepository.existsByIdUserLowIdAndIdUserHighId(low, high)) {
-            throw InteractionConflictException(
-                message = "Контакт уже существует",
-                code = "contact_already_exists",
-            )
+        if (existingContact != null) {
+            return handleExistingContactOnCreate(userId, existingContact)
         }
 
-        val contactDtoId = ContactDtoId(low, high)
-        val contactDto = ContactDto(contactDtoId, userId)
-        val saved = contactRepository.save(contactDto)
+        val contactDto = ContactDto(
+            id = ContactDtoId(low, high),
+            initiatedByUserId = userId,
+        )
+
+        val saved = try {
+            contactRepository.saveAndFlush(contactDto)
+        } catch (_: DataIntegrityViolationException) {
+            val concurrentContact = contactRepository.findByIdUserLowIdAndIdUserHighId(low, high)
+                ?: throw InteractionConflictException(
+                    message = "Контакт уже существует",
+                    code = "contact_already_exists",
+                )
+
+            return handleExistingContactOnCreate(userId, concurrentContact)
+        }
 
         return toContactResponse(userId, saved)
     }
@@ -387,10 +399,17 @@ class InteractionServiceImpl(
             )
         }
 
+        if (contact.status != ContactStatus.PENDING) {
+            throw InteractionConflictException(
+                message = "На этот запрос уже был дан ответ",
+                code = "contact_request_already_resolved",
+            )
+        }
+
         contact.status = status
         contact.respondedAt = OffsetDateTime.now()
 
-        val saved = contactRepository.save(contact)
+        val saved = contactRepository.saveAndFlush(contact)
         return toContactResponse(userId, saved)
     }
 
@@ -411,10 +430,14 @@ class InteractionServiceImpl(
 
         val acceptedContacts = getAcceptedContactDtos(userId)
         val incomingPendingContacts = getIncomingPendingContactDtos(userId)
+        val outgoingPendingContacts = getOutgoingPendingContactDtos(userId)
 
-        return (acceptedContacts + incomingPendingContacts)
+        return (acceptedContacts + incomingPendingContacts + outgoingPendingContacts)
             .map { toContactResponse(userId, it) }
-            .distinctBy { it.contactUserId }
+            .sortedWith(
+                compareByDescending<ContactResponse> { it.createdAt ?: OffsetDateTime.MIN }
+                    .thenByDescending { it.contactUserId }
+            )
     }
 
     override fun createRecommendation(
@@ -465,7 +488,7 @@ class InteractionServiceImpl(
                     fromApplicantUserId = userId,
                     toApplicantUserId = request.toApplicantUserId,
                     message = normalizedMessage,
-                ),
+                )
             )
         } catch (_: DataIntegrityViolationException) {
             throw InteractionConflictException(
@@ -652,7 +675,7 @@ class InteractionServiceImpl(
                 "status" to resumeFile.status.name,
                 "createdAt" to resumeFile.createdAt,
                 "updatedAt" to resumeFile.updatedAt,
-            ),
+            )
         )
     }
 
@@ -879,6 +902,16 @@ class InteractionServiceImpl(
             .filter { it.initiatedByUserId != userId }
     }
 
+    private fun getOutgoingPendingContactDtos(
+        userId: Long,
+    ): List<ContactDto> {
+        val asLow = contactRepository.findByIdUserLowIdAndStatus(userId, ContactStatus.PENDING)
+        val asHigh = contactRepository.findByIdUserHighIdAndStatus(userId, ContactStatus.PENDING)
+
+        return (asLow + asHigh)
+            .filter { it.initiatedByUserId == userId }
+    }
+
     private fun orderedPair(
         firstUserId: Long,
         secondUserId: Long,
@@ -983,10 +1016,11 @@ class InteractionServiceImpl(
         val contactName = fullApplicantName(userDto)
 
         return ContactResponse(
-            contactUserId,
-            contactName,
-            contact.status,
-            contact.createdAt,
+            contactUserId = contactUserId,
+            contactName = contactName,
+            status = contact.status,
+            direction = resolveContactDirection(currentUserId, contact),
+            createdAt = contact.createdAt,
         )
     }
 
@@ -1001,6 +1035,73 @@ class InteractionServiceImpl(
                 message = "Текущий пользователь не участвует в этом контакте",
                 code = "contact_participant_required",
             )
+        }
+    }
+
+    private fun resolveContactDirection(
+        currentUserId: Long,
+        contact: ContactDto,
+    ): ContactDirection {
+        return when (contact.status) {
+            ContactStatus.ACCEPTED -> ContactDirection.CONFIRMED
+            ContactStatus.PENDING,
+            ContactStatus.DECLINED,
+            ContactStatus.BLOCKED -> {
+                if (contact.initiatedByUserId == currentUserId) {
+                    ContactDirection.OUTGOING
+                } else {
+                    ContactDirection.INCOMING
+                }
+            }
+        }
+    }
+
+    private fun handleExistingContactOnCreate(
+        currentUserId: Long,
+        existingContact: ContactDto,
+    ): ContactResponse {
+        return when (existingContact.status) {
+            ContactStatus.ACCEPTED -> {
+                throw InteractionConflictException(
+                    message = "Контакт уже подтверждён",
+                    code = "contact_already_exists",
+                )
+            }
+
+            ContactStatus.PENDING -> {
+                if (existingContact.initiatedByUserId == currentUserId) {
+                    throw InteractionConflictException(
+                        message = "Запрос в контакты уже отправлен",
+                        code = "contact_request_already_sent",
+                    )
+                }
+
+                throw InteractionConflictException(
+                    message = "У вас уже есть входящий запрос от этого пользователя",
+                    code = "contact_request_already_received",
+                )
+            }
+
+            ContactStatus.DECLINED -> {
+                contactRepository.delete(existingContact)
+                contactRepository.flush()
+
+                val recreatedContact = contactRepository.saveAndFlush(
+                    ContactDto(
+                        id = existingContact.id,
+                        initiatedByUserId = currentUserId,
+                    )
+                )
+
+                toContactResponse(currentUserId, recreatedContact)
+            }
+
+            ContactStatus.BLOCKED -> {
+                throw InteractionForbiddenException(
+                    message = "Повторно отправить запрос этому пользователю нельзя",
+                    code = "contact_request_blocked",
+                )
+            }
         }
     }
 

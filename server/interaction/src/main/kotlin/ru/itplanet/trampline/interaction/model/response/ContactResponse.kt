@@ -7,5 +7,6 @@ data class ContactResponse(
     val contactUserId: Long,
     val contactName: String?,
     val status: ContactStatus,
-    val createdAt: OffsetDateTime?
+    val direction: ContactDirection,
+    val createdAt: OffsetDateTime?,
 )
