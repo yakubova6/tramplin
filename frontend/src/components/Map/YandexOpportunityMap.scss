@@ -1,0 +1,148 @@
+.yandex-opportunity-map__popup {
+  box-sizing: border-box;
+  font-family: Manrope, Arial, sans-serif;
+  overflow: hidden;
+}
+
+.yandex-opportunity-map__popup--balloon {
+  width: 320px;
+  max-width: 320px;
+}
+
+.yandex-opportunity-map__popup--hint {
+  width: 240px;
+  max-width: 240px;
+  padding-top: 2px;
+}
+
+.yandex-opportunity-map__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.yandex-opportunity-map__title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  color: #10272b;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.yandex-opportunity-map__popup--balloon .yandex-opportunity-map__title {
+  font-size: 15px;
+}
+
+.yandex-opportunity-map__popup--hint .yandex-opportunity-map__title {
+  font-size: 14px;
+}
+
+.yandex-opportunity-map__company {
+  margin: 0 0 6px;
+  color: #264a50;
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.yandex-opportunity-map__popup--balloon .yandex-opportunity-map__company {
+  font-size: 13px;
+}
+
+.yandex-opportunity-map__popup--hint .yandex-opportunity-map__company {
+  font-size: 12px;
+}
+
+.yandex-opportunity-map__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.yandex-opportunity-map__badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #45666b;
+}
+
+.yandex-opportunity-map__popup--balloon .yandex-opportunity-map__badge {
+  font-size: 11px;
+}
+
+.yandex-opportunity-map__popup--hint .yandex-opportunity-map__badge {
+  font-size: 10px;
+}
+
+.yandex-opportunity-map__badge--type {
+  flex-shrink: 0;
+  max-width: 96px;
+  background: #dceff1;
+  color: #0f5f68;
+}
+
+.yandex-opportunity-map__badge--salary {
+  background: #fef3c7;
+  color: #10272b;
+  font-weight: 700;
+}
+
+.yandex-opportunity-map__address {
+  margin: 0 0 6px;
+  color: #547379;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.yandex-opportunity-map__description {
+  margin: 0 0 8px;
+  color: #45666b;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.yandex-opportunity-map__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.yandex-opportunity-map__tag {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #edf6f7;
+  color: #365f65;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+.yandex-opportunity-map__tag--hint {
+  font-size: 10px;
+  padding: 2px 7px;
+}
