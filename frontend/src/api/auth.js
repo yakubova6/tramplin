@@ -181,6 +181,28 @@ export async function registerUser(payload) {
     return response
 }
 
+export async function confirmRegistration(payload) {
+    const response = await request(`${API_BASE}/register/confirm`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        skipCsrf: true,
+    })
+
+    if (response?.user) {
+        setSessionUser(response.user)
+    }
+
+    return response
+}
+
+export async function resendRegistrationCode(payload) {
+    return request(`${API_BASE}/register/resend`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        skipCsrf: true,
+    })
+}
+
 export async function loginUser(payload) {
     const response = await request(`${API_BASE}/login`, {
         method: 'POST',
