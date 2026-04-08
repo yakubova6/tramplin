@@ -2026,3 +2026,43 @@ $transition: all 0.2s ease;
     }
   }
 }
+
+.profile-card__moderation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  margin-bottom: 20px;
+}
+
+.profile-card__moderation .status-badge,
+.profile-card__moderation-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.profile-card__moderation-btn {
+  border: 1px solid var(--color-border, #d7dbe7);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #1f2430);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.profile-card__moderation-btn:hover {
+  background: var(--color-surface-secondary, #f5f7fb);
+}
+
+.profile-card__moderation-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}

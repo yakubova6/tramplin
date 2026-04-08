@@ -203,6 +203,44 @@ function normalizeProfileLinks(links) {
     return []
 }
 
+function detectContactType(value = '', label = '') {
+    const normalizedValue = String(value).trim().toLowerCase()
+    const normalizedLabel = String(label).trim().toLowerCase()
+
+    if (
+        normalizedLabel.includes('email') ||
+        normalizedLabel.includes('mail') ||
+        normalizedLabel.includes('почт') ||
+        normalizedValue.includes('@')
+    ) {
+        return 'EMAIL'
+    }
+
+    if (
+        normalizedLabel.includes('telegram') ||
+        normalizedLabel.includes('tg') ||
+        normalizedLabel.includes('телеграм') ||
+        normalizedValue.startsWith('https://t.me/') ||
+        normalizedValue.startsWith('http://t.me/') ||
+        normalizedValue.startsWith('@')
+    ) {
+        return 'TELEGRAM'
+    }
+
+    if (
+        normalizedLabel.includes('phone') ||
+        normalizedLabel.includes('tel') ||
+        normalizedLabel.includes('тел') ||
+        normalizedLabel.includes('звон') ||
+        normalizedValue.startsWith('+') ||
+        /^\d[\d\s\-()]+$/.test(normalizedValue)
+    ) {
+        return 'PHONE'
+    }
+
+    return 'EMAIL'
+}
+
 function normalizeContactMethods(contacts) {
     if (!contacts) return []
 
@@ -214,7 +252,7 @@ function normalizeContactMethods(contacts) {
                     if (!value) return null
 
                     return {
-                        type: 'OTHER',
+                        type: detectContactType(value),
                         value,
                         label: `Контакт ${index + 1}`,
                     }
@@ -228,10 +266,17 @@ function normalizeContactMethods(contacts) {
 
                     if (!value) return null
 
+                    const label =
+                        item.label?.trim?.() ||
+                        item.title?.trim?.() ||
+                        `Контакт ${index + 1}`
+
                     return {
-                        type: item.type || 'OTHER',
+                        type: ['EMAIL', 'PHONE', 'TELEGRAM'].includes(item.type)
+                            ? item.type
+                            : detectContactType(value, label),
                         value,
-                        label: item.label?.trim?.() || item.title?.trim?.() || `Контакт ${index + 1}`,
+                        label,
                     }
                 }
 
@@ -246,10 +291,12 @@ function normalizeContactMethods(contacts) {
                 const normalizedValue = typeof value === 'string' ? value.trim() : ''
                 if (!normalizedValue) return null
 
+                const normalizedLabel = label?.trim?.() || `Контакт ${index + 1}`
+
                 return {
-                    type: 'OTHER',
+                    type: detectContactType(normalizedValue, normalizedLabel),
                     value: normalizedValue,
-                    label: label?.trim?.() || `Контакт ${index + 1}`,
+                    label: normalizedLabel,
                 }
             })
             .filter(Boolean)
@@ -706,9 +753,6 @@ export async function updateEmployerProfile(profile) {
     const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
 
     const payload = {
-        companyName: profile.companyName || '',
-        legalName: profile.legalName || null,
-        inn: profile.inn || '',
         description: profile.description || null,
         industry: profile.industry || null,
         websiteUrl: profile.websiteUrl || null,
@@ -718,7 +762,6 @@ export async function updateEmployerProfile(profile) {
         foundedYear: profile.foundedYear ? Number(profile.foundedYear) : null,
         socialLinks: normalizeProfileLinks(profile.socialLinks),
         publicContacts: normalizeContactMethods(profile.publicContacts),
-        verificationStatus: profile.verificationStatus || undefined,
     }
 
     const data = await apiRequest(`${API_BASE}/profile/employer?currentUser=${currentUser}`, {
@@ -1026,4 +1069,55 @@ export async function getEmployerApplications(params = {}) {
 
 export async function updateApplicationStatus(applicationId, status, employerComment = '') {
     return updateInteractionResponseStatus(applicationId, status, employerComment)
+}
+
+export async function updateEmployerCompanyData(companyData) {
+    const user = getSessionUser()
+    if (!user) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+
+    const payload = {
+        legalName: companyData.legalName || '',
+        inn: companyData.inn || '',
+    }
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/company?currentUser=${currentUser}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
+export async function submitEmployerProfileForModeration() {
+    const user = getSessionUser()
+    if (!user) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/moderation/submit?currentUser=${currentUser}`, {
+        method: 'POST',
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
+export async function submitApplicantProfileForModeration() {
+    const user = getSessionUser()
+    if (!user) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    const currentUser = encodeURIComponent(JSON.stringify(getAuthenticatedUserPayload()))
+
+    const data = await apiRequest(`${API_BASE}/profile/applicant/moderation/submit?currentUser=${currentUser}`, {
+        method: 'POST',
+    })
+
+    return normalizeApplicantProfile(data)
 }

@@ -17,6 +17,7 @@ import {
 import {
     getApplicantProfile,
     updateApplicantProfile,
+    submitApplicantProfileForModeration,
     getSeekerApplications,
     getSeekerSaved,
     getSeekerContacts,
@@ -75,6 +76,9 @@ function SeekerDashboard() {
     const [errors, setErrors] = useState({})
     const { toast } = useToast()
 
+    const [networkingBlockedMessage, setNetworkingBlockedMessage] = useState('')
+    const [hasLoadedNetworking, setHasLoadedNetworking] = useState(false)
+
     const avatarInputRef = useRef(null)
     const resumeFileInputRef = useRef(null)
     const portfolioFileInputRef = useRef(null)
@@ -84,6 +88,7 @@ function SeekerDashboard() {
     const [isPortfolioFileUploading, setIsPortfolioFileUploading] = useState(false)
 
     const [profile, setProfile] = useState({
+        userId: null,
         firstName: '',
         lastName: '',
         middleName: '',
@@ -104,9 +109,12 @@ function SeekerDashboard() {
         contactsVisibility: 'AUTHENTICATED',
         openToWork: true,
         openToEvents: true,
+        moderationStatus: 'DRAFT',
         avatar: null,
         resumeFile: null,
         portfolioFiles: [],
+        skills: [],
+        interests: [],
     })
 
     const [tempPortfolioLinks, setTempPortfolioLinks] = useState([])
@@ -147,6 +155,21 @@ function SeekerDashboard() {
         }))
     }
 
+    const isNetworkingBlockedError = (error) =>
+        error?.status === 403 &&
+        error?.code === 'applicant_networking_requires_approved_profile'
+
+    const submitApplicantProfileToModerationAction = async () => {
+        const updatedProfile = await submitApplicantProfileForModeration()
+
+        setProfile((prev) => ({
+            ...prev,
+            ...updatedProfile,
+        }))
+
+        return updatedProfile
+    }
+
     const handleCancelPortfolioEdit = () => {
         setTempPortfolioLinks(linksToArray(profile.portfolioLinks || []))
         setIsEditingPortfolio(false)
@@ -170,7 +193,7 @@ function SeekerDashboard() {
     }
 
     const handleSelectCity = (city) => {
-        setProfile(prev => ({
+        setProfile((prev) => ({
             ...prev,
             cityId: city.id,
             cityName: city.name,
@@ -184,7 +207,16 @@ function SeekerDashboard() {
         try {
             const contactsList = await getSeekerContacts()
             setContacts(contactsList)
+            setNetworkingBlockedMessage('')
         } catch (error) {
+            if (isNetworkingBlockedError(error)) {
+                setContacts([])
+                setNetworkingBlockedMessage(
+                    error?.message || 'Нетворкинг-функции доступны только после одобрения профиля соискателя куратором'
+                )
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось загрузить контакты',
@@ -201,6 +233,14 @@ function SeekerDashboard() {
             const data = await getSeekerRecommendations()
             setRecommendations(data)
         } catch (error) {
+            if (isNetworkingBlockedError(error)) {
+                setRecommendations({ incoming: [], outgoing: [] })
+                setNetworkingBlockedMessage(
+                    error?.message || 'Нетворкинг-функции доступны только после одобрения профиля соискателя куратором'
+                )
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось загрузить рекомендации',
@@ -215,11 +255,12 @@ function SeekerDashboard() {
         const freshProfile = await getApplicantProfile()
         if (!freshProfile) return
 
-        setProfile(prev => ({
+        setProfile((prev) => ({
             ...prev,
             avatar: freshProfile.avatar || null,
             resumeFile: freshProfile.resumeFile || null,
             portfolioFiles: freshProfile.portfolioFiles || [],
+            moderationStatus: freshProfile.moderationStatus || prev.moderationStatus,
         }))
     }
 
@@ -239,13 +280,16 @@ function SeekerDashboard() {
                     setSavedOpportunities([])
                     setContacts([])
                     setRecommendations({ incoming: [], outgoing: [] })
+                    setNetworkingBlockedMessage('')
+                    setHasLoadedNetworking(true)
                     return
                 }
 
                 const profileData = await getApplicantProfile()
                 if (profileData) {
-                    setProfile(prev => ({
+                    setProfile((prev) => ({
                         ...prev,
+                        userId: profileData.userId || currentUser?.id || null,
                         firstName: profileData.firstName || '',
                         lastName: profileData.lastName || '',
                         middleName: profileData.middleName || '',
@@ -266,9 +310,12 @@ function SeekerDashboard() {
                         contactsVisibility: profileData.contactsVisibility || 'AUTHENTICATED',
                         openToWork: profileData.openToWork ?? true,
                         openToEvents: profileData.openToEvents ?? true,
+                        moderationStatus: profileData.moderationStatus || 'DRAFT',
                         avatar: profileData.avatar || null,
                         resumeFile: profileData.resumeFile || null,
                         portfolioFiles: profileData.portfolioFiles || [],
+                        skills: profileData.skills || [],
+                        interests: profileData.interests || [],
                     }))
 
                     if (profileData.cityName || profileData.city?.name) {
@@ -285,25 +332,46 @@ function SeekerDashboard() {
                 const saved = await getSeekerSaved()
                 setSavedOpportunities(saved)
 
-                const contactsList = await getSeekerContacts()
-                setContacts(contactsList)
+                setNetworkingBlockedMessage('')
+                setHasLoadedNetworking(false)
 
-                const recommendationsData = await getSeekerRecommendations()
-                setRecommendations(recommendationsData)
+                try {
+                    const [contactsList, recommendationsData] = await Promise.all([
+                        getSeekerContacts(),
+                        getSeekerRecommendations(),
+                    ])
+
+                    setContacts(contactsList)
+                    setRecommendations(recommendationsData)
+                } catch (error) {
+                    if (isNetworkingBlockedError(error)) {
+                        setContacts([])
+                        setRecommendations({ incoming: [], outgoing: [] })
+                        setNetworkingBlockedMessage(
+                            error?.message || 'Нетворкинг-функции доступны только после одобрения профиля соискателя куратором'
+                        )
+                    } else {
+                        throw error
+                    }
+                } finally {
+                    setHasLoadedNetworking(true)
+                }
             } catch (error) {
-                if ([401, 403, 500, 503].includes(error?.status)) {
+                if ([401].includes(error?.status)) {
                     clearSessionUser()
                     setUser(null)
                     setApplications([])
                     setSavedOpportunities([])
                     setContacts([])
                     setRecommendations({ incoming: [], outgoing: [] })
+                    setNetworkingBlockedMessage('')
+                    setHasLoadedNetworking(true)
                     return
                 }
 
                 toast({
                     title: 'Ошибка',
-                    description: 'Не удалось загрузить профиль',
+                    description: error?.message || 'Не удалось загрузить профиль',
                     variant: 'destructive',
                 })
             } finally {
@@ -326,6 +394,40 @@ function SeekerDashboard() {
         return Object.keys(newErrors).length === 0
     }
 
+    const handleSubmitApplicantProfileForModeration = async () => {
+        if (!validateProfile()) {
+            toast({
+                title: 'Проверьте форму',
+                description: 'Заполните обязательные поля перед отправкой на модерацию',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setIsLoading(true)
+
+        try {
+            await updateApplicantProfile(profile)
+            await submitApplicantProfileToModerationAction()
+
+            toast({
+                title: 'Профиль отправлен на модерацию',
+                description: 'После проверки куратором нетворкинг и связанные функции станут доступны',
+            })
+
+            setIsEditing(false)
+            setErrors({})
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось отправить профиль на модерацию',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
     const handleSaveProfile = async () => {
         if (!validateProfile()) {
             toast({
@@ -338,7 +440,32 @@ function SeekerDashboard() {
 
         setIsLoading(true)
         try {
-            await updateApplicantProfile(profile)
+            const updatedProfile = await updateApplicantProfile(profile)
+
+            setProfile((prev) => ({
+                ...prev,
+                ...updatedProfile,
+            }))
+
+            if (profile.moderationStatus === 'APPROVED' || profile.moderationStatus === 'NEEDS_REVISION') {
+                const submittedProfile = await submitApplicantProfileToModerationAction()
+
+                setProfile((prev) => ({
+                    ...prev,
+                    ...submittedProfile,
+                }))
+
+                toast({
+                    title: 'Профиль обновлён',
+                    description: 'Изменения сохранены и автоматически отправлены на повторную модерацию',
+                })
+            } else {
+                toast({
+                    title: 'Профиль сохранён',
+                    description: 'Теперь отправьте профиль на модерацию отдельной кнопкой',
+                })
+            }
+
             setIsEditing(false)
             setErrors({})
 
@@ -349,15 +476,10 @@ function SeekerDashboard() {
                     role: 'APPLICANT',
                 },
             }))
-
-            toast({
-                title: 'Профиль обновлён',
-                description: 'Ваши данные успешно сохранены',
-            })
-        } catch {
+        } catch (error) {
             toast({
                 title: 'Ошибка',
-                description: 'Не удалось сохранить профиль',
+                description: error?.message || 'Не удалось сохранить профиль',
                 variant: 'destructive',
             })
         } finally {
@@ -368,7 +490,8 @@ function SeekerDashboard() {
     const handleSaveAbout = async () => {
         setIsLoading(true)
         try {
-            await updateApplicantProfile(profile)
+            const updatedProfile = await updateApplicantProfile({ ...profile, about: profile.about })
+            setProfile((prev) => ({ ...prev, ...updatedProfile }))
             setIsEditingAbout(false)
             toast({
                 title: 'Обновлено',
@@ -388,7 +511,8 @@ function SeekerDashboard() {
     const handleSaveResume = async () => {
         setIsLoading(true)
         try {
-            await updateApplicantProfile(profile)
+            const updatedProfile = await updateApplicantProfile({ ...profile, resumeText: profile.resumeText })
+            setProfile((prev) => ({ ...prev, ...updatedProfile }))
             setIsEditingResume(false)
             toast({
                 title: 'Обновлено',
@@ -409,15 +533,14 @@ function SeekerDashboard() {
         setIsLoading(true)
         try {
             const portfolioLinks = tempPortfolioLinks
-                .filter(link => link.url?.trim())
-                .map(link => ({
+                .filter((link) => link.url?.trim())
+                .map((link) => ({
                     label: link.title?.trim() || '',
                     url: link.url.trim(),
                 }))
 
-            const updatedProfile = { ...profile, portfolioLinks }
-            await updateApplicantProfile(updatedProfile)
-            setProfile(updatedProfile)
+            const updatedProfile = await updateApplicantProfile({ ...profile, portfolioLinks })
+            setProfile((prev) => ({ ...prev, ...updatedProfile, portfolioLinks }))
             setIsEditingPortfolio(false)
             toast({
                 title: 'Обновлено',
@@ -438,16 +561,15 @@ function SeekerDashboard() {
         setIsLoading(true)
         try {
             const contactLinks = tempContactLinks
-                .filter(link => link.url?.trim())
-                .map(link => ({
+                .filter((link) => link.url?.trim())
+                .map((link) => ({
                     type: 'OTHER',
                     label: link.title?.trim() || '',
                     value: link.url.trim(),
                 }))
 
-            const updatedProfile = { ...profile, contactLinks }
-            await updateApplicantProfile(updatedProfile)
-            setProfile(updatedProfile)
+            const updatedProfile = await updateApplicantProfile({ ...profile, contactLinks })
+            setProfile((prev) => ({ ...prev, ...updatedProfile, contactLinks }))
             setIsEditingContacts(false)
             toast({
                 title: 'Обновлено',
@@ -465,16 +587,16 @@ function SeekerDashboard() {
     }
 
     const handleFieldChange = (field, value) => {
-        setProfile(prev => ({ ...prev, [field]: value }))
+        setProfile((prev) => ({ ...prev, [field]: value }))
         if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }))
+            setErrors((prev) => ({ ...prev, [field]: '' }))
         }
     }
 
     const handleRemoveSaved = async (id, title) => {
         try {
             await removeFromSaved(id)
-            setSavedOpportunities(prev => prev.filter(opp => opp.id !== id))
+            setSavedOpportunities((prev) => prev.filter((opp) => opp.id !== id))
             toast({
                 title: 'Удалено из избранного',
                 description: `«${title}» удалено из избранного`,
@@ -525,7 +647,7 @@ function SeekerDashboard() {
     const handleRemoveContact = async (userId, direction = 'confirmed') => {
         try {
             await removeContact(userId)
-            setContacts(prev => prev.filter(c => c.id !== userId))
+            setContacts((prev) => prev.filter((c) => c.id !== userId))
             toast({
                 title: direction === 'outgoing' ? 'Заявка отменена' : 'Контакт удалён',
                 description: direction === 'outgoing'
@@ -646,8 +768,9 @@ function SeekerDashboard() {
         try {
             setIsAvatarUploading(true)
             const updatedProfile = await uploadApplicantAvatar(file)
-            setProfile(prev => ({
+            setProfile((prev) => ({
                 ...prev,
+                ...updatedProfile,
                 avatar: updatedProfile.avatar || null,
             }))
             toast({
@@ -687,8 +810,9 @@ function SeekerDashboard() {
         try {
             setIsResumeFileUploading(true)
             const updatedProfile = await uploadApplicantResumeFile(file)
-            setProfile(prev => ({
+            setProfile((prev) => ({
                 ...prev,
+                ...updatedProfile,
                 resumeFile: updatedProfile.resumeFile || null,
             }))
             toast({
@@ -748,8 +872,9 @@ function SeekerDashboard() {
     const handleDeleteApplicantMedia = async (fileId, kindLabel) => {
         try {
             const updatedProfile = await deleteApplicantFile(fileId)
-            setProfile(prev => ({
+            setProfile((prev) => ({
                 ...prev,
+                ...updatedProfile,
                 avatar: updatedProfile.avatar || null,
                 resumeFile: updatedProfile.resumeFile || null,
                 portfolioFiles: updatedProfile.portfolioFiles || [],
@@ -966,9 +1091,7 @@ function SeekerDashboard() {
                             <div
                                 className={`profile-card__avatar-wrap ${isEditing ? 'is-editing' : ''}`}
                                 onClick={() => {
-                                    if (isEditing) {
-                                        avatarInputRef.current?.click()
-                                    }
+                                    if (isEditing) avatarInputRef.current?.click()
                                 }}
                                 role={isEditing ? 'button' : undefined}
                                 tabIndex={isEditing ? 0 : undefined}
@@ -1051,6 +1174,26 @@ function SeekerDashboard() {
                                             </button>
                                         )}
                                     </div>
+                                </div>
+
+                                <div className="profile-card__moderation">
+                                    <span className={`status-badge status-${(profile.moderationStatus || 'draft').toLowerCase()}`}>
+                                        {profile.moderationStatus === 'DRAFT' && 'Не отправлен на модерацию'}
+                                        {profile.moderationStatus === 'PENDING_MODERATION' && 'На модерации'}
+                                        {profile.moderationStatus === 'APPROVED' && 'Одобрен'}
+                                        {profile.moderationStatus === 'NEEDS_REVISION' && 'Нужны правки'}
+                                    </span>
+
+                                    {profile.moderationStatus === 'DRAFT' && (
+                                        <button
+                                            type="button"
+                                            className="profile-card__moderation-btn"
+                                            onClick={handleSubmitApplicantProfileForModeration}
+                                            disabled={isLoading}
+                                        >
+                                            {isLoading ? 'Отправка...' : 'Отправить на модерацию'}
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="profile-card__details">
@@ -1434,7 +1577,6 @@ function SeekerDashboard() {
                                                                     <strong>{file.originalFileName}</strong>
                                                                     <p>{formatFileSize(file.sizeBytes)}</p>
                                                                 </div>
-
                                                                 <div className="embedded-file-card__actions">
                                                                     <a
                                                                         href={fileUrl}
@@ -1620,10 +1762,15 @@ function SeekerDashboard() {
                             </button>
                         </div>
 
-                        {isContactsLoading ? (
+                        {isContactsLoading || !hasLoadedNetworking ? (
                             <div className="dashboard-loading dashboard-loading--inner">
                                 <div className="loading-spinner"></div>
                                 <p>Загрузка контактов...</p>
+                            </div>
+                        ) : networkingBlockedMessage ? (
+                            <div className="empty-state">
+                                <p>Нетворкинг пока недоступен</p>
+                                <span>{networkingBlockedMessage}</span>
                             </div>
                         ) : currentContacts.length === 0 ? (
                             <div className="empty-state">

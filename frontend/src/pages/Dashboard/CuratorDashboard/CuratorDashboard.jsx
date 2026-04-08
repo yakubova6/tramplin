@@ -48,6 +48,7 @@ const STATUS_OPTIONS = [
     { value: 'IN_PROGRESS', label: 'В работе' },
     { value: 'APPROVED', label: 'Одобренные' },
     { value: 'REJECTED', label: 'Отклонённые' },
+    { value: 'NEEDS_REVISION', label: 'Нужны правки' },
 ]
 
 const PRIORITY_OPTIONS = [
@@ -59,6 +60,7 @@ const PRIORITY_OPTIONS = [
 
 const ENTITY_TYPE_OPTIONS = [
     { value: '', label: 'Все типы' },
+    { value: 'APPLICANT_PROFILE', label: 'Профиль соискателя' },
     { value: 'EMPLOYER_PROFILE', label: 'Профиль работодателя' },
     { value: 'EMPLOYER_VERIFICATION', label: 'Верификация компании' },
     { value: 'OPPORTUNITY', label: 'Вакансия/Возможность' },

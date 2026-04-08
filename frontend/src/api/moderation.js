@@ -4,6 +4,7 @@ const API_BASE = '/api/moderation'
 
 export const ENTITY_TYPES = [
     { value: '', label: 'Все типы' },
+    { value: 'APPLICANT_PROFILE', label: 'Профиль соискателя' },
     { value: 'EMPLOYER_PROFILE', label: 'Профиль работодателя' },
     { value: 'EMPLOYER_VERIFICATION', label: 'Верификация компании' },
     { value: 'OPPORTUNITY', label: 'Вакансия' },
@@ -12,6 +13,8 @@ export const ENTITY_TYPES = [
 
 export const TASK_TYPES = [
     { value: '', label: 'Все типы' },
+    { value: 'PROFILE_REVIEW', label: 'Проверка профиля соискателя' },
+    { value: 'COMPANY_REVIEW', label: 'Проверка профиля работодателя' },
     { value: 'VERIFICATION_REVIEW', label: 'Проверка верификации' },
     { value: 'OPPORTUNITY_REVIEW', label: 'Проверка вакансии' },
     { value: 'TAG_REVIEW', label: 'Проверка тега' },
@@ -24,6 +27,7 @@ export const TASK_STATUSES = [
     { value: 'IN_PROGRESS', label: 'В работе' },
     { value: 'APPROVED', label: 'Одобренные' },
     { value: 'REJECTED', label: 'Отклонённые' },
+    { value: 'NEEDS_REVISION', label: 'Нужны правки' },
     { value: 'CANCELLED', label: 'Отменённые' },
 ]
 
