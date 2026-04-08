@@ -360,14 +360,6 @@ function Login() {
                                 <button
                                     type="button"
                                     className="login-page__secondary-action"
-                                    onClick={resetTwoFactorState}
-                                >
-                                    Изменить email
-                                </button>
-
-                                <button
-                                    type="button"
-                                    className="login-page__secondary-action"
                                     onClick={handleResendCode}
                                     disabled={isResending || resendCooldown > 0}
                                 >
@@ -376,6 +368,14 @@ function Login() {
                                         : resendCooldown > 0
                                             ? `Отправить код повторно через ${resendCooldown} c`
                                             : 'Отправить код повторно'}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="login-page__secondary-action"
+                                    onClick={resetTwoFactorState}
+                                >
+                                    Изменить данные
                                 </button>
                             </div>
                         </>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import Button from '../../../components/Button'
 import Input from '../../../components/Input'
@@ -23,6 +23,7 @@ import './ForgotPassword.scss'
 const STEP_REQUEST = 'request'
 const STEP_VERIFY = 'verify'
 const STEP_CONFIRM = 'confirm'
+const PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = 60
 
 const STEP_CONTENT = {
     [STEP_REQUEST]: {
@@ -47,9 +48,23 @@ function ForgotPassword() {
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [isPending, setIsPending] = useState(false)
+    const [isResending, setIsResending] = useState(false)
+    const [resendCooldown, setResendCooldown] = useState(0)
 
     const [, setLocation] = useLocation()
     const { toast } = useToast()
+
+    useEffect(() => {
+        if (step !== STEP_VERIFY || resendCooldown <= 0) {
+            return undefined
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setResendCooldown((prev) => Math.max(prev - 1, 0))
+        }, 1000)
+
+        return () => window.clearTimeout(timeoutId)
+    }, [step, resendCooldown])
 
     const handleRequestSubmit = async (event) => {
         event.preventDefault()
@@ -78,6 +93,7 @@ function ForgotPassword() {
             setNewPassword('')
             setConfirmPassword('')
             setStep(STEP_VERIFY)
+            setResendCooldown(PASSWORD_RESET_RESEND_COOLDOWN_SECONDS)
 
             toast({
                 title: 'Проверьте почту',
@@ -203,6 +219,37 @@ function ForgotPassword() {
         setResetToken('')
         setNewPassword('')
         setConfirmPassword('')
+        setResendCooldown(0)
+    }
+
+    const handleResendCode = async () => {
+        if (isResending || resendCooldown > 0) {
+            return
+        }
+
+        try {
+            setIsResending(true)
+
+            await requestPasswordReset({
+                email: email.trim(),
+            })
+
+            setResendCooldown(PASSWORD_RESET_RESEND_COOLDOWN_SECONDS)
+
+            toast({
+                title: 'Код отправлен повторно',
+                description: 'Если аккаунт существует, проверьте входящие письма',
+            })
+        } catch (error) {
+            console.error('[ForgotPassword] Resend code error:', error)
+            toast({
+                title: 'Не удалось отправить код',
+                description: error?.message || 'Попробуйте ещё раз чуть позже',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsResending(false)
+        }
     }
 
     const handleRequestNewCode = () => {
@@ -211,6 +258,7 @@ function ForgotPassword() {
         setResetToken('')
         setNewPassword('')
         setConfirmPassword('')
+        setResendCooldown(0)
     }
 
     const currentStepContent = STEP_CONTENT[step]
@@ -313,6 +361,19 @@ function ForgotPassword() {
                                 <button
                                     type="button"
                                     className="forgot-password-page__secondary-action"
+                                    onClick={handleResendCode}
+                                    disabled={isResending || resendCooldown > 0}
+                                >
+                                    {isResending
+                                        ? 'Отправка...'
+                                        : resendCooldown > 0
+                                            ? `Отправить код повторно через ${resendCooldown} c`
+                                            : 'Отправить код повторно'}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="forgot-password-page__secondary-action"
                                     onClick={handleChangeEmail}
                                 >
                                     Изменить email
@@ -385,7 +446,7 @@ function ForgotPassword() {
                                     className="forgot-password-page__secondary-action"
                                     onClick={handleRequestNewCode}
                                 >
-                                    Запросить новый код
+                                    Вернуться к вводу email
                                 </button>
                             </div>
                         </>
