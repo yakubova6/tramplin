@@ -128,8 +128,16 @@ function SeekerDashboard() {
     const [citySearchQuery, setCitySearchQuery] = useState('')
     const [citySuggestions, setCitySuggestions] = useState([])
     const [cityActiveIndex, setCityActiveIndex] = useState(-1)
+
+    const [networkingBlockedMessage, setNetworkingBlockedMessage] = useState('')
+    const [hasLoadedNetworking, setHasLoadedNetworking] = useState(false)
+
     const citySearchRef = useRef(null)
     const [, navigate] = useLocation()
+
+    const isNetworkingBlockedError = (error) =>
+        error?.status === 403 &&
+        error?.code === 'applicant_networking_requires_approved_profile'
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Дата не указана'
@@ -182,9 +190,18 @@ function SeekerDashboard() {
     const loadContacts = async () => {
         setIsContactsLoading(true)
         try {
+            setNetworkingBlockedMessage('')
             const contactsList = await getSeekerContacts()
             setContacts(contactsList)
         } catch (error) {
+            if (isNetworkingBlockedError(error)) {
+                setContacts([])
+                setNetworkingBlockedMessage(
+                    error?.message || 'Нетворкинг доступен только после одобрения профиля куратором'
+                )
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось загрузить контакты',
@@ -230,6 +247,7 @@ function SeekerDashboard() {
 
         const loadData = async () => {
             setIsLoading(true)
+
             try {
                 const currentUser = getSessionUser()
                 setUser(currentUser)
@@ -239,6 +257,8 @@ function SeekerDashboard() {
                     setSavedOpportunities([])
                     setContacts([])
                     setRecommendations({ incoming: [], outgoing: [] })
+                    setNetworkingBlockedMessage('')
+                    setHasLoadedNetworking(true)
                     return
                 }
 
@@ -285,25 +305,46 @@ function SeekerDashboard() {
                 const saved = await getSeekerSaved()
                 setSavedOpportunities(saved)
 
-                const contactsList = await getSeekerContacts()
-                setContacts(contactsList)
+                setNetworkingBlockedMessage('')
+                setHasLoadedNetworking(false)
 
-                const recommendationsData = await getSeekerRecommendations()
-                setRecommendations(recommendationsData)
+                try {
+                    const [contactsList, recommendationsData] = await Promise.all([
+                        getSeekerContacts(),
+                        getSeekerRecommendations(),
+                    ])
+
+                    setContacts(contactsList)
+                    setRecommendations(recommendationsData)
+                } catch (error) {
+                    if (isNetworkingBlockedError(error)) {
+                        setContacts([])
+                        setRecommendations({ incoming: [], outgoing: [] })
+                        setNetworkingBlockedMessage(
+                            error?.message || 'Нетворкинг-функции доступны только после одобрения профиля соискателя куратором'
+                        )
+                    } else {
+                        throw error
+                    }
+                } finally {
+                    setHasLoadedNetworking(true)
+                }
             } catch (error) {
-                if ([401, 403, 500, 503].includes(error?.status)) {
+                if (error?.status === 401) {
                     clearSessionUser()
                     setUser(null)
                     setApplications([])
                     setSavedOpportunities([])
                     setContacts([])
                     setRecommendations({ incoming: [], outgoing: [] })
+                    setNetworkingBlockedMessage('')
+                    setHasLoadedNetworking(true)
                     return
                 }
 
                 toast({
                     title: 'Ошибка',
-                    description: 'Не удалось загрузить профиль',
+                    description: error?.message || 'Не удалось загрузить профиль',
                     variant: 'destructive',
                 })
             } finally {
@@ -1620,10 +1661,15 @@ function SeekerDashboard() {
                             </button>
                         </div>
 
-                        {isContactsLoading ? (
+                        {isContactsLoading || !hasLoadedNetworking ? (
                             <div className="dashboard-loading dashboard-loading--inner">
                                 <div className="loading-spinner"></div>
                                 <p>Загрузка контактов...</p>
+                            </div>
+                        ) : networkingBlockedMessage ? (
+                            <div className="empty-state">
+                                <p>Нетворкинг пока недоступен</p>
+                                <span>{networkingBlockedMessage}</span>
                             </div>
                         ) : currentContacts.length === 0 ? (
                             <div className="empty-state">
@@ -1647,8 +1693,8 @@ function SeekerDashboard() {
                                                         : contact.status
                                             }</p>
                                             <span className="contact-card__date">
-                                                {formatDate(contact.createdAt)}
-                                            </span>
+                        {formatDate(contact.createdAt)}
+                    </span>
                                         </div>
 
                                         <div className="contact-card__actions">

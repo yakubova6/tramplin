@@ -1,8 +1,11 @@
 import { clearSessionUser } from '../utils/sessionStore'
 
-function createHttpError(message, status = 0) {
+function createHttpError(message, status = 0, extra = {}) {
     const error = new Error(message)
     error.status = status
+    error.code = extra.code || null
+    error.details = extra.details || {}
+    error.payload = extra.payload || null
     return error
 }
 
@@ -55,11 +58,15 @@ export async function httpJson(url, options = {}) {
             (typeof data === 'string' && data) ||
             'Ошибка запроса'
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
             clearSessionUser()
         }
 
-        throw createHttpError(message, response.status)
+        throw createHttpError(message, response.status, {
+            code: typeof data === 'object' ? data?.code : null,
+            details: typeof data === 'object' ? data?.details : {},
+            payload: data,
+        })
     }
 
     return data

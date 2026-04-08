@@ -30,9 +30,12 @@ import {
 } from './interaction'
 import { clearSessionUser, getSessionUser, getSessionUserId } from '../utils/sessionStore'
 
-function createApiError(message, status = 0) {
+function createApiError(message, status = 0, extra = {}) {
     const error = new Error(message)
     error.status = status
+    error.code = extra.code || null
+    error.details = extra.details || {}
+    error.payload = extra.payload || null
     return error
 }
 
@@ -97,11 +100,15 @@ async function apiRequest(endpoint, options = {}) {
             (typeof data === 'string' && data) ||
             'Ошибка запроса'
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
             clearSessionUser()
         }
 
-        throw createApiError(errorMessage, response.status)
+        throw createApiError(errorMessage, response.status, {
+            code: typeof data === 'object' ? data?.code : null,
+            details: typeof data === 'object' ? data?.details : {},
+            payload: data,
+        })
     }
 
     return data
@@ -131,11 +138,15 @@ async function multipartRequest(endpoint, formData, options = {}) {
             (typeof data === 'string' && data) ||
             'Ошибка загрузки файла'
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
             clearSessionUser()
         }
 
-        throw createApiError(errorMessage, response.status)
+        throw createApiError(errorMessage, response.status, {
+            code: typeof data === 'object' ? data?.code : null,
+            details: typeof data === 'object' ? data?.details : {},
+            payload: data,
+        })
     }
 
     return data
@@ -769,7 +780,11 @@ export async function getSeekerContacts() {
             }
         })
     } catch (error) {
-        if ([401, 403, 500, 503].includes(error.status)) {
+        if (error?.code === 'applicant_networking_requires_approved_profile') {
+            throw error
+        }
+
+        if ([401, 500, 503].includes(error.status)) {
             return []
         }
 
@@ -919,7 +934,11 @@ export async function getSeekerRecommendations() {
             outgoing: Array.isArray(outgoing) ? outgoing : [],
         }
     } catch (error) {
-        if ([401, 403, 500, 503].includes(error.status)) {
+        if (error?.code === 'applicant_networking_requires_approved_profile') {
+            throw error
+        }
+
+        if ([401, 500, 503].includes(error.status)) {
             return { incoming: [], outgoing: [] }
         }
 
