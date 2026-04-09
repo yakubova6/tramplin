@@ -7,8 +7,15 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.dao.LocationDao
+import ru.itplanet.trampline.commons.dao.dto.CityDto
+import ru.itplanet.trampline.commons.dao.dto.LocationDto
 import ru.itplanet.trampline.commons.model.OpportunityContactInfo
-import ru.itplanet.trampline.commons.model.enums.*
+import ru.itplanet.trampline.commons.model.enums.EmploymentType
+import ru.itplanet.trampline.commons.model.enums.Grade
+import ru.itplanet.trampline.commons.model.enums.OpportunityStatus
+import ru.itplanet.trampline.commons.model.enums.OpportunityType
+import ru.itplanet.trampline.commons.model.enums.ResourceLinkType
+import ru.itplanet.trampline.commons.model.enums.WorkFormat
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
 import ru.itplanet.trampline.opportunity.dao.TagDao
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
@@ -27,7 +34,7 @@ class OpportunityDomainPatchService(
     private val cityDao: CityDao,
     private val locationDao: LocationDao,
     private val objectMapper: ObjectMapper,
-    private val validator: OpportunityDomainValidator
+    private val validator: OpportunityDomainValidator,
 ) {
 
     @Transactional
@@ -45,7 +52,6 @@ class OpportunityDomainPatchService(
     private fun applyChanges(opportunity: OpportunityDto, patch: JsonNode) {
         if (!patch.isObject) return
 
-        // Текстовые поля
         textField(patch, "title") { opportunity.title = it ?: opportunity.title }
         textField(patch, "shortDescription") { opportunity.shortDescription = it ?: opportunity.shortDescription }
         textField(patch, "fullDescription") { opportunity.fullDescription = it }
@@ -54,18 +60,15 @@ class OpportunityDomainPatchService(
         textField(patch, "salaryCurrency") { opportunity.salaryCurrency = it ?: opportunity.salaryCurrency }
         textField(patch, "moderationComment") { opportunity.moderationComment = it }
 
-        // Enum поля
         enumField<OpportunityType>(patch, "type") { opportunity.type = it }
         enumField<WorkFormat>(patch, "workFormat") { opportunity.workFormat = it }
         nullableEnumField<EmploymentType>(patch, "employmentType") { opportunity.employmentType = it }
         nullableEnumField<Grade>(patch, "grade") { opportunity.grade = it }
         enumField<OpportunityStatus>(patch, "status") { opportunity.status = it }
 
-        // Числовые поля
         intField(patch, "salaryFrom") { opportunity.salaryFrom = it }
         intField(patch, "salaryTo") { opportunity.salaryTo = it }
 
-        // Дата/время поля
         if (patch.has("publishedAt")) {
             opportunity.publishedAt = patch.get("publishedAt")
                 .takeUnless { it.isNull }
@@ -87,44 +90,8 @@ class OpportunityDomainPatchService(
                 ?.let(LocalDate::parse)
         }
 
-        // Город и локация (с загрузкой связанных сущностей)
-        if (patch.has("cityId")) {
-            val newCityId = patch.get("cityId")
-                .takeUnless { it.isNull }
-                ?.longValue()
-            if (newCityId != null) {
-                opportunity.cityId = newCityId
-                opportunity.city = cityDao.findById(newCityId).orElseThrow {
-                    OpportunityNotFoundDomainException(
-                        message = "Город не найден",
-                        code = "city_not_found",
-                    )
-                }
-            } else {
-                opportunity.cityId = null
-                opportunity.city = null
-            }
-        }
+        applyPlaceChanges(opportunity, patch)
 
-        if (patch.has("locationId")) {
-            val newLocationId = patch.get("locationId")
-                .takeUnless { it.isNull }
-                ?.longValue()
-            if (newLocationId != null) {
-                opportunity.locationId = newLocationId
-                opportunity.location = locationDao.findById(newLocationId).orElseThrow {
-                    OpportunityNotFoundDomainException(
-                        message = "Локация не найдена",
-                        code = "location_not_found",
-                    )
-                }
-            } else {
-                opportunity.locationId = null
-                opportunity.location = null
-            }
-        }
-
-        // Контактная информация
         if (patch.has("contactInfo")) {
             opportunity.contactInfo = patch.get("contactInfo")
                 .takeUnless { it.isNull }
@@ -132,7 +99,6 @@ class OpportunityDomainPatchService(
                 ?: OpportunityContactInfo()
         }
 
-        // Ссылки и теги
         if (patch.has("resourceLinks")) {
             replaceResourceLinks(opportunity, patch.get("resourceLinks"))
         }
@@ -140,6 +106,87 @@ class OpportunityDomainPatchService(
         if (patch.has("tagIds")) {
             replaceTags(opportunity, patch.get("tagIds"))
         }
+    }
+
+    private fun applyPlaceChanges(
+        opportunity: OpportunityDto,
+        patch: JsonNode,
+    ) {
+        val requestedCityId = when {
+            patch.has("cityId") -> patch.get("cityId").takeUnless { it.isNull }?.longValue()
+            opportunity.cityId != null -> opportunity.cityId
+            else -> opportunity.location?.cityId
+        }
+
+        val requestedLocationId = when {
+            patch.has("locationId") -> patch.get("locationId").takeUnless { it.isNull }?.longValue()
+            else -> opportunity.locationId
+        }
+
+        when (opportunity.workFormat) {
+            WorkFormat.OFFICE,
+            WorkFormat.HYBRID -> {
+                val location = requestedLocationId?.let { loadOwnedActiveLocationForOpportunity(opportunity, it) }
+
+                opportunity.cityId = null
+                opportunity.city = null
+                opportunity.locationId = location?.id
+                opportunity.location = location
+            }
+
+            WorkFormat.REMOTE,
+            WorkFormat.ONLINE -> {
+                val city = requestedCityId?.let(::loadActiveCity)
+
+                opportunity.cityId = city?.id
+                opportunity.city = city
+                opportunity.locationId = null
+                opportunity.location = null
+            }
+        }
+    }
+
+    private fun loadActiveCity(
+        cityId: Long,
+    ): CityDto {
+        return cityDao.findByIdAndIsActiveTrue(cityId)
+            .orElseThrow {
+                OpportunityNotFoundDomainException(
+                    message = "Город не найден",
+                    code = "city_not_found",
+                )
+            }
+    }
+
+    private fun loadOwnedActiveLocationForOpportunity(
+        opportunity: OpportunityDto,
+        locationId: Long,
+    ): LocationDto {
+        val location = locationDao.findByIdAndIsActiveTrue(locationId)
+            .orElseThrow {
+                OpportunityNotFoundDomainException(
+                    message = "Локация не найдена",
+                    code = "location_not_found",
+                )
+            }
+
+        if (location.ownerEmployerUserId == null || location.ownerEmployerUserId != opportunity.employerUserId) {
+            throw OpportunityNotFoundDomainException(
+                message = "Локация не найдена",
+                code = "location_not_found",
+            )
+        }
+
+        val locationCityId = requireNotNull(location.cityId)
+        cityDao.findByIdAndIsActiveTrue(locationCityId)
+            .orElseThrow {
+                OpportunityNotFoundDomainException(
+                    message = "Город локации не найден",
+                    code = "location_city_not_found",
+                )
+            }
+
+        return location
     }
 
     private fun textField(
@@ -258,8 +305,4 @@ class OpportunityDomainPatchService(
         val linkType: ResourceLinkType,
         val url: String,
     )
-
-    private companion object {
-        private val WHITESPACE_REGEX = "\\s+".toRegex()
-    }
 }

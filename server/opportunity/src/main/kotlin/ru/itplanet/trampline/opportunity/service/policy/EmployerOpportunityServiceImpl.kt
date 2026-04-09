@@ -15,6 +15,7 @@ import ru.itplanet.trampline.opportunity.converter.EmployerOpportunityConverter
 import ru.itplanet.trampline.opportunity.dao.EmployerProfileDao
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
 import ru.itplanet.trampline.opportunity.dao.TagDao
+import ru.itplanet.trampline.opportunity.dao.dto.EmployerProfileDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityResourceLinkDto
 import ru.itplanet.trampline.opportunity.dao.dto.OpportunityResourceLinkId
@@ -47,7 +48,7 @@ class EmployerOpportunityServiceImpl(
     private val employerProfileDao: EmployerProfileDao,
     private val employerOpportunityConverter: EmployerOpportunityConverter,
     private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
-    private val opportunityDomainValidator: OpportunityDomainValidator
+    private val opportunityDomainValidator: OpportunityDomainValidator,
 ) : EmployerOpportunityService {
 
     @Transactional
@@ -60,17 +61,15 @@ class EmployerOpportunityServiceImpl(
         validateSalary(request)
         validateTemporalFields(request)
 
-        val employerProfile = employerProfileDao.findByUserId(currentUserId)
-            .orElseThrow {
-                OpportunityValidationException(
-                    message = "Профиль работодателя не найден",
-                    details = mapOf("userId" to currentUserId.toString())
-                )
-            }
+        val employerProfile = getEmployerProfileOrThrow(currentUserId)
         val companyNameFromProfile = employerProfile.companyName ?: employerProfile.legalName ?: ""
 
         val resolvedTags = resolveTags(request.tagIds.distinct())
-        val resolvedPlace = resolvePlace(request)
+        val resolvedPlace = resolvePlace(
+            currentUserId = currentUserId,
+            employerProfile = employerProfile,
+            request = request,
+        )
 
         val opportunity = OpportunityDto().apply {
             employerUserId = currentUserId
@@ -137,8 +136,13 @@ class EmployerOpportunityServiceImpl(
         validateSalary(request)
         validateTemporalFields(request)
 
+        val employerProfile = getEmployerProfileOrThrow(currentUserId)
         val resolvedTags = resolveTags(request.tagIds.distinct())
-        val resolvedPlace = resolvePlace(request)
+        val resolvedPlace = resolvePlace(
+            currentUserId = currentUserId,
+            employerProfile = employerProfile,
+            request = request,
+        )
 
         applyEditableFieldsOnUpdate(
             opportunity = opportunity,
@@ -209,6 +213,18 @@ class EmployerOpportunityServiceImpl(
     ): OpportunityDto {
         return opportunityDao.findByIdAndEmployerUserId(opportunityId, currentUserId)
             .orElseThrow { OpportunityNotFoundException(opportunityId) }
+    }
+
+    private fun getEmployerProfileOrThrow(
+        currentUserId: Long,
+    ): EmployerProfileDto {
+        return employerProfileDao.findByUserId(currentUserId)
+            .orElseThrow {
+                OpportunityValidationException(
+                    message = "Профиль работодателя не найден",
+                    details = mapOf("userId" to currentUserId.toString()),
+                )
+            }
     }
 
     private fun validateEditableStatus(status: OpportunityStatus) {
@@ -345,7 +361,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.salaryCurrency = request.salaryCurrency.trim().uppercase(Locale.ROOT)
         opportunity.expiresAt = request.expiresAt
         opportunity.eventDate = request.eventDate
-        opportunity.cityId = requireNotNull(resolvedPlace.city.id)
+        opportunity.cityId = resolvedPlace.city?.id
         opportunity.city = resolvedPlace.city
         opportunity.locationId = resolvedPlace.location?.id
         opportunity.location = resolvedPlace.location
@@ -475,17 +491,30 @@ class EmployerOpportunityServiceImpl(
         return tagIds.map { tagsById.getValue(it) }
     }
 
-    private fun resolvePlace(request: CreateEmployerOpportunityRequest): ResolvedPlace {
+    private fun resolvePlace(
+        currentUserId: Long,
+        employerProfile: EmployerProfileDto,
+        request: CreateEmployerOpportunityRequest,
+    ): ResolvedPlace {
         return when (request.workFormat) {
             WorkFormat.OFFICE,
-            WorkFormat.HYBRID -> resolveOfficeOrHybridPlace(request)
+            WorkFormat.HYBRID -> resolveOfficeOrHybridPlace(
+                currentUserId = currentUserId,
+                request = request,
+            )
 
             WorkFormat.REMOTE,
-            WorkFormat.ONLINE -> resolveRemoteOrOnlinePlace(request)
+            WorkFormat.ONLINE -> resolveRemoteOrOnlinePlace(
+                employerProfile = employerProfile,
+                request = request,
+            )
         }
     }
 
-    private fun resolveOfficeOrHybridPlace(request: CreateEmployerOpportunityRequest): ResolvedPlace {
+    private fun resolveOfficeOrHybridPlace(
+        currentUserId: Long,
+        request: CreateEmployerOpportunityRequest,
+    ): ResolvedPlace {
         val locationId = request.locationId
             ?: throw OpportunityValidationException(
                 message = "Для ${request.workFormat.name} необходимо указать locationId",
@@ -500,8 +529,15 @@ class EmployerOpportunityServiceImpl(
                 )
             }
 
+        if (location.ownerEmployerUserId == null || location.ownerEmployerUserId != currentUserId) {
+            throw OpportunityValidationException(
+                message = "Можно использовать только собственные активные локации работодателя",
+                details = mapOf("locationId" to locationId.toString()),
+            )
+        }
+
         val locationCityId = requireNotNull(location.cityId)
-        val city = cityDao.findByIdAndIsActiveTrue(locationCityId)
+        cityDao.findByIdAndIsActiveTrue(locationCityId)
             .orElseThrow {
                 OpportunityValidationException(
                     message = "Указанная локация ссылается на неактивный или отсутствующий город",
@@ -509,41 +545,27 @@ class EmployerOpportunityServiceImpl(
                 )
             }
 
-        if (request.cityId != null && request.cityId != locationCityId) {
-            throw OpportunityValidationException(
-                message = "cityId должен совпадать с городом локации",
-                details = mapOf(
-                    "cityId" to request.cityId.toString(),
-                    "locationCityId" to locationCityId.toString(),
-                ),
-            )
-        }
-
         return ResolvedPlace(
-            city = city,
+            city = null,
             location = location,
         )
     }
 
-    private fun resolveRemoteOrOnlinePlace(request: CreateEmployerOpportunityRequest): ResolvedPlace {
-        if (request.locationId != null) {
-            throw OpportunityValidationException(
-                message = "Для ${request.workFormat.name} нельзя передавать locationId",
-                details = mapOf("locationId" to "для ${request.workFormat.name} поле должно быть null"),
-            )
-        }
+    private fun resolveRemoteOrOnlinePlace(
+        employerProfile: EmployerProfileDto,
+        request: CreateEmployerOpportunityRequest,
+    ): ResolvedPlace {
+        val effectiveCityId = request.cityId ?: employerProfile.city?.id
+        ?: throw OpportunityValidationException(
+            message = "Для ${request.workFormat.name} необходимо указать cityId или иметь город в профиле работодателя",
+            details = mapOf("cityId" to "для ${request.workFormat.name} поле обязательно, если в профиле работодателя не указан город"),
+        )
 
-        val cityId = request.cityId
-            ?: throw OpportunityValidationException(
-                message = "Для ${request.workFormat.name} необходимо указать cityId",
-                details = mapOf("cityId" to "для ${request.workFormat.name} поле обязательно"),
-            )
-
-        val city = cityDao.findByIdAndIsActiveTrue(cityId)
+        val city = cityDao.findByIdAndIsActiveTrue(effectiveCityId)
             .orElseThrow {
                 OpportunityValidationException(
                     message = "Передан некорректный cityId",
-                    details = mapOf("cityId" to cityId.toString()),
+                    details = mapOf("cityId" to effectiveCityId.toString()),
                 )
             }
 
@@ -589,7 +611,7 @@ class EmployerOpportunityServiceImpl(
     }
 
     private data class ResolvedPlace(
-        val city: CityDto,
+        val city: CityDto?,
         val location: LocationDto?,
     )
 }
