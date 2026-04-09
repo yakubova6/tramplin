@@ -24,3 +24,25 @@ class GeoForbiddenException(
     message = message,
     details = details,
 )
+
+class GeoNotFoundException(
+    message: String,
+    code: String = "geo_not_found",
+    details: Map<String, String> = emptyMap(),
+) : ApiException(
+    status = HttpStatus.NOT_FOUND,
+    code = code,
+    message = message,
+    details = details,
+)
+
+class GeoIntegrationException(
+    message: String,
+    code: String = "geo_integration_failed",
+    details: Map<String, String> = emptyMap(),
+) : ApiException(
+    status = HttpStatus.BAD_GATEWAY,
+    code = code,
+    message = message,
+    details = details,
+)

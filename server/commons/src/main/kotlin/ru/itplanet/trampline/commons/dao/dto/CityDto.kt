@@ -1,8 +1,14 @@
 package ru.itplanet.trampline.commons.dao.dto
 
-import jakarta.persistence.*
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import org.locationtech.jts.geom.Point
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 
@@ -23,6 +29,9 @@ open class CityDto {
     @Column(name = "country_code", length = 2, nullable = false)
     open var countryCode: String = ""
 
+    @Column(name = "fias_id", length = 36)
+    open var fiasId: String? = null
+
     @Column(name = "latitude")
     open var latitude: BigDecimal? = null
 
@@ -31,6 +40,9 @@ open class CityDto {
 
     @Column(name = "is_active", nullable = false)
     open var isActive: Boolean = true
+
+    @Column(name = "city_point", insertable = false, updatable = false)
+    open var cityPoint: Point? = null
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
@@ -46,12 +58,14 @@ open class CityDto {
         name: String,
         regionName: String,
         countryCode: String,
+        fiasId: String? = null,
         latitude: BigDecimal? = null,
-        longitude: BigDecimal? = null
+        longitude: BigDecimal? = null,
     ) {
         this.name = name
         this.regionName = regionName
         this.countryCode = countryCode
+        this.fiasId = fiasId
         this.latitude = latitude
         this.longitude = longitude
     }

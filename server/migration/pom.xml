@@ -22,6 +22,7 @@
 		<flyway.version>9.22.3</flyway.version>
 		<postgresql.version>42.7.7</postgresql.version>
 		<snakeyaml.version>2.4</snakeyaml.version>
+		<commons.csv.version>1.11.0</commons.csv.version>
 		<exec.maven.plugin.version>3.5.1</exec.maven.plugin.version>
 	</properties>
 
@@ -47,6 +48,12 @@
 			<groupId>org.yaml</groupId>
 			<artifactId>snakeyaml</artifactId>
 			<version>${snakeyaml.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-csv</artifactId>
+			<version>${commons.csv.version}</version>
 		</dependency>
 
 		<dependency>
@@ -78,8 +85,65 @@
 
 		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>migration-app-jar</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>migration-app</classifier>
+						</configuration>
+					</execution>
+					<execution>
+						<id>city-import-app-jar</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>city-import-app</classifier>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>repackage</id>
+						<configuration>
+							<skip>true</skip>
+						</configuration>
+					</execution>
+
+					<execution>
+						<id>repackage-migration-app</id>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+						<configuration>
+							<classifier>migration-app</classifier>
+							<mainClass>ru.itplanet.trampline.migration.MigrationApp</mainClass>
+						</configuration>
+					</execution>
+
+					<execution>
+						<id>repackage-city-import-app</id>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+						<configuration>
+							<classifier>city-import-app</classifier>
+							<mainClass>ru.itplanet.trampline.migration.CityReferenceImportApp</mainClass>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 
 			<plugin>
@@ -106,9 +170,6 @@
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
 				<version>${exec.maven.plugin.version}</version>
-				<configuration>
-					<mainClass>ru.itplanet.trampline.migration.MigrationApp</mainClass>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>

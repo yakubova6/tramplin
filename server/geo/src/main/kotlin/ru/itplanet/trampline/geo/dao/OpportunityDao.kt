@@ -28,13 +28,23 @@ interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
                     c.id AS city_id,
                     c.name AS city_name,
                     CASE
-                        WHEN o.work_format IN ('OFFICE', 'HYBRID') AND l.location_point IS NOT NULL THEN 'LOCATION'
-                        WHEN o.work_format IN ('REMOTE', 'ONLINE') AND c.city_point IS NOT NULL THEN 'CITY'
+                        WHEN o.work_format IN ('OFFICE', 'HYBRID')
+                             AND l.location_point IS NOT NULL
+                             AND c.id IS NOT NULL
+                            THEN 'LOCATION'
+                        WHEN o.work_format IN ('REMOTE', 'ONLINE')
+                             AND c.city_point IS NOT NULL
+                            THEN 'CITY'
                         ELSE NULL
                     END AS placement_type,
                     CASE
-                        WHEN o.work_format IN ('OFFICE', 'HYBRID') AND l.location_point IS NOT NULL THEN l.location_point
-                        WHEN o.work_format IN ('REMOTE', 'ONLINE') AND c.city_point IS NOT NULL THEN c.city_point
+                        WHEN o.work_format IN ('OFFICE', 'HYBRID')
+                             AND l.location_point IS NOT NULL
+                             AND c.id IS NOT NULL
+                            THEN l.location_point
+                        WHEN o.work_format IN ('REMOTE', 'ONLINE')
+                             AND c.city_point IS NOT NULL
+                            THEN c.city_point
                         ELSE NULL
                     END AS search_point
                 FROM opportunity o
@@ -42,7 +52,10 @@ interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
                     ON l.id = o.location_id
                    AND l.is_active = TRUE
                 LEFT JOIN city c
-                    ON c.id = o.city_id
+                    ON c.id = CASE
+                        WHEN o.work_format IN ('OFFICE', 'HYBRID') THEN l.city_id
+                        ELSE o.city_id
+                    END
                    AND c.is_active = TRUE
                 WHERE o.status = 'PUBLISHED'
                   AND o.published_at IS NOT NULL
@@ -102,8 +115,13 @@ interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
             WITH searchable_opportunity AS (
                 SELECT
                     CASE
-                        WHEN o.work_format IN ('OFFICE', 'HYBRID') AND l.location_point IS NOT NULL THEN l.location_point
-                        WHEN o.work_format IN ('REMOTE', 'ONLINE') AND c.city_point IS NOT NULL THEN c.city_point
+                        WHEN o.work_format IN ('OFFICE', 'HYBRID')
+                             AND l.location_point IS NOT NULL
+                             AND c.id IS NOT NULL
+                            THEN l.location_point
+                        WHEN o.work_format IN ('REMOTE', 'ONLINE')
+                             AND c.city_point IS NOT NULL
+                            THEN c.city_point
                         ELSE NULL
                     END AS search_point
                 FROM opportunity o
@@ -111,7 +129,10 @@ interface OpportunityDao : JpaRepository<GeoOpportunityDto, Long> {
                     ON l.id = o.location_id
                    AND l.is_active = TRUE
                 LEFT JOIN city c
-                    ON c.id = o.city_id
+                    ON c.id = CASE
+                        WHEN o.work_format IN ('OFFICE', 'HYBRID') THEN l.city_id
+                        ELSE o.city_id
+                    END
                    AND c.is_active = TRUE
                 WHERE o.status = 'PUBLISHED'
                   AND o.published_at IS NOT NULL

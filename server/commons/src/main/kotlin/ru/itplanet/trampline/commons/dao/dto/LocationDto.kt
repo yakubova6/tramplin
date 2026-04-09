@@ -1,6 +1,14 @@
 package ru.itplanet.trampline.commons.dao.dto
 
-import jakarta.persistence.*
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.Table
 import org.locationtech.jts.geom.Point
 import java.math.BigDecimal
 
@@ -19,6 +27,9 @@ open class LocationDto {
     @JoinColumn(name = "city_id", insertable = false, updatable = false)
     open var city: CityDto? = null
 
+    @Column(name = "owner_employer_user_id")
+    open var ownerEmployerUserId: Long? = null
+
     @Column(name = "title", length = 255)
     open var title: String? = null
 
@@ -30,6 +41,18 @@ open class LocationDto {
 
     @Column(name = "postal_code", length = 20)
     open var postalCode: String? = null
+
+    @Column(name = "fias_id", length = 36)
+    open var fiasId: String? = null
+
+    @Column(name = "unrestricted_value")
+    open var unrestrictedValue: String? = null
+
+    @Column(name = "qc_geo")
+    open var qcGeo: Short? = null
+
+    @Column(name = "source", length = 16)
+    open var source: String? = null
 
     @Column(name = "latitude")
     open var latitude: BigDecimal? = null
@@ -49,18 +72,28 @@ open class LocationDto {
         cityId: Long?,
         city: CityDto?,
         addressLine: String,
+        ownerEmployerUserId: Long? = null,
         title: String? = null,
         addressLine2: String? = null,
         postalCode: String? = null,
+        fiasId: String? = null,
+        unrestrictedValue: String? = null,
+        qcGeo: Short? = null,
+        source: String? = null,
         latitude: BigDecimal? = null,
-        longitude: BigDecimal? = null
+        longitude: BigDecimal? = null,
     ) {
         this.cityId = cityId
         this.city = city
         this.addressLine = addressLine
+        this.ownerEmployerUserId = ownerEmployerUserId
         this.title = title
         this.addressLine2 = addressLine2
         this.postalCode = postalCode
+        this.fiasId = fiasId
+        this.unrestrictedValue = unrestrictedValue
+        this.qcGeo = qcGeo
+        this.source = source
         this.latitude = latitude
         this.longitude = longitude
     }

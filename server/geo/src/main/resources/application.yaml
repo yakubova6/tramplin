@@ -26,6 +26,17 @@ spring:
 auth:
   service:
     url: ${AUTH_SERVER_HOST:http://localhost:9999}
+
+dadata:
+  url: ${DADATA_URL:https://suggestions.dadata.ru}
+  api-key: ${DADATA_API_KEY:}
+
+geo:
+  cache:
+    cities-ttl: ${GEO_CACHE_CITIES_TTL:10m}
+    address-suggest-ttl: ${GEO_CACHE_ADDRESS_SUGGEST_TTL:2m}
+    address-resolve-ttl: ${GEO_CACHE_ADDRESS_RESOLVE_TTL:10m}
+
 feign:
   client:
     config:

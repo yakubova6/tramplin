@@ -55,15 +55,40 @@ class EmployerProfileDomainValidator {
     }
 
     private fun validateCityAndLocation(profile: EmployerProfileDto) {
-        profile.city?.let { city ->
-            require(city.id != null && city.id!! > 0) {
-                "Город должен быть сохранённым (id не может быть null или 0)"
-            }
+        val city = profile.city
+        val location = profile.location
+
+        require(city != null) {
+            "Город работодателя обязателен"
         }
 
-        profile.location?.let { location ->
-            require(location.id != null && location.id!! > 0) {
+        require(city.id != null && city.id!! > 0) {
+            "Город должен быть сохранённым (id не может быть null или 0)"
+        }
+
+        require(city.isActive) {
+            "Город работодателя должен быть активным"
+        }
+
+        location?.let {
+            require(it.id != null && it.id!! > 0) {
                 "Локация должна быть сохранённой (id не может быть null или 0)"
+            }
+
+            require(it.isActive) {
+                "Локация работодателя должна быть активной"
+            }
+
+            require(it.ownerEmployerUserId != null) {
+                "Локация должна иметь владельца-работодателя"
+            }
+
+            require(it.ownerEmployerUserId == profile.userId) {
+                "Локация должна принадлежать текущему работодателю"
+            }
+
+            require(it.cityId == city.id) {
+                "Локация должна относиться к выбранному городу профиля"
             }
         }
     }

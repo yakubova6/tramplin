@@ -55,13 +55,32 @@ class OpportunityDomainValidator {
 
     private fun validateLocationCombination(opportunity: OpportunityDto) {
         when (opportunity.workFormat) {
-            WorkFormat.OFFICE, WorkFormat.HYBRID -> {
-                require(opportunity.cityId != null && opportunity.locationId != null) {
-                    "For OFFICE or HYBRID work format, both cityId and locationId must be provided"
+            WorkFormat.OFFICE,
+            WorkFormat.HYBRID -> {
+                if (opportunity.locationId == null || opportunity.cityId != null) {
+                    throw OpportunityValidationException(
+                        message = "Для OFFICE или HYBRID должна быть указана только locationId",
+                        details = mapOf(
+                            "workFormat" to opportunity.workFormat.name,
+                            "locationId" to (opportunity.locationId?.toString() ?: "null"),
+                            "cityId" to (opportunity.cityId?.toString() ?: "null"),
+                        ),
+                    )
                 }
             }
-            else -> {
-                // do nothing
+
+            WorkFormat.REMOTE,
+            WorkFormat.ONLINE -> {
+                if (opportunity.cityId == null || opportunity.locationId != null) {
+                    throw OpportunityValidationException(
+                        message = "Для REMOTE или ONLINE должен быть указан только cityId",
+                        details = mapOf(
+                            "workFormat" to opportunity.workFormat.name,
+                            "locationId" to (opportunity.locationId?.toString() ?: "null"),
+                            "cityId" to (opportunity.cityId?.toString() ?: "null"),
+                        ),
+                    )
+                }
             }
         }
     }
@@ -115,7 +134,7 @@ class OpportunityDomainValidator {
                 val tagNames = tagList.joinToString(", ") { it.name }
                 throw OpportunityValidationException(
                     message = "Нельзя выбрать более одного тега категории $category",
-                    details = mapOf("tags" to tagNames)
+                    details = mapOf("tags" to tagNames),
                 )
             }
         }

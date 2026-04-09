@@ -23,6 +23,8 @@ import ru.itplanet.trampline.geo.security.SessionAuthenticationFilter
     value = [
         AuthServiceProperties::class,
         InternalApiProperties::class,
+        DadataProperties::class,
+        GeoCacheProperties::class,
     ],
 )
 class SecurityConfig(
@@ -61,6 +63,8 @@ class SecurityConfig(
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers(HttpMethod.GET, "/api/geo/opportunities/nearby").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/geo/cities").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/geo/cities/*").permitAll()
                     .requestMatchers(request.matcher("/internal/**")).hasRole("INTERNAL")
                     .requestMatchers(request.matcher("/error")).permitAll()
                     .anyRequest().authenticated()
