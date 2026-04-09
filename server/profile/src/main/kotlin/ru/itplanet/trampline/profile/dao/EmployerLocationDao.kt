@@ -21,6 +21,10 @@ interface EmployerLocationDao : JpaRepository<LocationDto, Long> {
         @Param("employerUserId") employerUserId: Long,
     ): List<LocationDto>
 
+    fun findAllByOwnerEmployerUserIdAndIsActiveTrue(
+        employerUserId: Long,
+    ): List<LocationDto>
+
     @Query(
         """
         SELECT l

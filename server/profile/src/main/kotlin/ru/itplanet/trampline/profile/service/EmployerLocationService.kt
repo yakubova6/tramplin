@@ -51,6 +51,15 @@ class EmployerLocationService(
             addressLine = addressLine,
             unrestrictedValue = unrestrictedValue,
         )
+        validateUniqueLocation(
+            currentUserId = currentUserId,
+            currentLocationId = null,
+            cityId = requireNotNull(city.id),
+            addressLine = addressLine,
+            addressLine2 = addressLine2,
+            fiasId = fiasId,
+            unrestrictedValue = unrestrictedValue,
+        )
 
         val location = LocationDto().apply {
             ownerEmployerUserId = currentUserId
@@ -102,10 +111,22 @@ class EmployerLocationService(
         request.unrestrictedValue?.let { location.unrestrictedValue = normalizeOptionalText(it) }
         request.qcGeo?.let { location.qcGeo = it.toShort() }
 
+        val resolvedCity = location.city ?: loadActiveCityOrThrow(requireNotNull(location.cityId))
+        val resolvedAddressLine = normalizeRequiredText(location.addressLine, "Адрес")
+
         validateCoordinatesPair(location.latitude, location.longitude)
         validateUnrestrictedValueConsistency(
-            city = location.city ?: loadActiveCityOrThrow(requireNotNull(location.cityId)),
-            addressLine = normalizeRequiredText(location.addressLine, "Адрес"),
+            city = resolvedCity,
+            addressLine = resolvedAddressLine,
+            unrestrictedValue = location.unrestrictedValue,
+        )
+        validateUniqueLocation(
+            currentUserId = currentUserId,
+            currentLocationId = requireNotNull(location.id),
+            cityId = requireNotNull(location.cityId),
+            addressLine = resolvedAddressLine,
+            addressLine2 = location.addressLine2,
+            fiasId = location.fiasId,
             unrestrictedValue = location.unrestrictedValue,
         )
 
@@ -228,6 +249,46 @@ class EmployerLocationService(
         }
     }
 
+    private fun validateUniqueLocation(
+        currentUserId: Long,
+        currentLocationId: Long?,
+        cityId: Long,
+        addressLine: String,
+        addressLine2: String?,
+        fiasId: String?,
+        unrestrictedValue: String?,
+    ) {
+        val normalizedFiasId = normalizeOptionalIdentifier(fiasId)
+        val normalizedUnrestrictedValue = normalizeOptionalForContains(unrestrictedValue)
+        val normalizedAddressLine = normalizeForContains(addressLine)
+        val normalizedAddressLine2 = normalizeOptionalForContains(addressLine2)
+
+        val duplicateExists = employerLocationDao
+            .findAllByOwnerEmployerUserIdAndIsActiveTrue(currentUserId)
+            .asSequence()
+            .filter { existing -> currentLocationId == null || existing.id != currentLocationId }
+            .any { existing ->
+                val sameFiasId = normalizedFiasId != null &&
+                        normalizedFiasId == normalizeOptionalIdentifier(existing.fiasId)
+
+                val sameUnrestrictedValue = normalizedUnrestrictedValue != null &&
+                        normalizedUnrestrictedValue == normalizeOptionalForContains(existing.unrestrictedValue)
+
+                val sameAddressWithinCity = existing.cityId == cityId &&
+                        normalizedAddressLine == normalizeOptionalForContains(existing.addressLine) &&
+                        normalizedAddressLine2 == normalizeOptionalForContains(existing.addressLine2)
+
+                sameFiasId || sameUnrestrictedValue || sameAddressWithinCity
+            }
+
+        if (duplicateExists) {
+            throw ProfileBadRequestException(
+                message = "У работодателя уже существует такая активная локация",
+                code = "employer_location_duplicate",
+            )
+        }
+    }
+
     private fun normalizeRequiredText(
         value: String?,
         fieldName: String,
@@ -265,6 +326,15 @@ class EmployerLocationService(
             ?.takeIf { it.isNotEmpty() }
             ?.lowercase()
             ?.replace(Regex("\\s+"), " ")
+    }
+
+    private fun normalizeOptionalIdentifier(
+        value: String?,
+    ): String? {
+        return value
+            ?.trim()
+            ?.lowercase()
+            ?.takeIf { it.isNotEmpty() }
     }
 
     private fun resolveSource(
