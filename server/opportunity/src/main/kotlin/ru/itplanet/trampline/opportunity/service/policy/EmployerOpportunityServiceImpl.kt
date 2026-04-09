@@ -545,6 +545,20 @@ class EmployerOpportunityServiceImpl(
                 )
             }
 
+        request.cityId?.let { cityId ->
+            if (cityId != locationCityId) {
+                throw OpportunityValidationException(
+                    message = "Для ${request.workFormat.name} cityId может быть передан только если он совпадает с городом выбранной локации",
+                    details = mapOf(
+                        "workFormat" to request.workFormat.name,
+                        "cityId" to cityId.toString(),
+                        "locationId" to locationId.toString(),
+                        "locationCityId" to locationCityId.toString(),
+                    ),
+                )
+            }
+        }
+
         return ResolvedPlace(
             city = null,
             location = location,
@@ -555,10 +569,22 @@ class EmployerOpportunityServiceImpl(
         employerProfile: EmployerProfileDto,
         request: CreateEmployerOpportunityRequest,
     ): ResolvedPlace {
+        if (request.locationId != null) {
+            throw OpportunityValidationException(
+                message = "Для ${request.workFormat.name} нельзя передавать locationId",
+                details = mapOf(
+                    "workFormat" to request.workFormat.name,
+                    "locationId" to request.locationId.toString(),
+                ),
+            )
+        }
+
         val effectiveCityId = request.cityId ?: employerProfile.city?.id
         ?: throw OpportunityValidationException(
             message = "Для ${request.workFormat.name} необходимо указать cityId или иметь город в профиле работодателя",
-            details = mapOf("cityId" to "для ${request.workFormat.name} поле обязательно, если в профиле работодателя не указан город"),
+            details = mapOf(
+                "cityId" to "для ${request.workFormat.name} поле обязательно, если в профиле работодателя не указан город",
+            ),
         )
 
         val city = cityDao.findByIdAndIsActiveTrue(effectiveCityId)
