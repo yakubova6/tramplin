@@ -45,6 +45,9 @@ class ApplicantProfileDomainValidator {
             require(city.id != null && city.id!! > 0) {
                 "Город должен быть сохранённым (id не может быть null или 0)"
             }
+            require(city.isActive) {
+                "Город соискателя должен быть активным"
+            }
         }
     }
 }

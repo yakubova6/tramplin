@@ -7,7 +7,11 @@ import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.exception.ApiException
 import ru.itplanet.trampline.commons.model.Tag
-import ru.itplanet.trampline.commons.model.file.*
+import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
+import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
+import ru.itplanet.trampline.commons.model.file.InternalFileMetadataResponse
 import ru.itplanet.trampline.commons.model.moderation.CreateInternalModerationTaskRequest
 import ru.itplanet.trampline.commons.model.moderation.ModerationEntityType
 import ru.itplanet.trampline.commons.model.moderation.ModerationTaskPriority
@@ -81,12 +85,13 @@ class ApplicantProfileDomainPatchService(
         request.openToEvents?.let { profile.openToEvents = it }
 
         request.cityId?.let { cityId ->
-            profile.city = cityDao.findById(cityId).orElseThrow {
-                ProfileNotFoundException(
-                    message = "Город с идентификатором $cityId не найден",
-                    code = "city_not_found",
-                )
-            }
+            profile.city = cityDao.findByIdAndIsActiveTrue(cityId)
+                .orElseThrow {
+                    ProfileNotFoundException(
+                        message = "Город с идентификатором $cityId не найден",
+                        code = "city_not_found",
+                    )
+                }
         }
     }
 
@@ -421,17 +426,5 @@ class ApplicantProfileDomainPatchService(
 
     private companion object {
         private val logger = LoggerFactory.getLogger(ApplicantProfileDomainPatchService::class.java)
-
-        private const val NO_TAG_ID_PLACEHOLDER = -1L
-
-        private val applicantDownloadRoles = setOf(
-            FileAttachmentRole.AVATAR,
-            FileAttachmentRole.RESUME,
-            FileAttachmentRole.PORTFOLIO,
-        )
-
-        private val employerDownloadRoles = setOf(
-            FileAttachmentRole.LOGO,
-        )
     }
 }
