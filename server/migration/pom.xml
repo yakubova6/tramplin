@@ -22,6 +22,7 @@
 		<flyway.version>9.22.3</flyway.version>
 		<postgresql.version>42.7.7</postgresql.version>
 		<snakeyaml.version>2.4</snakeyaml.version>
+		<commons.csv.version>1.11.0</commons.csv.version>
 		<exec.maven.plugin.version>3.5.1</exec.maven.plugin.version>
 	</properties>
 
@@ -47,6 +48,12 @@
 			<groupId>org.yaml</groupId>
 			<artifactId>snakeyaml</artifactId>
 			<version>${snakeyaml.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-csv</artifactId>
+			<version>${commons.csv.version}</version>
 		</dependency>
 
 		<dependency>
@@ -106,9 +113,9 @@
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
 				<version>${exec.maven.plugin.version}</version>
-				<configuration>
-					<mainClass>ru.itplanet.trampline.migration.MigrationApp</mainClass>
-				</configuration>
+<!--				<configuration>-->
+<!--					<mainClass>ru.itplanet.trampline.migration.MigrationApp</mainClass>-->
+<!--				</configuration>-->
 			</plugin>
 		</plugins>
 	</build>
