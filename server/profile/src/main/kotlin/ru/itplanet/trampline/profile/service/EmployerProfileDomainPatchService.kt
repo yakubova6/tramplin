@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
-import ru.itplanet.trampline.commons.dao.LocationDao
+import ru.itplanet.trampline.commons.dao.dto.CityDto
 import ru.itplanet.trampline.commons.model.file.FileAssetVisibility
 import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
 import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
@@ -38,12 +38,12 @@ class EmployerProfileDomainPatchService(
     private val employerProfileDao: EmployerProfileDao,
     private val employerVerificationDao: EmployerVerificationDao,
     private val cityDao: CityDao,
-    private val locationDao: LocationDao,
     private val mediaServiceClient: MediaServiceClient,
     private val employerProfileConverter: EmployerProfileConverter,
     private val validator: EmployerProfileDomainValidator,
     private val moderationServiceClient: ModerationServiceClient,
     private val objectMapper: ObjectMapper,
+    private val employerLocationService: EmployerLocationService,
 ) {
 
     @Transactional
@@ -102,8 +102,10 @@ class EmployerProfileDomainPatchService(
         request.companySize?.let { profile.companySize = it }
         request.foundedYear?.let { profile.foundedYear = it }
 
+        var resolvedCity: CityDto? = profile.city
+
         request.cityId?.let { cityId ->
-            profile.city = cityDao.findById(cityId)
+            resolvedCity = cityDao.findByIdAndIsActiveTrue(cityId)
                 .orElseThrow {
                     ProfileNotFoundException(
                         message = "Город с идентификатором $cityId не найден",
@@ -113,13 +115,45 @@ class EmployerProfileDomainPatchService(
         }
 
         request.locationId?.let { locationId ->
-            profile.location = locationDao.findById(locationId)
+            val location = employerLocationService.getOwnedActiveLocationOrThrow(profile.userId, locationId)
+            val locationCityId = requireNotNull(location.cityId) {
+                "У локации работодателя должен быть указан cityId"
+            }
+            val locationCity = cityDao.findByIdAndIsActiveTrue(locationCityId)
                 .orElseThrow {
                     ProfileNotFoundException(
-                        message = "Локация с идентификатором $locationId не найдена",
-                        code = "location_not_found",
+                        message = "Город, связанный с локацией $locationId, не найден",
+                        code = "location_city_not_found",
                     )
                 }
+
+            if (resolvedCity != null && resolvedCity?.id != locationCity.id) {
+                throw ProfileBadRequestException(
+                    message = "Локация должна относиться к выбранному городу профиля",
+                    code = "employer_profile_city_location_mismatch",
+                )
+            }
+
+            profile.location = location
+            profile.city = locationCity
+            resolvedCity = locationCity
+        }
+
+        if (request.cityId != null) {
+            val existingLocation = profile.location
+            if (
+                request.locationId == null &&
+                existingLocation != null &&
+                existingLocation.cityId != null &&
+                existingLocation.cityId != resolvedCity?.id
+            ) {
+                throw ProfileBadRequestException(
+                    message = "Нельзя изменить город профиля, пока выбрана локация из другого города",
+                    code = "employer_profile_city_change_conflicts_with_location",
+                )
+            }
+
+            profile.city = resolvedCity
         }
     }
 
