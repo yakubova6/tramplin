@@ -62,6 +62,12 @@ class SecurityConfig(
             }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(
+                        request.matcher("/v3/api-docs/**"),
+                        request.matcher("/swagger-ui.html"),
+                        request.matcher("/swagger-ui/**"),
+                        request.matcher("/error"),
+                    ).permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/geo/opportunities/nearby").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/geo/cities").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/geo/cities/*").permitAll()
