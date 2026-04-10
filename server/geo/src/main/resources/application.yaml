@@ -46,3 +46,16 @@ feign:
 
 internal-api:
   api-key: ${INTERNAL_API_KEY}
+
+springdoc:
+  paths-to-match: /api/**
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+    filter: true
