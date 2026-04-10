@@ -13,6 +13,9 @@ import {
 } from '../../api/profile'
 import './ApplicantPublicProfile.scss'
 
+import userAvatarIcon from '../../assets/icons/user-avatar.svg'
+import linkIcon from '../../assets/icons/link.svg'
+
 function formatDate(dateString) {
     if (!dateString) return '—'
     const date = new Date(dateString)
@@ -22,6 +25,29 @@ function formatDate(dateString) {
         month: 'long',
         year: 'numeric',
     })
+}
+
+function formatApplicationStatus(status) {
+    switch (status) {
+        case 'SUBMITTED':
+            return 'Отправлено'
+        case 'IN_REVIEW':
+            return 'На рассмотрении'
+        case 'ACCEPTED':
+            return 'Принято'
+        case 'REJECTED':
+            return 'Отклонено'
+        case 'RESERVE':
+            return 'В резерве'
+        case 'WITHDRAWN':
+            return 'Отозвано'
+        default:
+            return status || '—'
+    }
+}
+
+function getApplicationStatusClass(status) {
+    return status?.toLowerCase?.() || 'default'
 }
 
 async function apiRequest(url) {
@@ -39,6 +65,9 @@ async function apiRequest(url) {
     if (!response.ok) {
         const error = new Error(data?.message || 'Не удалось загрузить профиль')
         error.status = response.status
+        error.code = data?.code || null
+        error.details = data?.details || {}
+        error.payload = data || null
         throw error
     }
 
@@ -64,6 +93,7 @@ function canShowBlock(visibility, isOwner, isAuthenticated) {
     if (isOwner) return true
     if (visibility === 'PUBLIC') return true
     if (visibility === 'AUTHENTICATED') return isAuthenticated
+    if (visibility === 'CONTACTS_ONLY') return false
     return false
 }
 
@@ -74,9 +104,72 @@ function getFullName(profile) {
         .trim()
 }
 
+function getInitials(profile) {
+    return `${profile.firstName?.[0] || ''}${profile.lastName?.[0] || ''}`.toUpperCase()
+}
+
+function getApplicantFileUrl(userId, fileId) {
+    if (!userId || !fileId) return null
+    return `/api/profile/applicant/${userId}/files/${fileId}`
+}
+
+function renderContactValue(contact) {
+    if (!contact?.value) return null
+
+    const value = contact.value
+
+    if (contact.type === 'EMAIL' || value.includes('@')) {
+        return (
+            <a href={`mailto:${value}`} className="applicant-public-profile__contact-link">
+                {value}
+            </a>
+        )
+    }
+
+    if (contact.type === 'PHONE' || /^\+?\d[\d\s\-()]+$/.test(value)) {
+        return (
+            <a href={`tel:${value}`} className="applicant-public-profile__contact-link">
+                {value}
+            </a>
+        )
+    }
+
+    if (contact.type === 'TELEGRAM' || value.startsWith('@') || value.includes('t.me/')) {
+        const telegramValue = value.startsWith('@')
+            ? value.slice(1)
+            : value.replace(/^https?:\/\/t\.me\//, '')
+
+        return (
+            <a
+                href={`https://t.me/${telegramValue}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="applicant-public-profile__contact-link"
+            >
+                @{telegramValue}
+            </a>
+        )
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+        return (
+            <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="applicant-public-profile__contact-link"
+            >
+                {value}
+            </a>
+        )
+    }
+
+    return <span className="applicant-public-profile__contact-text">{value}</span>
+}
+
 export default function ApplicantPublicProfile() {
     const [, navigate] = useLocation()
-    const [, params] = useRoute('/seekers/:id')
+    const [match, params] = useRoute('/seekers/:id')
     const { toast } = useToast()
 
     const currentUser = useMemo(() => getSessionUser(), [])
@@ -91,14 +184,25 @@ export default function ApplicantPublicProfile() {
     const [optimisticContactState, setOptimisticContactState] = useState(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isContactActionLoading, setIsContactActionLoading] = useState(false)
-    const [error, setError] = useState('')
+
+    const [errorState, setErrorState] = useState({
+        title: '',
+        message: '',
+        kind: '',
+    })
 
     const applicantId = params?.id ? Number(params.id) : null
     const isOwner = currentUserId && applicantId && currentUserId === applicantId
 
     useEffect(() => {
+        if (!match) return
+
         if (!applicantId) {
-            setError('Некорректный идентификатор профиля')
+            setErrorState({
+                title: 'Некорректная ссылка',
+                message: 'Не удалось определить профиль соискателя.',
+                kind: 'invalid',
+            })
             setIsLoading(false)
             return
         }
@@ -107,7 +211,11 @@ export default function ApplicantPublicProfile() {
 
         async function loadProfile() {
             setIsLoading(true)
-            setError('')
+            setErrorState({
+                title: '',
+                message: '',
+                kind: '',
+            })
 
             try {
                 const profileData = await getApplicantPublicProfile(applicantId, currentUserId)
@@ -147,10 +255,7 @@ export default function ApplicantPublicProfile() {
                     }
                 }
 
-                if (
-                    isApplicantViewer &&
-                    !isOwner
-                ) {
+                if (isApplicantViewer && !isOwner) {
                     try {
                         const myContacts = await getSeekerContacts()
                         if (isMounted) {
@@ -161,21 +266,45 @@ export default function ApplicantPublicProfile() {
                     }
                 }
 
-                if (
-                    !canShowBlock(profileVisibility, isOwner, isAuthenticated) &&
-                    !isOwner
-                ) {
-                    setError('Этот профиль скрыт настройками приватности')
+                if (!canShowBlock(profileVisibility, isOwner, isAuthenticated) && !isOwner) {
+                    setErrorState({
+                        title: 'Профиль скрыт',
+                        message: 'Этот профиль скрыт настройками приватности и пока недоступен для просмотра.',
+                        kind: 'hidden',
+                    })
                 }
             } catch (loadError) {
                 if (!isMounted) return
 
-                setError(loadError.message || 'Не удалось загрузить профиль')
-                toast({
-                    title: 'Ошибка',
-                    description: loadError.message || 'Не удалось загрузить профиль',
-                    variant: 'destructive',
-                })
+                if (
+                    loadError?.status === 403 &&
+                    loadError?.code === 'applicant_profile_not_moderated'
+                ) {
+                    setErrorState({
+                        title: 'Профиль пока не опубликован',
+                        message:
+                            'Этот соискатель уже зарегистрирован на платформе, но его профиль ещё не прошёл модерацию. После проверки куратором он станет доступен другим пользователям.',
+                        kind: 'not_moderated',
+                    })
+                } else if (loadError?.status === 404) {
+                    setErrorState({
+                        title: 'Профиль не найден',
+                        message: 'Такой профиль не найден или был удалён.',
+                        kind: 'not_found',
+                    })
+                } else {
+                    setErrorState({
+                        title: 'Не удалось открыть профиль',
+                        message: loadError.message || 'Произошла ошибка при загрузке профиля.',
+                        kind: 'generic',
+                    })
+
+                    toast({
+                        title: 'Ошибка',
+                        description: loadError.message || 'Не удалось загрузить профиль',
+                        variant: 'destructive',
+                    })
+                }
             } finally {
                 if (isMounted) {
                     setIsLoading(false)
@@ -188,7 +317,7 @@ export default function ApplicantPublicProfile() {
         return () => {
             isMounted = false
         }
-    }, [applicantId, currentUserId, isAuthenticated, isOwner, isApplicantViewer, toast])
+    }, [applicantId, currentUserId, isAuthenticated, isOwner, isApplicantViewer, match, toast])
 
     const relationship = useMemo(() => {
         if (!applicantId) return optimisticContactState
@@ -270,6 +399,21 @@ export default function ApplicantPublicProfile() {
                     description: relationshipAfterError.status === 'ACCEPTED'
                         ? 'Пользователь уже есть в ваших профессиональных контактах'
                         : 'Сейчас он ожидает подтверждения',
+                })
+                return
+            }
+
+            if (
+                error?.status === 403 &&
+                error?.code === 'applicant_networking_requires_approved_profile'
+            ) {
+                setOptimisticContactState(null)
+
+                toast({
+                    title: 'Нетворкинг пока недоступен',
+                    description:
+                        'Нетворкинг-функции доступны только после одобрения вашего профиля соискателя куратором.',
+                    variant: 'destructive',
                 })
                 return
             }
@@ -397,15 +541,11 @@ export default function ApplicantPublicProfile() {
             return (
                 <div className="applicant-public-profile__contact-panel">
                     <div className="applicant-public-profile__contact-panel-text">
-                    <span className="applicant-public-profile__contact-kicker">
-                        Нетворкинг
-                    </span>
-                        <span className="applicant-public-profile__contact-title">
-                        Профессиональный контакт
-                    </span>
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Профессиональный контакт</span>
                         <span className="applicant-public-profile__contact-subtitle">
-                        Войдите в аккаунт, чтобы добавить этого соискателя в свою сеть контактов
-                    </span>
+                            Войдите в аккаунт, чтобы добавить этого соискателя в свою сеть контактов
+                        </span>
                     </div>
 
                     <Link href="/login">
@@ -419,15 +559,11 @@ export default function ApplicantPublicProfile() {
             return (
                 <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--default">
                     <div className="applicant-public-profile__contact-panel-text">
-                    <span className="applicant-public-profile__contact-kicker">
-                        Нетворкинг
-                    </span>
-                        <span className="applicant-public-profile__contact-title">
-                        Добавить в профессиональные контакты
-                    </span>
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Добавить в профессиональные контакты</span>
                         <span className="applicant-public-profile__contact-subtitle">
-                        Контакты помогают развивать карьерные связи и рекомендации внутри платформы
-                    </span>
+                            Контакты помогают развивать карьерные связи и рекомендации внутри платформы
+                        </span>
                     </div>
 
                     <Button
@@ -445,15 +581,11 @@ export default function ApplicantPublicProfile() {
             return (
                 <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--connected">
                     <div className="applicant-public-profile__contact-panel-text">
-                    <span className="applicant-public-profile__contact-kicker">
-                        Нетворкинг
-                    </span>
-                        <span className="applicant-public-profile__contact-title">
-                        Контакт подтверждён
-                    </span>
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Контакт подтверждён</span>
                         <span className="applicant-public-profile__contact-subtitle">
-                        Вы находитесь в сети профессиональных контактов друг у друга
-                    </span>
+                            Вы находитесь в сети профессиональных контактов друг у друга
+                        </span>
                     </div>
 
                     <div className="applicant-public-profile__contact-actions">
@@ -474,15 +606,11 @@ export default function ApplicantPublicProfile() {
             return (
                 <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--pending">
                     <div className="applicant-public-profile__contact-panel-text">
-                    <span className="applicant-public-profile__contact-kicker">
-                        Нетворкинг
-                    </span>
-                        <span className="applicant-public-profile__contact-title">
-                        Запрос уже отправлен
-                    </span>
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Запрос уже отправлен</span>
                         <span className="applicant-public-profile__contact-subtitle">
-                        Сейчас ожидается подтверждение профессионального контакта
-                    </span>
+                            Сейчас ожидается подтверждение профессионального контакта
+                        </span>
                     </div>
 
                     <div className="applicant-public-profile__contact-actions">
@@ -502,15 +630,11 @@ export default function ApplicantPublicProfile() {
         return (
             <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--incoming">
                 <div className="applicant-public-profile__contact-panel-text">
-                <span className="applicant-public-profile__contact-kicker">
-                    Нетворкинг
-                </span>
-                    <span className="applicant-public-profile__contact-title">
-                    Входящий запрос
-                </span>
+                    <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                    <span className="applicant-public-profile__contact-title">Входящий запрос</span>
                     <span className="applicant-public-profile__contact-subtitle">
-                    Пользователь хочет добавить вас в профессиональные контакты
-                </span>
+                        Пользователь хочет добавить вас в профессиональные контакты
+                    </span>
                 </div>
 
                 <div className="applicant-public-profile__contact-actions">
@@ -532,6 +656,13 @@ export default function ApplicantPublicProfile() {
             </div>
         )
     }
+
+    const avatarUrl = profile?.avatar?.fileId
+        ? getApplicantFileUrl(profile.userId || applicantId, profile.avatar.fileId)
+        : null
+
+    const shouldShowError = !isLoading && errorState.message
+    const shouldShowContent = !isLoading && profile && profileVisible && !errorState.message
 
     return (
         <div className="applicant-public-profile">
@@ -563,20 +694,64 @@ export default function ApplicantPublicProfile() {
                     </div>
                 )}
 
-                {!isLoading && error && (
+                {shouldShowError && errorState.kind === 'not_moderated' && (
+                    <section className="applicant-public-profile__empty-state">
+                        <div className="applicant-public-profile__empty-card">
+                            <div className="applicant-public-profile__empty-badge">
+                                Профиль недоступен
+                            </div>
+
+                            <h2 className="applicant-public-profile__empty-title">
+                                Профиль пока не опубликован
+                            </h2>
+
+                            <p className="applicant-public-profile__empty-text">
+                                {errorState.message}
+                            </p>
+
+                            <Link href="/" className="applicant-public-profile__empty-link">
+                                <Button className="button--primary applicant-public-profile__empty-button">
+                                    На главную
+                                </Button>
+                            </Link>
+                        </div>
+                    </section>
+                )}
+
+                {shouldShowError && errorState.kind !== 'not_moderated' && (
                     <div className="applicant-public-profile__error-card">
-                        <p>{error}</p>
-                        <Link href="/">
-                            <Button>На главную</Button>
-                        </Link>
+                        <div className="applicant-public-profile__error-content">
+                            <h2>{errorState.title || 'Не удалось открыть профиль'}</h2>
+                            <p>{errorState.message}</p>
+                        </div>
+
+                        <div className="applicant-public-profile__error-actions">
+                            <Link href="/">
+                                <Button>На главную</Button>
+                            </Link>
+                        </div>
                     </div>
                 )}
 
-                {!isLoading && profile && profileVisible && (
+                {shouldShowContent && (
                     <div className="applicant-public-profile__grid">
                         <section className="applicant-public-profile__hero-card">
                             <div className="applicant-public-profile__avatar">
-                                {(profile.firstName?.[0] || '')}{(profile.lastName?.[0] || '')}
+                                {avatarUrl ? (
+                                    <img
+                                        src={avatarUrl}
+                                        alt={getFullName(profile) || 'Аватар соискателя'}
+                                        className="applicant-public-profile__avatar-image"
+                                    />
+                                ) : getInitials(profile) ? (
+                                    getInitials(profile)
+                                ) : (
+                                    <img
+                                        src={userAvatarIcon}
+                                        alt="Аватар"
+                                        className="applicant-public-profile__avatar-fallback-icon"
+                                    />
+                                )}
                             </div>
 
                             <div className="applicant-public-profile__hero-content">
@@ -615,9 +790,9 @@ export default function ApplicantPublicProfile() {
                                             <strong>Год выпуска:</strong> <span>{profile.graduationYear}</span>
                                         </div>
                                     )}
-                                    {profile.city?.name && (
+                                    {(profile.city?.name || profile.cityName) && (
                                         <div className="meta-item">
-                                            <strong>Город:</strong> <span>{profile.city.name}</span>
+                                            <strong>Город:</strong> <span>{profile.city?.name || profile.cityName}</span>
                                         </div>
                                     )}
                                 </div>
@@ -692,7 +867,10 @@ export default function ApplicantPublicProfile() {
                                                 rel="noopener noreferrer"
                                                 className="profile-link"
                                             >
-                                                <span>{link.label || link.url}</span>
+                                                <div className="profile-link__main">
+                                                    <img src={linkIcon} alt="" className="profile-link__icon" />
+                                                    <span>{link.label || link.url}</span>
+                                                </div>
                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                     <path d="M7 17L17 7" />
                                                     <path d="M7 7H17V17" />
@@ -710,7 +888,17 @@ export default function ApplicantPublicProfile() {
                                         <div className="links-list">
                                             {profile.contactLinks.map((contact, index) => (
                                                 <div key={`${contact.value}-${index}`} className="profile-contact">
-                                                    <strong>{contact.label || contact.type}:</strong> {contact.value}
+                                                    <div className="profile-contact__left">
+                                                        <img src={linkIcon} alt="" className="profile-contact__icon" />
+                                                        <div className="profile-contact__content">
+                                                            <span className="profile-contact__label">
+                                                                {contact.label || contact.type}
+                                                            </span>
+                                                            <div className="profile-contact__value">
+                                                                {renderContactValue(contact)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -731,8 +919,8 @@ export default function ApplicantPublicProfile() {
                                                     <strong>{application.opportunityTitle || `Возможность #${application.opportunityId}`}</strong>
                                                     <p>Дата отклика: {formatDate(application.createdAt)}</p>
                                                 </div>
-                                                <span className={`status-badge status-${application.status?.toLowerCase() || 'default'}`}>
-                                                    {application.status}
+                                                <span className={`status-badge status-${getApplicationStatusClass(application.status)}`}>
+                                                    {formatApplicationStatus(application.status)}
                                                 </span>
                                             </div>
                                         ))}
