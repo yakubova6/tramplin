@@ -1,4 +1,4 @@
-@use '../../../styles/helpers' as *;
+@use '@/styles/helpers' as *;
 
 $primary: var(--color-primary);
 $primary-light: var(--color-primary-soft);
@@ -428,25 +428,25 @@ $section-title-size: 19px;
     }
   }
 
-  &__field {
-    .field-value.employer-profile__moderation-state {
+  &__moderation-state {
+    &.field-value {
       font-weight: 500;
+    }
 
-      &--draft {
-        color: $gray-600;
-      }
+    &--draft {
+      color: $gray-600 !important;
+    }
 
-      &--pending {
-        color: #cc7b00;
-      }
+    &--pending {
+      color: #cc7b00 !important;
+    }
 
-      &--approved {
-        color: #2e7d32;
-      }
+    &--approved {
+      color: #2e7d32 !important;
+    }
 
-      &--revision {
-        color: #c62828;
-      }
+    &--revision {
+      color: #c62828 !important;
     }
   }
 
@@ -504,6 +504,10 @@ $section-title-size: 19px;
     .custom-select__button {
       width: 100%;
       box-sizing: border-box;
+    }
+
+    .custom-select__button {
+      margin-top: 2px;
     }
 
     .autocomplete {
@@ -564,6 +568,10 @@ $section-title-size: 19px;
     textarea {
       min-height: 120px;
       resize: vertical;
+    }
+
+    .custom-select {
+      justify-content: flex-end;
     }
   }
 
@@ -650,6 +658,27 @@ $section-title-size: 19px;
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+  }
+
+  &__location-actions {
+    display: flex;
+    min-height: $control-height;
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    .button {
+      height: $control-height !important;
+      min-height: $control-height !important;
+      margin: 0;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      box-sizing: border-box;
+    }
   }
 
   &__upload-hint {
@@ -1205,6 +1234,10 @@ $section-title-size: 19px;
     margin-bottom: 20px;
     color: $gray-800;
   }
+
+  .modal__field:first-of-type {
+    margin-top: 8px;
+  }
 }
 
 .modal__field {
@@ -1364,6 +1397,15 @@ $section-title-size: 19px;
       }
     }
   }
+
+  .employer-profile__location-actions {
+    flex-direction: column;
+    align-items: stretch;
+
+    .button {
+      width: 100%;
+    }
+  }
 }
 
 @media (max-width: 640px) {
@@ -1403,4 +1445,19 @@ $section-title-size: 19px;
       text-align: center;
     }
   }
+}
+
+.input--disabled {
+  height: $control-height !important;
+  min-height: $control-height !important;
+  border-radius: $control-radius !important;
+  background: #f3f4f6 !important;
+  border-color: #e5e7eb !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  box-sizing: border-box;
+}
+
+.input--disabled::placeholder {
+  color: #9ca3af !important;
 }

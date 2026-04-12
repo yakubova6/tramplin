@@ -112,3 +112,18 @@
   max-height: 320px;
   overflow-y: auto;
 }
+
+.select-disabled {
+  .custom-select__button {
+    background: #f3f4f6 !important;
+    border-color: #e5e7eb !important;
+    color: #9ca3af !important;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .custom-select__text,
+  .custom-select__arrow {
+    color: #9ca3af !important;
+  }
+}

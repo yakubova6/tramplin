@@ -1,6 +1,6 @@
 const API_BASE = '/api'
+const GEO_API_BASE = '/api/geo'
 
-import { CITIES } from '../constants/cities'
 import {
     archiveEmployerOpportunity,
     closeEmployerOpportunity,
@@ -29,7 +29,6 @@ import {
     updateResponseStatus as updateInteractionResponseStatus,
 } from './interaction'
 import {
-    httpJson,
     getSessionUserFromApi,
     getSessionUserIdFromApi,
     getRequiredCurrentUserPayload,
@@ -354,17 +353,107 @@ function normalizeApplicantProfile(data = {}) {
     }
 }
 
+function normalizeLocation(data = {}) {
+    return {
+        ...data,
+        id: data.id ?? null,
+        cityId: data.cityId ?? data.city?.id ?? null,
+        cityName: data.city?.name ?? data.cityName ?? '',
+        regionName: data.city?.regionName ?? data.regionName ?? '',
+        addressLine: data.addressLine || '',
+        addressLine2: data.addressLine2 || '',
+        postalCode: data.postalCode || '',
+        latitude: data.latitude ?? data.coordinates?.lat ?? null,
+        longitude: data.longitude ?? data.coordinates?.lng ?? null,
+        fiasId: data.fiasId || '',
+        unrestrictedValue: data.unrestrictedValue || '',
+        qcGeo: data.qcGeo ?? null,
+        title: data.title || '',
+        source: data.source || '',
+        isActive: data.isActive ?? true,
+    }
+}
+
 function normalizeEmployerProfile(data = {}) {
     return {
         ...data,
         cityId: data.city?.id ?? data.cityId ?? null,
         cityName: data.city?.name ?? data.cityName ?? '',
         locationId: data.location?.id ?? data.locationId ?? null,
-        locationPreview: data.location || data.locationPreview || null,
+        locationPreview: data.location ? normalizeLocation(data.location) : (data.locationPreview || null),
         socialLinks: normalizeProfileLinks(data.socialLinks),
         publicContacts: normalizeContactMethods(data.publicContacts),
         logo: data.logo || null,
         moderationStatus: data.moderationStatus || 'DRAFT',
+    }
+}
+
+function normalizeGeoCity(data = {}) {
+    return {
+        ...data,
+        id: data.id ?? null,
+        name: data.name || '',
+        regionName: data.regionName || '',
+        countryCode: data.countryCode || '',
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+    }
+}
+
+function normalizeAddressSuggestion(data = {}) {
+    return {
+        value: data.value || '',
+        unrestrictedValue: data.unrestrictedValue || '',
+        cityId: data.cityId ?? null,
+        cityName: data.cityName || '',
+        regionName: data.regionName || '',
+        addressLine: data.addressLine || '',
+        postalCode: data.postalCode || '',
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+        qcGeo: data.qcGeo ?? null,
+        fiasId: data.fiasId || '',
+    }
+}
+
+function normalizeAddressResolveResponse(data = {}) {
+    return {
+        value: data.value || '',
+        unrestrictedValue: data.unrestrictedValue || '',
+        cityId: data.cityId ?? null,
+        cityName: data.cityName || '',
+        regionName: data.regionName || '',
+        addressLine: data.addressLine || '',
+        postalCode: data.postalCode || '',
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+        qcGeo: data.qcGeo ?? null,
+        fiasId: data.fiasId || '',
+        source: data.source || '',
+    }
+}
+
+function buildEmployerLocationPayload(location = {}) {
+    return {
+        title: location.title?.trim?.() || '',
+        cityId: location.cityId ? Number(location.cityId) : null,
+        addressLine: location.addressLine?.trim?.() || '',
+        addressLine2: location.addressLine2?.trim?.() || '',
+        postalCode: location.postalCode?.trim?.() || '',
+        latitude:
+            location.latitude !== '' && location.latitude != null
+                ? Number(location.latitude)
+                : null,
+        longitude:
+            location.longitude !== '' && location.longitude != null
+                ? Number(location.longitude)
+                : null,
+        fiasId: location.fiasId?.trim?.() || '',
+        unrestrictedValue: location.unrestrictedValue?.trim?.() || '',
+        qcGeo:
+            location.qcGeo !== '' && location.qcGeo != null
+                ? Number(location.qcGeo)
+                : null,
     }
 }
 
@@ -668,17 +757,67 @@ function buildOpportunityPayload(opportunity) {
     }
 }
 
-// ========== ПОИСК ГОРОДОВ ==========
+// ========== GEO API ==========
+
+export async function searchGeoCities(search, limit = 20) {
+    const normalizedSearch = String(search || '').trim()
+    if (!normalizedSearch) return []
+
+    const params = new URLSearchParams({
+        search: normalizedSearch,
+        limit: String(limit),
+    })
+
+    const data = await apiRequest(`${GEO_API_BASE}/cities?${params.toString()}`)
+    return Array.isArray(data) ? data.map(normalizeGeoCity) : []
+}
 
 export async function searchCities(query) {
-    if (!query || query.length < 2) return []
+    const normalizedQuery = String(query || '').trim()
+    if (normalizedQuery.length < 2) return []
+    return searchGeoCities(normalizedQuery, 20)
+}
 
-    const lowerQuery = query.toLowerCase()
-    const filtered = CITIES.filter((city) =>
-        city.name.toLowerCase().includes(lowerQuery)
-    )
+export async function suggestGeoAddress(payload) {
+    const body = {
+        query: payload?.query?.trim?.() || '',
+        cityId: payload?.cityId ? Number(payload.cityId) : undefined,
+    }
 
-    return filtered.slice(0, 10)
+    if (!body.query) return []
+
+    const data = await apiRequest(`${GEO_API_BASE}/address/suggest`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    })
+
+    return Array.isArray(data) ? data.map(normalizeAddressSuggestion) : []
+}
+
+export async function resolveGeoAddress(unrestrictedValue) {
+    const value = String(unrestrictedValue || '').trim()
+    if (!value) {
+        throw createApiError('Не указан unrestrictedValue', 400)
+    }
+
+    const data = await apiRequest(`${GEO_API_BASE}/address/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ unrestrictedValue: value }),
+    })
+
+    return normalizeAddressResolveResponse(data)
+}
+
+export async function getGeoCity(cityId) {
+    if (!cityId) throw createApiError('Не указан cityId', 400)
+    const data = await apiRequest(`${GEO_API_BASE}/cities/${cityId}`)
+    return normalizeGeoCity(data)
+}
+
+export async function getGeoLocation(locationId) {
+    if (!locationId) throw createApiError('Не указан locationId', 400)
+    const data = await apiRequest(`${GEO_API_BASE}/locations/${locationId}`)
+    return normalizeLocation(data)
 }
 
 // ========== СОИСКАТЕЛЬ ==========
@@ -779,6 +918,32 @@ export async function updateEmployerProfile(profile) {
     return normalizeEmployerProfile(data)
 }
 
+export async function updateEmployerCompanyData(companyData) {
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+
+    const payload = {
+        legalName: companyData.legalName || '',
+        inn: companyData.inn || '',
+    }
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/company?currentUser=${currentUser}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
+export async function submitEmployerProfileForModeration() {
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/moderation/submit?currentUser=${currentUser}`, {
+        method: 'POST',
+    })
+
+    return normalizeEmployerProfile(data)
+}
+
 export async function submitVerification(payload) {
     const body = {
         verificationMethod: payload.verificationMethod,
@@ -790,6 +955,49 @@ export async function submitVerification(payload) {
     }
 
     return createEmployerVerification(body)
+}
+
+// ========== EMPLOYER LOCATIONS ==========
+
+export async function getEmployerLocations() {
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+    const data = await apiRequest(`${API_BASE}/profile/employer/locations?currentUser=${currentUser}`)
+    return Array.isArray(data) ? data.map(normalizeLocation) : []
+}
+
+export async function createEmployerLocation(location) {
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+    const payload = buildEmployerLocationPayload(location)
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/locations?currentUser=${currentUser}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+
+    return normalizeLocation(data)
+}
+
+export async function updateEmployerLocation(locationId, location) {
+    if (!locationId) throw createApiError('Не указан locationId', 400)
+
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+    const payload = buildEmployerLocationPayload(location)
+
+    const data = await apiRequest(`${API_BASE}/profile/employer/locations/${locationId}?currentUser=${currentUser}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    })
+
+    return normalizeLocation(data)
+}
+
+export async function deleteEmployerLocation(locationId) {
+    if (!locationId) throw createApiError('Не указан locationId', 400)
+
+    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
+    return apiRequest(`${API_BASE}/profile/employer/locations/${locationId}?currentUser=${currentUser}`, {
+        method: 'DELETE',
+    })
 }
 
 // ========== INTERACTION API: СОИСКАТЕЛЬ ==========
@@ -1065,32 +1273,6 @@ export async function getEmployerApplications(params = {}) {
 
 export async function updateApplicationStatus(applicationId, status, employerComment = '') {
     return updateInteractionResponseStatus(applicationId, status, employerComment)
-}
-
-export async function updateEmployerCompanyData(companyData) {
-    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
-
-    const payload = {
-        legalName: companyData.legalName || '',
-        inn: companyData.inn || '',
-    }
-
-    const data = await apiRequest(`${API_BASE}/profile/employer/company?currentUser=${currentUser}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-    })
-
-    return normalizeEmployerProfile(data)
-}
-
-export async function submitEmployerProfileForModeration() {
-    const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
-
-    const data = await apiRequest(`${API_BASE}/profile/employer/moderation/submit?currentUser=${currentUser}`, {
-        method: 'POST',
-    })
-
-    return normalizeEmployerProfile(data)
 }
 
 export async function submitApplicantProfileForModeration() {
