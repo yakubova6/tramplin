@@ -49,6 +49,7 @@ class EmployerOpportunityServiceImpl(
     private val employerOpportunityConverter: EmployerOpportunityConverter,
     private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
     private val opportunityDomainValidator: OpportunityDomainValidator,
+    private val employerOpportunityMediaService: EmployerOpportunityMediaService,
 ) : EmployerOpportunityService {
 
     @Transactional
@@ -121,7 +122,7 @@ class EmployerOpportunityServiceImpl(
         opportunityId: Long,
     ): EmployerOpportunityEditPayload {
         val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
-        return employerOpportunityConverter.toEditPayload(opportunity)
+        return buildEditPayload(currentUserId, opportunity)
     }
 
     @Transactional
@@ -157,7 +158,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.moderationComment = null
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(currentUserId, saved)
     }
 
     @Transactional
@@ -174,7 +175,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.moderationComment = null
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(currentUserId, saved)
     }
 
     @Transactional
@@ -189,7 +190,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.status = OpportunityStatus.CLOSED
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(currentUserId, saved)
     }
 
     @Transactional
@@ -204,7 +205,18 @@ class EmployerOpportunityServiceImpl(
         opportunity.status = OpportunityStatus.ARCHIVED
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(currentUserId, saved)
+    }
+
+    private fun buildEditPayload(
+        currentUserId: Long,
+        opportunity: OpportunityDto,
+    ): EmployerOpportunityEditPayload {
+        val opportunityId = requireNotNull(opportunity.id)
+
+        return employerOpportunityConverter.toEditPayload(opportunity).copy(
+            media = employerOpportunityMediaService.getMedia(currentUserId, opportunityId),
+        )
     }
 
     private fun getOwnedOpportunity(
