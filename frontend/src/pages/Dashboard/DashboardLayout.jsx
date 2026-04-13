@@ -23,6 +23,7 @@ function DashboardLayout({
 
     const isSecurityPage = location.startsWith('/settings/security')
     const isApplicantCatalogPage = location === '/seekers'
+    const isAdminCuratorsPage = location.startsWith('/admin/curators')
 
     const applicantCatalogAction = (() => {
         const role = currentUser?.role || ''
@@ -38,11 +39,18 @@ function DashboardLayout({
         return null
     })()
 
+    const adminCuratorsAction = currentUser?.role === 'ADMIN'
+        ? { href: '/admin/curators', label: 'Управление кураторами' }
+        : null
+
     const actions = hideHeaderActions
         ? []
         : [
             ...(applicantCatalogAction && !isApplicantCatalogPage
                 ? [applicantCatalogAction]
+                : []),
+            ...(adminCuratorsAction && !isAdminCuratorsPage
+                ? [adminCuratorsAction]
                 : []),
             ...(!isSecurityPage
                 ? [{ href: '/settings/security', label: 'Настройки безопасности' }]
