@@ -1,5 +1,7 @@
 package ru.itplanet.trampline.profile.dao.dto
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -96,6 +98,10 @@ open class ApplicantProfileDto {
     @Column(name = "moderation_status", nullable = false, length = 32)
     @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
     open var moderationStatus: ApplicantProfileModerationStatus = ApplicantProfileModerationStatus.DRAFT
+
+    @Column(name = "approved_public_snapshot", columnDefinition = "jsonb", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
+    open var approvedPublicSnapshot: JsonNode = JsonNodeFactory.instance.objectNode()
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

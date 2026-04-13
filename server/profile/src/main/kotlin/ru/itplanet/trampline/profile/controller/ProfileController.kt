@@ -18,6 +18,7 @@ import ru.itplanet.trampline.profile.model.ApplicantApplicationSummary
 import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
+import ru.itplanet.trampline.profile.model.ApplicantProfileWorkspace
 import ru.itplanet.trampline.profile.model.EmployerProfile
 import ru.itplanet.trampline.profile.model.EmployerProfileWorkspace
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
@@ -25,6 +26,7 @@ import ru.itplanet.trampline.profile.model.request.EmployerCompanyPatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.GetApplicantProfileListRequest
 import ru.itplanet.trampline.profile.security.AuthenticatedUser
+import ru.itplanet.trampline.profile.service.ApplicantProfileWorkspaceQueryService
 import ru.itplanet.trampline.profile.service.EmployerProfileWorkspaceQueryService
 import ru.itplanet.trampline.profile.service.ProfileService
 
@@ -33,6 +35,7 @@ import ru.itplanet.trampline.profile.service.ProfileService
 @RequestMapping("/api/profile/")
 class ProfileController(
     private val profileService: ProfileService,
+    private val applicantProfileWorkspaceQueryService: ApplicantProfileWorkspaceQueryService,
     private val employerProfileWorkspaceQueryService: EmployerProfileWorkspaceQueryService,
 ) {
 
@@ -117,12 +120,35 @@ class ProfileController(
         return profileService.searchApplicants(currentUser.userId, request)
     }
 
+    // TODO:
+    //  После перевода seeker dashboard на GET /api/profile/applicant/{userId}/workspace
+    //  убрать owner-specific использование этой ручки в кабинете соискателя.
+    //  Сам endpoint оставить как публичную read-model ручку профиля соискателя,
+    //  потому что он нужен внешним consumer'ам и другим сервисам.
     @GetMapping("/applicant/{userId}")
     fun getApplicantProfile(
         @CurrentUser currentUserId: Long?,
         @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
     ): ApplicantProfile {
         return profileService.getApplicantProfile(currentUserId, userId)
+    }
+
+    @GetMapping("/applicant/{userId}/workspace")
+    fun getApplicantProfileWorkspace(
+        @CurrentUser currentUser: AuthenticatedUser,
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+    ): ApplicantProfileWorkspace {
+        if (currentUser.role != Role.APPLICANT) {
+            throw ProfileForbiddenException(
+                message = "Только соискатель может просматривать workspace профиля соискателя",
+                code = "applicant_role_required",
+            )
+        }
+
+        return applicantProfileWorkspaceQueryService.getApplicantProfileWorkspace(
+            currentUserId = currentUser.userId,
+            targetUserId = userId,
+        )
     }
 
     @GetMapping("/applicant/{userId}/contacts")

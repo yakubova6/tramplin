@@ -3,18 +3,23 @@ package ru.itplanet.trampline.profile.service
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.commons.dao.CityDao
 import ru.itplanet.trampline.commons.dao.LocationDao
+import ru.itplanet.trampline.commons.model.Tag
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationActionResultResponse
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationApproveRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRejectRequest
 import ru.itplanet.trampline.commons.model.moderation.InternalModerationRequestChangesRequest
 import ru.itplanet.trampline.commons.model.profile.ApplicantProfileModerationStatus
 import ru.itplanet.trampline.commons.model.profile.EmployerProfileModerationStatus
+import ru.itplanet.trampline.profile.client.OpportunityTagClient
+import ru.itplanet.trampline.profile.converter.ApplicantProfileConverter
 import ru.itplanet.trampline.profile.converter.EmployerProfileConverter
 import ru.itplanet.trampline.profile.dao.ApplicantProfileDao
+import ru.itplanet.trampline.profile.dao.ApplicantTagDao
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
 import ru.itplanet.trampline.profile.dao.EmployerVerificationDao
 import ru.itplanet.trampline.profile.dao.dto.ApplicantProfileDto
@@ -25,6 +30,7 @@ import ru.itplanet.trampline.profile.exception.ProfileConflictException
 import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
 import ru.itplanet.trampline.profile.model.ContactMethod
 import ru.itplanet.trampline.profile.model.ProfileLink
+import ru.itplanet.trampline.profile.model.enums.ApplicantTagRelationType
 import ru.itplanet.trampline.profile.model.enums.ApplicationsVisibility
 import ru.itplanet.trampline.profile.model.enums.ContactType
 import ru.itplanet.trampline.profile.model.enums.ContactsVisibility
@@ -37,12 +43,15 @@ import java.time.OffsetDateTime
 @Service
 class InternalProfileModerationService(
     private val applicantProfileDao: ApplicantProfileDao,
+    private val applicantTagDao: ApplicantTagDao,
     private val employerProfileDao: EmployerProfileDao,
     private val employerVerificationDao: EmployerVerificationDao,
     private val cityDao: CityDao,
     private val locationDao: LocationDao,
     private val objectMapper: ObjectMapper,
+    private val applicantProfileConverter: ApplicantProfileConverter,
     private val employerProfileConverter: EmployerProfileConverter,
+    private val opportunityTagClient: OpportunityTagClient,
 ) {
 
     @Transactional
@@ -56,6 +65,7 @@ class InternalProfileModerationService(
 
         applyApplicantPatch(profile, request.applyPatch)
         profile.moderationStatus = ApplicantProfileModerationStatus.APPROVED
+        profile.approvedPublicSnapshot = buildApprovedApplicantPublicSnapshot(profile)
 
         return InternalModerationActionResultResponse(affectedUserId = userId)
     }
@@ -281,6 +291,23 @@ class InternalProfileModerationService(
         }
     }
 
+    private fun buildApprovedApplicantPublicSnapshot(
+        profile: ApplicantProfileDto,
+    ): JsonNode {
+        val applicantTags = loadApprovedApplicantTags(profile.userId)
+
+        val publicView = applicantProfileConverter.fromDto(profile).copy(
+            moderationStatus = ApplicantProfileModerationStatus.APPROVED,
+            avatar = null,
+            resumeFile = null,
+            portfolioFiles = emptyList(),
+            skills = applicantTags.skills,
+            interests = applicantTags.interests,
+        )
+
+        return objectMapper.valueToTree(publicView)
+    }
+
     private fun buildApprovedEmployerPublicSnapshot(
         profile: EmployerProfileDto,
     ): JsonNode {
@@ -292,6 +319,45 @@ class InternalProfileModerationService(
         )
 
         return objectMapper.valueToTree(publicView)
+    }
+
+    private fun loadApprovedApplicantTags(
+        applicantUserId: Long,
+    ): ApplicantTagsView {
+        val relations = applicantTagDao.findAllByApplicantUserId(applicantUserId)
+        if (relations.isEmpty()) {
+            return ApplicantTagsView()
+        }
+
+        return try {
+            val tagsById = opportunityTagClient.getActiveTagsByIds(
+                relations.map { it.tagId }.distinct(),
+            ).associateBy { it.id }
+
+            val skills = relations.asSequence()
+                .filter { it.relationType == ApplicantTagRelationType.SKILL }
+                .mapNotNull { tagsById[it.tagId] }
+                .sortedBy { it.name.lowercase() }
+                .toList()
+
+            val interests = relations.asSequence()
+                .filter { it.relationType == ApplicantTagRelationType.INTEREST }
+                .mapNotNull { tagsById[it.tagId] }
+                .sortedBy { it.name.lowercase() }
+                .toList()
+
+            ApplicantTagsView(
+                skills = skills,
+                interests = interests,
+            )
+        } catch (ex: Exception) {
+            logger.warn(
+                "Не удалось загрузить теги соискателя для approved snapshot userId={}",
+                applicantUserId,
+                ex,
+            )
+            ApplicantTagsView()
+        }
     }
 
     private fun applyEmployerVerificationPatch(
@@ -516,5 +582,14 @@ class InternalProfileModerationService(
             message = "Запрос на верификацию с идентификатором $verificationId не найден",
             code = "employer_verification_not_found",
         )
+    }
+
+    private data class ApplicantTagsView(
+        val skills: List<Tag> = emptyList(),
+        val interests: List<Tag> = emptyList(),
+    )
+
+    private companion object {
+        private val logger = LoggerFactory.getLogger(InternalProfileModerationService::class.java)
     }
 }

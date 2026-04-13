@@ -85,6 +85,13 @@ class ProfileServiceImpl(
     ): ApplicantProfile {
         val profile = loadApplicantProfileDto(userId)
 
+        if (hasApprovedApplicantSnapshot(profile)) {
+            throw ProfileConflictException(
+                message = "После первого одобрения новые изменения профиля соискателя отправляются на модерацию автоматически при сохранении",
+                code = "applicant_profile_auto_moderation_enabled",
+            )
+        }
+
         when (profile.moderationStatus) {
             ApplicantProfileModerationStatus.PENDING_MODERATION -> {
                 throw ProfileConflictException(
@@ -95,7 +102,7 @@ class ProfileServiceImpl(
 
             ApplicantProfileModerationStatus.APPROVED -> {
                 throw ProfileConflictException(
-                    message = "Профиль уже одобрен. После изменений он будет повторно отправлен на модерацию из статуса DRAFT",
+                    message = "Профиль уже одобрен",
                     code = "applicant_profile_already_approved",
                 )
             }
@@ -485,48 +492,53 @@ class ProfileServiceImpl(
         targetUserId: Long,
     ): ApplicantProfile {
         val profileDto = loadApplicantProfileDto(targetUserId)
-        val fullProfile = buildApplicantProfile(profileDto)
 
-        val owner = currentUserId == targetUserId
-        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
+        if (currentUserId == targetUserId) {
+            return buildApplicantProfile(profileDto)
+        }
 
-        if (
-            !owner &&
-            profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED &&
-            !employerAccess
-        ) {
-            throw ProfileForbiddenException(
+        val approvedPublicProfile = resolveApprovedApplicantPublicProfile(profileDto)
+            ?: throw ProfileForbiddenException(
                 message = "Профиль соискателя ещё не доступен другим пользователям",
                 code = "applicant_profile_not_moderated",
             )
-        }
 
-        if (owner || employerAccess) {
-            return fullProfile
+        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
+        if (employerAccess) {
+            return approvedPublicProfile
         }
 
         return applicantProfileVisibilityService.sanitizeApplicantProfile(
-            profile = fullProfile,
+            profile = approvedPublicProfile,
             currentUserId = currentUserId,
         )
+    }
+
+    override fun getApplicantPublicProfilePreview(
+        targetUserId: Long,
+    ): ApplicantProfile {
+        val profileDto = loadApplicantProfileDto(targetUserId)
+        return buildApplicantPublicProfilePreview(profileDto)
     }
 
     override fun getApplicantContacts(
         currentUserId: Long?,
         targetUserId: Long,
     ): List<ApplicantContactSummary> {
-        val profileDto = loadApplicantProfileDto(targetUserId)
+        if (currentUserId == targetUserId) {
+            return interactionPrivacyClient.getApplicantContacts(targetUserId)
+        }
 
-        if (currentUserId != targetUserId && profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED) {
-            throw ProfileForbiddenException(
+        val profileDto = loadApplicantProfileDto(targetUserId)
+        val publicProfile = resolveApprovedApplicantPublicProfile(profileDto)
+            ?: throw ProfileForbiddenException(
                 message = "Раздел контактов этого профиля пока недоступен",
                 code = "applicant_contacts_access_denied",
             )
-        }
 
         if (
             !applicantProfileVisibilityService.canViewApplicantContacts(
-                visibility = profileDto.contactsVisibility,
+                visibility = publicProfile.contactsVisibility,
                 currentUserId = currentUserId,
                 targetUserId = targetUserId,
             )
@@ -544,18 +556,20 @@ class ProfileServiceImpl(
         currentUserId: Long?,
         targetUserId: Long,
     ): List<ApplicantApplicationSummary> {
-        val profileDto = loadApplicantProfileDto(targetUserId)
+        if (currentUserId == targetUserId) {
+            return interactionPrivacyClient.getApplicantApplications(targetUserId)
+        }
 
-        if (currentUserId != targetUserId && profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED) {
-            throw ProfileForbiddenException(
+        val profileDto = loadApplicantProfileDto(targetUserId)
+        val publicProfile = resolveApprovedApplicantPublicProfile(profileDto)
+            ?: throw ProfileForbiddenException(
                 message = "Раздел откликов этого профиля пока недоступен",
                 code = "applicant_applications_access_denied",
             )
-        }
 
         if (
             !applicantProfileVisibilityService.canViewApplicantApplications(
-                visibility = profileDto.applicationsVisibility,
+                visibility = publicProfile.applicationsVisibility,
                 currentUserId = currentUserId,
                 targetUserId = targetUserId,
             )
@@ -606,24 +620,26 @@ class ProfileServiceImpl(
             code = "applicant_file_not_found",
         )
 
-        val owner = currentUserId == targetUserId
-        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
+        if (currentUserId == targetUserId) {
+            return runMediaAction(
+                logMessage = "Не удалось получить ссылку на файл соискателя fileId=$fileId, targetUserId=$targetUserId",
+                errorMessage = "Не удалось получить ссылку на файл соискателя",
+                code = "applicant_file_download_url_failed",
+            ) {
+                mediaServiceClient.getDownloadUrl(requestedAttachment.fileId)
+            }
+        }
 
-        if (
-            !owner &&
-            profileDto.moderationStatus != ApplicantProfileModerationStatus.APPROVED &&
-            !employerAccess
-        ) {
-            throw ProfileForbiddenException(
+        val publicProfile = resolveApprovedApplicantPublicProfile(profileDto)
+            ?: throw ProfileForbiddenException(
                 message = "У вас нет доступа к этому файлу",
                 code = "applicant_file_access_denied",
             )
-        }
 
+        val employerAccess = hasEmployerAccessToApplicantProfile(currentUserId, targetUserId)
         if (
-            !owner &&
             !employerAccess &&
-            !canAccessApplicantAttachment(currentUserId, targetUserId, profileDto, requestedAttachment)
+            !canAccessApplicantAttachment(currentUserId, targetUserId, publicProfile, requestedAttachment)
         ) {
             throw ProfileForbiddenException(
                 message = "У вас нет доступа к этому файлу",
@@ -724,54 +740,37 @@ class ProfileServiceImpl(
         currentUserId: Long,
         profileDto: ApplicantProfileDto,
     ): ApplicantProfileSearchItem {
-        val baseProfile = applicantProfileConverter.fromDto(profileDto)
+        val publicProfile = buildApplicantPublicProfilePreview(profileDto)
 
         val canViewProfileBlock = applicantProfileVisibilityService.canViewApplicantProfileBlock(
-            visibility = profileDto.profileVisibility,
+            visibility = publicProfile.profileVisibility,
             currentUserId = currentUserId,
             targetUserId = profileDto.userId,
         )
 
         val canViewResumeBlock = applicantProfileVisibilityService.canViewApplicantResumeBlock(
-            visibility = profileDto.resumeVisibility,
+            visibility = publicProfile.resumeVisibility,
             currentUserId = currentUserId,
             targetUserId = profileDto.userId,
         )
 
-        val avatar = if (canViewProfileBlock) {
-            loadApplicantSingleFileOrNull(
-                userId = profileDto.userId,
-                attachmentRole = FileAttachmentRole.AVATAR,
-                visibility = profileDto.profileVisibility.toFileVisibility(),
-                logSubject = "аватар соискателя",
-            )
-        } else {
-            null
-        }
-
-        val applicantTags = if (canViewResumeBlock) {
-            loadApplicantTags(profileDto.userId)
-        } else {
-            ApplicantTagsView()
-        }
-
         return ApplicantProfileSearchItem(
-            userId = baseProfile.userId,
-            firstName = if (canViewProfileBlock) baseProfile.firstName else null,
-            lastName = if (canViewProfileBlock) baseProfile.lastName else null,
-            middleName = if (canViewProfileBlock) baseProfile.middleName else null,
-            universityName = if (canViewProfileBlock) baseProfile.universityName else null,
-            facultyName = if (canViewProfileBlock) baseProfile.facultyName else null,
-            studyProgram = if (canViewProfileBlock) baseProfile.studyProgram else null,
-            course = if (canViewProfileBlock) baseProfile.course else null,
-            graduationYear = if (canViewProfileBlock) baseProfile.graduationYear else null,
-            city = if (canViewProfileBlock) baseProfile.city else null,
-            about = if (canViewProfileBlock) baseProfile.about else null,
-            avatar = avatar,
-            skills = applicantTags.skills,
-            interests = applicantTags.interests,
-            openToWork = baseProfile.openToWork,
-            openToEvents = baseProfile.openToEvents,
+            userId = publicProfile.userId,
+            firstName = if (canViewProfileBlock) publicProfile.firstName else null,
+            lastName = if (canViewProfileBlock) publicProfile.lastName else null,
+            middleName = if (canViewProfileBlock) publicProfile.middleName else null,
+            universityName = if (canViewProfileBlock) publicProfile.universityName else null,
+            facultyName = if (canViewProfileBlock) publicProfile.facultyName else null,
+            studyProgram = if (canViewProfileBlock) publicProfile.studyProgram else null,
+            course = if (canViewProfileBlock) publicProfile.course else null,
+            graduationYear = if (canViewProfileBlock) publicProfile.graduationYear else null,
+            city = if (canViewProfileBlock) publicProfile.city else null,
+            about = if (canViewProfileBlock) publicProfile.about else null,
+            avatar = if (canViewProfileBlock) publicProfile.avatar else null,
+            skills = if (canViewResumeBlock) publicProfile.skills else emptyList(),
+            interests = if (canViewResumeBlock) publicProfile.interests else emptyList(),
+            openToWork = publicProfile.openToWork,
+            openToEvents = publicProfile.openToEvents,
         )
     }
 
@@ -1021,34 +1020,75 @@ class ProfileServiceImpl(
     private fun handleApplicantProfileContentChanged(
         profile: ApplicantProfileDto,
     ) {
-        when (profile.moderationStatus) {
-            ApplicantProfileModerationStatus.APPROVED -> {
-                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
+        if (hasApprovedApplicantSnapshot(profile) || profile.moderationStatus == ApplicantProfileModerationStatus.APPROVED) {
+            recreateApplicantModerationTask(
+                profile = profile,
+                sourceAction = "updateApplicantProfileContentAutoSubmit",
+            )
+            profile.moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION
+            return
+        }
+
+        if (profile.moderationStatus == ApplicantProfileModerationStatus.PENDING_MODERATION) {
+            cancelApplicantModerationTask(profile.userId)
+            profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
+        }
+    }
+
+    private fun hasApprovedApplicantSnapshot(
+        profile: ApplicantProfileDto,
+    ): Boolean {
+        return profile.approvedPublicSnapshot.isObject && profile.approvedPublicSnapshot.size() > 0
+    }
+
+    private fun recreateApplicantModerationTask(
+        profile: ApplicantProfileDto,
+        sourceAction: String,
+    ) {
+        cancelApplicantModerationTask(profile.userId)
+
+        runModerationAction(
+            logMessage = "Не удалось создать задачу модерации профиля соискателя userId=${profile.userId}",
+            errorMessage = "Не удалось обновить задачу модерации профиля соискателя",
+            code = "applicant_profile_task_create_failed",
+        ) {
+            moderationServiceClient.createTask(
+                CreateInternalModerationTaskRequest(
+                    entityType = ModerationEntityType.APPLICANT_PROFILE,
+                    entityId = profile.userId,
+                    taskType = ModerationTaskType.PROFILE_REVIEW,
+                    priority = ModerationTaskPriority.MEDIUM,
+                    createdByUserId = profile.userId,
+                    snapshot = objectMapper.valueToTree(
+                        buildApplicantProfile(profile).copy(
+                            moderationStatus = ApplicantProfileModerationStatus.PENDING_MODERATION,
+                        ),
+                    ),
+                    sourceService = "profile",
+                    sourceAction = sourceAction,
+                ),
+            )
+        }
+    }
+
+    private fun cancelApplicantModerationTask(
+        userId: Long,
+    ) {
+        runModerationAction(
+            logMessage = "Не удалось отменить активную модерацию профиля соискателя userId=$userId",
+            errorMessage = "Не удалось обновить состояние модерации профиля соискателя",
+            code = "applicant_profile_task_cancel_failed",
+        ) {
+            val taskLookup = moderationServiceClient.getTaskByEntity(
+                entityType = ModerationEntityType.APPLICANT_PROFILE,
+                entityId = userId,
+                taskType = ModerationTaskType.PROFILE_REVIEW,
+            )
+
+            val taskId = taskLookup.taskId
+            if (taskLookup.exists && taskId != null) {
+                moderationServiceClient.cancelTask(taskId)
             }
-
-            ApplicantProfileModerationStatus.PENDING_MODERATION -> {
-                runModerationAction(
-                    logMessage = "Не удалось отменить активную модерацию профиля соискателя userId=${profile.userId}",
-                    errorMessage = "Не удалось обновить состояние модерации профиля соискателя",
-                    code = "applicant_profile_task_cancel_failed",
-                ) {
-                    val taskLookup = moderationServiceClient.getTaskByEntity(
-                        entityType = ModerationEntityType.APPLICANT_PROFILE,
-                        entityId = profile.userId,
-                        taskType = ModerationTaskType.PROFILE_REVIEW,
-                    )
-
-                    val taskId = taskLookup.taskId
-                    if (taskLookup.exists && taskId != null) {
-                        moderationServiceClient.cancelTask(taskId)
-                    }
-                }
-
-                profile.moderationStatus = ApplicantProfileModerationStatus.DRAFT
-            }
-
-            ApplicantProfileModerationStatus.DRAFT,
-            ApplicantProfileModerationStatus.NEEDS_REVISION -> Unit
         }
     }
 
@@ -1056,6 +1096,94 @@ class ProfileServiceImpl(
         profile: EmployerProfileDto,
     ): Boolean {
         return profile.approvedPublicSnapshot.isObject && profile.approvedPublicSnapshot.size() > 0
+    }
+
+    private fun buildApplicantPublicProfilePreview(
+        profileDto: ApplicantProfileDto,
+    ): ApplicantProfile {
+        return resolveApprovedApplicantPublicProfile(profileDto)
+            ?: ApplicantProfile(
+                userId = profileDto.userId,
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                universityName = null,
+                facultyName = null,
+                studyProgram = null,
+                course = null,
+                graduationYear = null,
+                city = null,
+                about = null,
+                resumeText = null,
+                portfolioLinks = emptyList(),
+                contactLinks = emptyList(),
+                profileVisibility = profileDto.profileVisibility,
+                resumeVisibility = profileDto.resumeVisibility,
+                applicationsVisibility = profileDto.applicationsVisibility,
+                contactsVisibility = profileDto.contactsVisibility,
+                openToWork = profileDto.openToWork,
+                openToEvents = profileDto.openToEvents,
+                moderationStatus = profileDto.moderationStatus,
+                avatar = null,
+                resumeFile = null,
+                portfolioFiles = emptyList(),
+                skills = emptyList(),
+                interests = emptyList(),
+            )
+    }
+
+    private fun resolveApprovedApplicantPublicProfile(
+        profileDto: ApplicantProfileDto,
+    ): ApplicantProfile? {
+        val snapshot = profileDto.approvedPublicSnapshot
+        if (snapshot.isObject && snapshot.size() > 0) {
+            return try {
+                val snapshotProfile = objectMapper.treeToValue(snapshot, ApplicantProfile::class.java)
+
+                snapshotProfile.copy(
+                    moderationStatus = ApplicantProfileModerationStatus.APPROVED,
+                    avatar = loadApplicantSingleFileOrNull(
+                        userId = profileDto.userId,
+                        attachmentRole = FileAttachmentRole.AVATAR,
+                        visibility = snapshotProfile.profileVisibility.toFileVisibility(),
+                        logSubject = "аватар соискателя",
+                    ),
+                    resumeFile = loadApplicantSingleFileOrNull(
+                        userId = profileDto.userId,
+                        attachmentRole = FileAttachmentRole.RESUME,
+                        visibility = snapshotProfile.resumeVisibility.toFileVisibility(),
+                        logSubject = "резюме соискателя",
+                    ),
+                    portfolioFiles = loadApplicantAttachments(
+                        userId = profileDto.userId,
+                        attachmentRole = FileAttachmentRole.PORTFOLIO,
+                        visibility = snapshotProfile.resumeVisibility.toFileVisibility(),
+                        logSubject = "портфолио соискателя",
+                    ).map { it.file },
+                )
+            } catch (ex: Exception) {
+                logger.warn(
+                    "Не удалось прочитать approved snapshot профиля соискателя userId={}",
+                    profileDto.userId,
+                    ex,
+                )
+                if (profileDto.moderationStatus == ApplicantProfileModerationStatus.APPROVED) {
+                    buildApplicantProfile(profileDto).copy(
+                        moderationStatus = ApplicantProfileModerationStatus.APPROVED,
+                    )
+                } else {
+                    null
+                }
+            }
+        }
+
+        if (profileDto.moderationStatus == ApplicantProfileModerationStatus.APPROVED) {
+            return buildApplicantProfile(profileDto).copy(
+                moderationStatus = ApplicantProfileModerationStatus.APPROVED,
+            )
+        }
+
+        return null
     }
 
     private fun hasEmployerAccessToApplicantProfile(
@@ -1264,7 +1392,7 @@ class ProfileServiceImpl(
     private fun canAccessApplicantAttachment(
         currentUserId: Long?,
         targetUserId: Long,
-        profileDto: ApplicantProfileDto,
+        profile: ApplicantProfile,
         attachment: InternalFileAttachmentResponse,
     ): Boolean {
         if (currentUserId == targetUserId) {
@@ -1273,14 +1401,14 @@ class ProfileServiceImpl(
 
         return when (attachment.attachmentRole) {
             FileAttachmentRole.AVATAR -> applicantProfileVisibilityService.canViewApplicantProfileBlock(
-                visibility = profileDto.profileVisibility,
+                visibility = profile.profileVisibility,
                 currentUserId = currentUserId,
                 targetUserId = targetUserId,
             )
 
             FileAttachmentRole.RESUME,
             FileAttachmentRole.PORTFOLIO -> applicantProfileVisibilityService.canViewApplicantResumeBlock(
-                visibility = profileDto.resumeVisibility,
+                visibility = profile.resumeVisibility,
                 currentUserId = currentUserId,
                 targetUserId = targetUserId,
             )

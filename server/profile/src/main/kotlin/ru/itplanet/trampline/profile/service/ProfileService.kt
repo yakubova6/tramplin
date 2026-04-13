@@ -29,6 +29,7 @@ interface ProfileService {
 
     fun searchApplicants(currentUserId: Long, request: GetApplicantProfileListRequest): ApplicantProfileSearchPage
     fun getApplicantProfile(currentUserId: Long?, targetUserId: Long): ApplicantProfile
+    fun getApplicantPublicProfilePreview(targetUserId: Long): ApplicantProfile
     fun getApplicantContacts(currentUserId: Long?, targetUserId: Long): List<ApplicantContactSummary>
     fun getApplicantApplications(currentUserId: Long?, targetUserId: Long): List<ApplicantApplicationSummary>
 
