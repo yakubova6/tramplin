@@ -19,11 +19,13 @@ import ru.itplanet.trampline.profile.model.ApplicantContactSummary
 import ru.itplanet.trampline.profile.model.ApplicantProfile
 import ru.itplanet.trampline.profile.model.ApplicantProfileSearchPage
 import ru.itplanet.trampline.profile.model.EmployerProfile
+import ru.itplanet.trampline.profile.model.EmployerProfileWorkspace
 import ru.itplanet.trampline.profile.model.request.ApplicantProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerCompanyPatchRequest
 import ru.itplanet.trampline.profile.model.request.EmployerProfilePatchRequest
 import ru.itplanet.trampline.profile.model.request.GetApplicantProfileListRequest
 import ru.itplanet.trampline.profile.security.AuthenticatedUser
+import ru.itplanet.trampline.profile.service.EmployerProfileWorkspaceQueryService
 import ru.itplanet.trampline.profile.service.ProfileService
 
 @Validated
@@ -31,6 +33,7 @@ import ru.itplanet.trampline.profile.service.ProfileService
 @RequestMapping("/api/profile/")
 class ProfileController(
     private val profileService: ProfileService,
+    private val employerProfileWorkspaceQueryService: EmployerProfileWorkspaceQueryService,
 ) {
 
     @PatchMapping("/applicant")
@@ -138,11 +141,34 @@ class ProfileController(
         return profileService.getApplicantApplications(currentUserId, userId)
     }
 
+    // TODO:
+    //  После перевода employer dashboard на GET /api/profile/employer/{userId}/workspace
+    //  убрать owner-specific использование этой ручки в кабинете работодателя.
+    //  Сам endpoint оставить как публичную read-model ручку профиля работодателя,
+    //  потому что он нужен внешним consumer'ам и другим сервисам.
     @GetMapping("/employer/{userId}")
     fun getEmployerProfile(
         @CurrentUser currentUserId: Long?,
         @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
     ): EmployerProfile {
         return profileService.getEmployerProfile(currentUserId, userId)
+    }
+
+    @GetMapping("/employer/{userId}/workspace")
+    fun getEmployerProfileWorkspace(
+        @CurrentUser currentUser: AuthenticatedUser,
+        @PathVariable @Positive(message = "Идентификатор пользователя должен быть положительным") userId: Long,
+    ): EmployerProfileWorkspace {
+        if (currentUser.role != Role.EMPLOYER) {
+            throw ProfileForbiddenException(
+                message = "Только работодатель может просматривать workspace профиля работодателя",
+                code = "employer_role_required",
+            )
+        }
+
+        return employerProfileWorkspaceQueryService.getEmployerProfileWorkspace(
+            currentUserId = currentUser.userId,
+            targetUserId = userId,
+        )
     }
 }
