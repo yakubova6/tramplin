@@ -714,13 +714,13 @@ function SeekerDashboard() {
         }
     }
 
-    const handleRemoveContact = async (userId, direction = 'confirmed') => {
+    const handleRemoveContact = async (userId, direction = 'CONFIRMED') => {
         try {
             await removeContact(userId)
-            setContacts((prev) => prev.filter((c) => c.id !== userId))
+            await loadContacts()
             toast({
-                title: direction === 'outgoing' ? 'Заявка отменена' : 'Контакт удалён',
-                description: direction === 'outgoing'
+                title: direction === 'OUTGOING' ? 'Заявка отменена' : 'Контакт удалён',
+                description: direction === 'OUTGOING'
                     ? 'Исходящая заявка отменена'
                     : 'Пользователь удалён из ваших контактов',
             })
@@ -1005,18 +1005,56 @@ function SeekerDashboard() {
         )
     }
 
+    const getContactStatusLabel = (status) => {
+        switch (status) {
+            case 'PENDING':
+                return 'Ожидает ответа'
+            case 'ACCEPTED':
+                return 'Подтверждён'
+            case 'DECLINED':
+                return 'Отклонён'
+            case 'BLOCKED':
+                return 'Заблокирован'
+            default:
+                return status || 'Неизвестно'
+        }
+    }
+
+    const getContactDirectionLabel = (direction) => {
+        switch (direction) {
+            case 'INCOMING':
+                return 'Входящий'
+            case 'OUTGOING':
+                return 'Исходящий'
+            case 'CONFIRMED':
+                return 'Подтверждённый'
+            default:
+                return 'Без направления'
+        }
+    }
+
+    const isIncomingContact = (contact) => contact.direction === 'INCOMING'
+    const isOutgoingContact = (contact) => contact.direction === 'OUTGOING'
+    const isConfirmedContact = (contact) => contact.direction === 'CONFIRMED'
+    const isBlockedContact = (contact) => contact.status === 'BLOCKED'
+    const canRecommendContact = (contact) =>
+        isConfirmedContact(contact) &&
+        contact.status === 'ACCEPTED' &&
+        !isBlockedContact(contact) &&
+        !networkingBlockedMessage
+
     const confirmedContacts = useMemo(
-        () => contacts.filter((contact) => contact.status === 'ACCEPTED'),
+        () => contacts.filter(isConfirmedContact),
         [contacts]
     )
 
     const incomingContacts = useMemo(
-        () => contacts.filter((contact) => contact.status === 'PENDING' && contact.direction !== 'outgoing'),
+        () => contacts.filter(isIncomingContact),
         [contacts]
     )
 
     const outgoingContacts = useMemo(
-        () => contacts.filter((contact) => contact.status === 'PENDING' && contact.direction === 'outgoing'),
+        () => contacts.filter(isOutgoingContact),
         [contacts]
     )
 
@@ -1796,6 +1834,11 @@ function SeekerDashboard() {
                         ) : currentContacts.length === 0 ? (
                             <div className="empty-state">
                                 <p>Контактов в этом разделе пока нет</p>
+                                <span>
+                                    {contactsTab === 'incoming' && 'Здесь появятся входящие запросы в контакты'}
+                                    {contactsTab === 'outgoing' && 'Здесь появятся отправленные вами запросы'}
+                                    {contactsTab === 'confirmed' && 'Здесь появятся подтверждённые профессиональные контакты'}
+                                </span>
                             </div>
                         ) : (
                             <div className="contacts-list">
@@ -1807,16 +1850,17 @@ function SeekerDashboard() {
 
                                         <div className="contact-card__info">
                                             <h3>{contact.fullName || `${contact.firstName} ${contact.lastName}`.trim() || 'Пользователь'}</h3>
-                                            <p>Статус: {
-                                                contact.status === 'PENDING'
-                                                    ? 'Ожидает ответа'
-                                                    : contact.status === 'ACCEPTED'
-                                                        ? 'Подтверждён'
-                                                        : contact.status
-                                            }</p>
+                                            <p>
+                                                {getContactDirectionLabel(contact.direction)} · {getContactStatusLabel(contact.status)}
+                                            </p>
                                             <span className="contact-card__date">
                                                 {formatDate(contact.createdAt)}
                                             </span>
+                                            {isBlockedContact(contact) && (
+                                                <p>
+                                                    Запросы и рекомендации для этого контакта недоступны.
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div className="contact-card__actions">
@@ -1836,26 +1880,26 @@ function SeekerDashboard() {
                                                         selectedContactId: String(contact.id),
                                                     }))
                                                 }
-                                                disabled={Boolean(networkingBlockedMessage)}
+                                                disabled={!canRecommendContact(contact)}
                                             >
                                                 Рекомендовать
                                             </button>
 
-                                            {contactsTab === 'incoming' && (
+                                            {contactsTab === 'incoming' && contact.status === 'PENDING' && (
                                                 <>
                                                     <button className="btn-approve" onClick={() => handleAcceptContact(contact.id)}>Принять</button>
                                                     <button className="btn-reject" onClick={() => handleDeclineContact(contact.id)}>Отклонить</button>
                                                 </>
                                             )}
 
-                                            {contactsTab === 'outgoing' && (
-                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'outgoing')}>
+                                            {contactsTab === 'outgoing' && contact.status === 'PENDING' && (
+                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'OUTGOING')}>
                                                     Отменить заявку
                                                 </button>
                                             )}
 
-                                            {contactsTab === 'confirmed' && (
-                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'confirmed')}>
+                                            {contactsTab === 'confirmed' && contact.status === 'ACCEPTED' && (
+                                                <button className="contact-card__remove" onClick={() => handleRemoveContact(contact.id, 'CONFIRMED')}>
                                                     Удалить
                                                 </button>
                                             )}

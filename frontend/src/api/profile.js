@@ -1,4 +1,3 @@
-
 const API_BASE = '/api'
 
 import { CITIES } from '../constants/cities'
@@ -379,41 +378,24 @@ export function getFileDownloadUrlByUserAndFile(role, userId, fileId) {
     return `${API_BASE}/profile/applicant/${userId}/files/${fileId}`
 }
 
-// localStorage ниже оставлен только для гостевых фич (избранное) и направления контактных заявок.
+// localStorage ниже оставлен только для гостевых фич (избранное).
 // Аутентификация и профильные запросы на них больше не завязаны.
 
-function getContactDirectionStorageKey() {
-    return 'tramplin_contact_directions'
-}
+function normalizeInteractionContact(contact = {}) {
+    const fullName = String(contact.contactName || '').trim()
+    const nameParts = fullName ? fullName.split(/\s+/) : []
 
-function readContactDirections() {
-    try {
-        const raw = localStorage.getItem(getContactDirectionStorageKey())
-        return raw ? JSON.parse(raw) : {}
-    } catch {
-        return {}
+    return {
+        id: contact.contactUserId,
+        contactUserId: contact.contactUserId,
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' '),
+        fullName,
+        contactName: fullName,
+        status: contact.status || 'PENDING',
+        direction: contact.direction || (contact.status === 'ACCEPTED' ? 'CONFIRMED' : null),
+        createdAt: contact.createdAt || null,
     }
-}
-
-function writeContactDirections(value) {
-    localStorage.setItem(getContactDirectionStorageKey(), JSON.stringify(value))
-}
-
-function markContactDirection(contactUserId, direction) {
-    const map = readContactDirections()
-    map[String(contactUserId)] = direction
-    writeContactDirections(map)
-}
-
-function removeContactDirection(contactUserId) {
-    const map = readContactDirections()
-    delete map[String(contactUserId)]
-    writeContactDirections(map)
-}
-
-function getContactDirection(contactUserId) {
-    const map = readContactDirections()
-    return map[String(contactUserId)] || null
 }
 
 function getGuestFavoritesStorageKey() {
@@ -820,27 +802,17 @@ export async function getSeekerContacts() {
             return []
         }
 
-        return contacts.map((c) => {
-            const direction = getContactDirection(c.contactUserId)
-
-            return {
-                id: c.contactUserId,
-                firstName: c.contactName?.split(' ')[0] || '',
-                lastName: c.contactName?.split(' ').slice(1).join(' ') || '',
-                fullName: c.contactName || '',
-                status: c.status,
-                createdAt: c.createdAt,
-                direction: c.status === 'ACCEPTED'
-                    ? 'confirmed'
-                    : (direction || 'incoming'),
-            }
-        })
+        return contacts.map(normalizeInteractionContact)
     } catch (error) {
         if (error?.code === 'applicant_networking_requires_approved_profile') {
             throw error
         }
 
-        if ([401, 500, 503].includes(error.status)) {
+        if (error?.status === 401) {
+            return []
+        }
+
+        if ([500, 503].includes(error?.status)) {
             return []
         }
 
@@ -849,27 +821,19 @@ export async function getSeekerContacts() {
 }
 
 export async function addContact(contactUserId) {
-    const result = await addContactApi(contactUserId)
-    markContactDirection(contactUserId, 'outgoing')
-    return result
+    return addContactApi(contactUserId)
 }
 
 export async function acceptContact(contactUserId) {
-    const result = await acceptContactRequest(contactUserId)
-    markContactDirection(contactUserId, 'confirmed')
-    return result
+    return acceptContactRequest(contactUserId)
 }
 
 export async function declineContact(contactUserId) {
-    const result = await declineContactRequest(contactUserId)
-    removeContactDirection(contactUserId)
-    return result
+    return declineContactRequest(contactUserId)
 }
 
 export async function removeContact(contactUserId) {
-    const result = await removeContactApi(contactUserId)
-    removeContactDirection(contactUserId)
-    return result
+    return removeContactApi(contactUserId)
 }
 
 export async function getSeekerApplications() {

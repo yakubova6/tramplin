@@ -186,6 +186,29 @@ function isAcceptedRelationship(relationship) {
     return relationship?.status === 'ACCEPTED'
 }
 
+function isOutgoingRelationship(relationship) {
+    return relationship?.direction === 'OUTGOING'
+}
+
+function isIncomingRelationship(relationship) {
+    return relationship?.direction === 'INCOMING'
+}
+
+function getRelationshipStatusLabel(status) {
+    switch (status) {
+        case 'PENDING':
+            return 'Ожидает подтверждения'
+        case 'ACCEPTED':
+            return 'Подтверждён'
+        case 'DECLINED':
+            return 'Отклонён'
+        case 'BLOCKED':
+            return 'Недоступен'
+        default:
+            return status || 'Неизвестно'
+    }
+}
+
 function hasProfileBlockAccessFromResponse(profile) {
     if (!profile) return false
 
@@ -437,7 +460,7 @@ export default function ApplicantPublicProfile() {
         const optimisticPending = {
             id: applicantId,
             status: 'PENDING',
-            direction: 'outgoing',
+            direction: 'OUTGOING',
         }
 
         try {
@@ -473,7 +496,7 @@ export default function ApplicantPublicProfile() {
                 setOptimisticContactState({
                     id: applicantId,
                     status: relationshipAfterError.status,
-                    direction: relationshipAfterError.direction || 'outgoing',
+                    direction: relationshipAfterError.direction || 'OUTGOING',
                 })
 
                 toast({
@@ -499,6 +522,22 @@ export default function ApplicantPublicProfile() {
                     title: 'Нетворкинг пока недоступен',
                     description:
                         'Нетворкинг-функции доступны только после одобрения вашего профиля соискателя куратором.',
+                    variant: 'destructive',
+                })
+                return
+            }
+
+            if (error?.status === 403 && error?.code === 'contact_request_blocked') {
+                setOptimisticContactState({
+                    id: applicantId,
+                    status: 'BLOCKED',
+                    direction: relationshipAfterError?.direction || 'OUTGOING',
+                })
+
+                toast({
+                    title: 'Запрос недоступен',
+                    description:
+                        error.message || 'Этому пользователю нельзя отправить повторный запрос в контакты.',
                     variant: 'destructive',
                 })
                 return
@@ -546,7 +585,7 @@ export default function ApplicantPublicProfile() {
             setOptimisticContactState({
                 id: applicantId,
                 status: 'ACCEPTED',
-                direction: 'confirmed',
+                direction: 'CONFIRMED',
             })
 
             toast({
@@ -604,9 +643,9 @@ export default function ApplicantPublicProfile() {
             setOptimisticContactState(null)
 
             toast({
-                title: relationship?.direction === 'outgoing' ? 'Запрос отменён' : 'Контакт удалён',
+                title: isOutgoingRelationship(relationship) ? 'Запрос отменён' : 'Контакт удалён',
                 description:
-                    relationship?.direction === 'outgoing'
+                    isOutgoingRelationship(relationship)
                         ? 'Исходящий запрос отменён'
                         : 'Контакт удалён из списка',
             })
@@ -693,7 +732,50 @@ export default function ApplicantPublicProfile() {
             )
         }
 
-        if (relationship.status === 'PENDING' && relationship.direction === 'outgoing') {
+        if (relationship.status === 'BLOCKED') {
+            return (
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--pending">
+                    <div className="applicant-public-profile__contact-panel-text">
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Запрос недоступен</span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                            Для этого пользователя новые запросы в контакты сейчас недоступны.
+                        </span>
+                    </div>
+
+                    <div className="applicant-public-profile__contact-actions">
+                        <span className="badge badge--info">{getRelationshipStatusLabel(relationship.status)}</span>
+                    </div>
+                </div>
+            )
+        }
+
+        if (relationship.status === 'DECLINED') {
+            return (
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--pending">
+                    <div className="applicant-public-profile__contact-panel-text">
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Запрос был отклонён</span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                            Вы можете попробовать отправить запрос повторно.
+                        </span>
+                    </div>
+
+                    <div className="applicant-public-profile__contact-actions">
+                        <span className="badge badge--info">{getRelationshipStatusLabel(relationship.status)}</span>
+                        <Button
+                            className="button--primary"
+                            onClick={handleAddContact}
+                            disabled={isContactActionLoading}
+                        >
+                            {isContactActionLoading ? 'Отправка...' : 'Отправить снова'}
+                        </Button>
+                    </div>
+                </div>
+            )
+        }
+
+        if (relationship.status === 'PENDING' && isOutgoingRelationship(relationship)) {
             return (
                 <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--pending">
                     <div className="applicant-public-profile__contact-panel-text">
@@ -718,32 +800,54 @@ export default function ApplicantPublicProfile() {
             )
         }
 
+        if (relationship.status === 'PENDING' && isIncomingRelationship(relationship)) {
+            return (
+                <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--incoming">
+                    <div className="applicant-public-profile__contact-panel-text">
+                        <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
+                        <span className="applicant-public-profile__contact-title">Входящий запрос</span>
+                        <span className="applicant-public-profile__contact-subtitle">
+                            Пользователь хочет добавить вас в профессиональные контакты
+                        </span>
+                    </div>
+
+                    <div className="applicant-public-profile__contact-actions">
+                        <Button
+                            className="button--primary"
+                            onClick={handleAcceptContact}
+                            disabled={isContactActionLoading}
+                        >
+                            Принять
+                        </Button>
+                        <Button
+                            className="button--outline"
+                            onClick={handleDeclineContact}
+                            disabled={isContactActionLoading}
+                        >
+                            Отклонить
+                        </Button>
+                    </div>
+                </div>
+            )
+        }
+
         return (
-            <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--incoming">
+            <div className="applicant-public-profile__contact-panel applicant-public-profile__contact-panel--default">
                 <div className="applicant-public-profile__contact-panel-text">
                     <span className="applicant-public-profile__contact-kicker">Нетворкинг</span>
-                    <span className="applicant-public-profile__contact-title">Входящий запрос</span>
+                    <span className="applicant-public-profile__contact-title">Профессиональный контакт</span>
                     <span className="applicant-public-profile__contact-subtitle">
-                        Пользователь хочет добавить вас в профессиональные контакты
+                        Текущий статус: {getRelationshipStatusLabel(relationship.status)}.
                     </span>
                 </div>
 
-                <div className="applicant-public-profile__contact-actions">
-                    <Button
-                        className="button--primary"
-                        onClick={handleAcceptContact}
-                        disabled={isContactActionLoading}
-                    >
-                        Принять
-                    </Button>
-                    <Button
-                        className="button--outline"
-                        onClick={handleDeclineContact}
-                        disabled={isContactActionLoading}
-                    >
-                        Отклонить
-                    </Button>
-                </div>
+                <Button
+                    className="button--primary"
+                    onClick={handleAddContact}
+                    disabled={isContactActionLoading}
+                >
+                    {isContactActionLoading ? 'Отправка...' : 'Отправить запрос'}
+                </Button>
             </div>
         )
     }
