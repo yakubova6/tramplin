@@ -8,7 +8,6 @@ import {
     updateEmployerProfile,
     updateEmployerCompanyData,
     submitEmployerProfileForModeration,
-    submitVerification,
     uploadEmployerLogo,
     deleteEmployerFile,
     getEmployerOpportunities,
@@ -41,7 +40,6 @@ import EmployerProfileSection from './EmployerProfileSection'
 import EmployerOpportunityForm from './EmployerOpportunityForm'
 import EmployerOpportunitiesSection from './EmployerOpportunitiesSection'
 import EmployerApplicantsSection from './EmployerApplicantsSection'
-import EmployerVerificationModal from './EmployerVerificationModal'
 import ApplicantPreviewModal from './ApplicantPreviewModal'
 
 import {
@@ -65,7 +63,6 @@ function EmployerDashboard() {
     const [isLoading, setIsLoading] = useState(true)
     const [errors, setErrors] = useState({})
     const [expandedOpportunityId, setExpandedOpportunityId] = useState(null)
-    const [showVerificationModal, setShowVerificationModal] = useState(false)
     const [isLogoUploading, setIsLogoUploading] = useState(false)
     const [moderationFeedback, setModerationFeedback] = useState(null)
     const [isModerationFeedbackLoading, setIsModerationFeedbackLoading] = useState(false)
@@ -84,15 +81,7 @@ function EmployerDashboard() {
 
     const [socialRows, setSocialRows] = useState([createLinkRow()])
     const [contactRows, setContactRows] = useState([createLinkRow()])
-    const [verificationLinkRows, setVerificationLinkRows] = useState([createLinkRow()])
     const [resourceRows, setResourceRows] = useState([createLinkRow()])
-
-    const [verificationData, setVerificationData] = useState({
-        verificationMethod: 'CORPORATE_EMAIL',
-        corporateEmail: '',
-        inn: '',
-        submittedComment: '',
-    })
 
     const [profile, setProfile] = useState({
         userId: null,
@@ -171,13 +160,18 @@ function EmployerDashboard() {
     const verificationState = profile.verificationStatus || 'NOT_STARTED'
     const moderationState = profile.moderationStatus || 'DRAFT'
     const isVerified = verificationState === 'APPROVED'
-    const isVerificationRejected = verificationState === 'REJECTED'
     const moderationMeta = getEmployerModerationStatusMeta(moderationState)
 
     const selectedEmployerLocation = useMemo(
         () => employerLocations.find((item) => Number(item.id) === Number(profile.locationId)) || null,
         [employerLocations, profile.locationId]
     )
+
+    const isProfileAlreadyOnModeration = useCallback((status) => {
+        return ['PENDING_MODERATION', 'IN_PROGRESS', 'UNDER_REVIEW', 'ON_MODERATION'].includes(
+            String(status || '').toUpperCase()
+        )
+    }, [])
 
     const linksToRows = (items = []) =>
         items.length > 0
@@ -192,7 +186,7 @@ function EmployerDashboard() {
                 url: row.url.trim(),
             }))
 
-    const normalizeEmployerWorkspaceResponse = (workspaceData = {}, fallbackUser = null) => {
+    const normalizeEmployerWorkspaceResponse = useCallback((workspaceData = {}, fallbackUser = null) => {
         const current = normalizeEmployerProfileState(workspaceData.currentProfile || {}, fallbackUser)
         const publicVersion = workspaceData.publicProfile
             ? normalizeEmployerProfileState(workspaceData.publicProfile, fallbackUser)
@@ -204,7 +198,7 @@ function EmployerDashboard() {
             moderationStatus: workspaceData.moderationStatus || current.moderationStatus || 'DRAFT',
             hasApprovedPublicVersion: Boolean(workspaceData.hasApprovedPublicVersion),
         }
-    }
+    }, [])
 
     const syncWorkspaceProfileState = useCallback((workspaceData, fallbackUser = user) => {
         const normalizedWorkspace = normalizeEmployerWorkspaceResponse(workspaceData, fallbackUser)
@@ -223,20 +217,15 @@ function EmployerDashboard() {
                 : [createLinkRow()]
         )
 
-        setVerificationData((prev) => ({
-            ...prev,
-            inn: normalized.inn || '',
-            corporateEmail: prev.corporateEmail || fallbackUser?.email || '',
-        }))
-
         return normalizedWorkspace
-    }, [user])
+    }, [normalizeEmployerWorkspaceResponse, user])
 
     const loadEmployerLocationsData = useCallback(async () => {
         try {
             const items = await getEmployerLocations()
-            setEmployerLocations(Array.isArray(items) ? items : [])
-            return Array.isArray(items) ? items : []
+            const normalizedItems = Array.isArray(items) ? items : []
+            setEmployerLocations(normalizedItems)
+            return normalizedItems
         } catch {
             setEmployerLocations([])
             return []
@@ -274,7 +263,11 @@ function EmployerDashboard() {
             }
 
             setModerationFeedback(extractModerationFeedback(sortedHistory, taskDetail))
-        } catch {
+        } catch (error) {
+            if (error?.status === 403) {
+                setModerationFeedback(null)
+                return
+            }
             setModerationFeedback(null)
         } finally {
             setIsModerationFeedbackLoading(false)
@@ -307,53 +300,31 @@ function EmployerDashboard() {
 
         if (normalizedWorkspace.publicProfile?.locationId) {
             const publicMatchedLocation =
-                freshLocations.find((item) => Number(item.id) === Number(normalizedWorkspace.publicProfile.locationId)) || null
+                freshLocations.find(
+                    (item) => Number(item.id) === Number(normalizedWorkspace.publicProfile.locationId)
+                ) || null
 
             if (publicMatchedLocation) {
-                setPublicProfile((prev) => prev ? ({
-                    ...prev,
-                    locationId: publicMatchedLocation.id,
-                    locationPreview: publicMatchedLocation,
-                    cityId: publicMatchedLocation.cityId ?? prev.cityId,
-                    cityName: publicMatchedLocation.cityName || publicMatchedLocation.city?.name || prev.cityName,
-                }) : prev)
+                setPublicProfile((prev) =>
+                    prev
+                        ? {
+                            ...prev,
+                            locationId: publicMatchedLocation.id,
+                            locationPreview: publicMatchedLocation,
+                            cityId: publicMatchedLocation.cityId ?? prev.cityId,
+                            cityName:
+                                publicMatchedLocation.cityName ||
+                                publicMatchedLocation.city?.name ||
+                                prev.cityName,
+                        }
+                        : prev
+                )
             }
         }
 
         await loadModerationFeedback(normalized.userId || user.userId)
         return normalized
     }, [loadEmployerLocationsData, loadModerationFeedback, syncWorkspaceProfileState, user])
-
-    const moderationMissingItems = useMemo(() => {
-        const items = []
-
-        if (!profile.companyName?.trim()) {
-            items.push('название компании')
-        }
-
-        if (!profile.industry?.trim()) {
-            items.push('сфера деятельности')
-        }
-
-        if (!profile.locationId) {
-            items.push('основная локация')
-        }
-
-        const hasPublicChannel =
-            Boolean(profile.websiteUrl?.trim()) ||
-            (Array.isArray(socialRows) && socialRows.some((item) => item.url?.trim())) ||
-            (Array.isArray(contactRows) && contactRows.some((item) => item.url?.trim()))
-
-        if (!hasPublicChannel) {
-            items.push('сайт, соцсеть или контакт')
-        }
-
-        return items
-    }, [profile, socialRows, contactRows])
-
-    const canSubmitProfileToModeration =
-        moderationState !== 'PENDING_MODERATION' &&
-        moderationMissingItems.length === 0
 
     const buildEmployerProfilePayload = () => {
         const payload = {
@@ -769,15 +740,24 @@ function EmployerDashboard() {
 
             if (normalizedWorkspace.publicProfile?.locationId) {
                 const publicMatchedLocation =
-                    locations.find((item) => Number(item.id) === Number(normalizedWorkspace.publicProfile.locationId)) || null
+                    locations.find(
+                        (item) => Number(item.id) === Number(normalizedWorkspace.publicProfile.locationId)
+                    ) || null
 
                 if (publicMatchedLocation) {
-                    setPublicProfile((prev) => prev ? ({
-                        ...prev,
-                        locationPreview: publicMatchedLocation,
-                        cityId: publicMatchedLocation.cityId,
-                        cityName: publicMatchedLocation.cityName || publicMatchedLocation.city?.name || prev.cityName,
-                    }) : prev)
+                    setPublicProfile((prev) =>
+                        prev
+                            ? {
+                                ...prev,
+                                locationPreview: publicMatchedLocation,
+                                cityId: publicMatchedLocation.cityId,
+                                cityName:
+                                    publicMatchedLocation.cityName ||
+                                    publicMatchedLocation.city?.name ||
+                                    prev.cityName,
+                            }
+                            : prev
+                    )
                 }
             }
 
@@ -888,6 +868,7 @@ function EmployerDashboard() {
             setIsLogoUploading(true)
             await uploadEmployerLogo(file)
             await reloadEmployerProfile()
+
             toast({
                 title: 'Логотип загружен',
                 description: 'Логотип компании успешно обновлён',
@@ -910,6 +891,7 @@ function EmployerDashboard() {
         try {
             await deleteEmployerFile(profile.logo.fileId)
             await reloadEmployerProfile()
+
             toast({
                 title: 'Логотип удалён',
                 description: 'Логотип компании удалён из профиля',
@@ -943,7 +925,7 @@ function EmployerDashboard() {
 
             toast({
                 title: 'Изменения сохранены',
-                description: 'Чтобы обновить публичную версию профиля, отправьте его на модерацию.',
+                description: 'Публичный профиль обновлён.',
             })
 
             setIsEditingProfile(false)
@@ -951,41 +933,6 @@ function EmployerDashboard() {
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось сохранить профиль',
-                variant: 'destructive',
-            })
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const handleSubmitEmployerProfileForModeration = async () => {
-        const validation = validatePublicProfile()
-
-        if (!validation.isValid) {
-            toast({
-                title: 'Ошибка',
-                description: Object.values(validation.nextErrors)[0] || 'Заполните обязательные поля перед отправкой на модерацию',
-                variant: 'destructive',
-            })
-            return
-        }
-
-        setIsLoading(true)
-
-        try {
-            await submitEmployerProfileForModeration()
-            await reloadEmployerProfile()
-
-            toast({
-                title: 'Профиль отправлен',
-                description: 'Ваш профиль отправлен на модерацию.',
-            })
-
-            setIsEditingProfile(false)
-        } catch (error) {
-            toast({
-                title: 'Ошибка',
-                description: error?.message || 'Не удалось отправить профиль на модерацию',
                 variant: 'destructive',
             })
         } finally {
@@ -1012,8 +959,8 @@ function EmployerDashboard() {
             await reloadEmployerProfile()
 
             toast({
-                title: 'Данные компании сохранены',
-                description: 'Юридические данные обновлены',
+                title: 'Реквизиты сохранены',
+                description: 'Юридические данные компании обновлены.',
             })
 
             setIsEditingCompanyData(false)
@@ -1028,33 +975,46 @@ function EmployerDashboard() {
         }
     }
 
-    const handleSubmitVerification = async () => {
-        const professionalLinks = rowsToLinks(verificationLinkRows).map((item) => item.url)
+    const handleSubmitEmployerProfileForModeration = async () => {
+        const validation = validatePublicProfile()
+
+        if (!validation.isValid) {
+            toast({
+                title: 'Ошибка',
+                description: Object.values(validation.nextErrors)[0] || 'Заполните обязательные поля профиля',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setIsLoading(true)
 
         try {
-            await submitVerification({
-                verificationMethod: verificationData.verificationMethod,
-                corporateEmail:
-                    verificationData.verificationMethod === 'CORPORATE_EMAIL'
-                        ? verificationData.corporateEmail.trim()
-                        : null,
-                professionalLinks,
-                submittedComment: verificationData.submittedComment?.trim() || '',
-            })
+            const freshModerationState =
+                profile.moderationStatus || 'DRAFT'
 
-            setProfile((prev) => ({ ...prev, verificationStatus: 'PENDING' }))
-            setShowVerificationModal(false)
+            await updateEmployerProfile(buildEmployerProfilePayload())
+
+            if (!isProfileAlreadyOnModeration(freshModerationState)) {
+                await submitEmployerProfileForModeration()
+            }
+
+            await reloadEmployerProfile()
 
             toast({
-                title: 'Заявка отправлена',
-                description: 'Верификация отправлена на проверку',
+                title: 'Профиль отправлен',
+                description: 'Публичный профиль отправлен на модерацию',
             })
+
+            setIsEditingProfile(false)
         } catch (error) {
             toast({
                 title: 'Ошибка',
-                description: error?.message || 'Не удалось отправить заявку',
+                description: error?.message || 'Не удалось отправить профиль на модерацию',
                 variant: 'destructive',
             })
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -1136,10 +1096,10 @@ function EmployerDashboard() {
                         : new Date(`${opportunityForm.expiresAt}T23:59:59`).toISOString(),
                 eventDate:
                     opportunityForm.type === 'EVENT'
-                        ? (opportunityForm.eventDate || null)
+                        ? opportunityForm.eventDate || null
                         : null,
-                cityId: isOfficeBasedWorkFormat ? (selectedLocation?.cityId ?? null) : null,
-                locationId: isOfficeBasedWorkFormat ? (selectedLocation?.id ?? null) : null,
+                cityId: isOfficeBasedWorkFormat ? selectedLocation?.cityId ?? null : null,
+                locationId: isOfficeBasedWorkFormat ? selectedLocation?.id ?? null : null,
                 contactInfo: {
                     email: opportunityForm.contactEmail?.trim() || null,
                     phone: opportunityForm.contactPhone?.trim() || null,
@@ -1204,6 +1164,7 @@ function EmployerDashboard() {
                 >
                     Вакансии
                 </button>
+
                 <button
                     className={`dashboard-tabs__btn ${activeTab === 'create' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('create')}
@@ -1211,12 +1172,14 @@ function EmployerDashboard() {
                 >
                     {opportunityMode === 'edit' ? 'Редактирование' : 'Создать'}
                 </button>
+
                 <button
                     className={`dashboard-tabs__btn ${activeTab === 'applicants' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('applicants')}
                 >
                     Отклики
                 </button>
+
                 <button
                     className={`dashboard-tabs__btn ${activeTab === 'profile' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('profile')}
@@ -1244,9 +1207,12 @@ function EmployerDashboard() {
                             setOpportunityMode('edit')
                             setResourceRows(
                                 opportunity.resourceLinks?.length > 0
-                                    ? opportunity.resourceLinks.map((item) => createLinkRow(item.label || '', item.url || ''))
+                                    ? opportunity.resourceLinks.map((item) =>
+                                        createLinkRow(item.label || '', item.url || '')
+                                    )
                                     : [createLinkRow()]
                             )
+
                             setOpportunityForm({
                                 title: opportunity.title || '',
                                 shortDescription: opportunity.shortDescription || '',
@@ -1267,8 +1233,10 @@ function EmployerDashboard() {
                                 tagIds: opportunity.tagIds || [],
                                 contactEmail: opportunity.contactInfo?.email || opportunity.contactEmail || '',
                                 contactPhone: opportunity.contactInfo?.phone || opportunity.contactPhone || '',
-                                contactTelegram: opportunity.contactInfo?.telegram || opportunity.contactTelegram || '',
-                                contactPerson: opportunity.contactInfo?.contactPerson || opportunity.contactPerson || '',
+                                contactTelegram:
+                                    opportunity.contactInfo?.telegram || opportunity.contactTelegram || '',
+                                contactPerson:
+                                    opportunity.contactInfo?.contactPerson || opportunity.contactPerson || '',
                                 resourceLinks: opportunity.resourceLinks || [],
                             })
 
@@ -1368,8 +1336,6 @@ function EmployerDashboard() {
                         onHandleSaveProfile={handleSaveProfile}
                         onHandleSaveCompanyData={handleSaveCompanyData}
                         onHandleSubmitEmployerProfileForModeration={handleSubmitEmployerProfileForModeration}
-                        canSubmitProfileToModeration={canSubmitProfileToModeration}
-                        moderationMissingItems={moderationMissingItems}
                         employerLocations={employerLocations}
                         selectedEmployerLocation={selectedEmployerLocation}
                         onOpenCreateLocation={handleOpenCreateLocation}
@@ -1378,16 +1344,6 @@ function EmployerDashboard() {
                     />
                 )}
             </div>
-
-            <EmployerVerificationModal
-                isOpen={showVerificationModal}
-                verificationData={verificationData}
-                setVerificationData={setVerificationData}
-                verificationLinkRows={verificationLinkRows}
-                setVerificationLinkRows={setVerificationLinkRows}
-                onSubmit={handleSubmitVerification}
-                onClose={() => setShowVerificationModal(false)}
-            />
 
             <EmployerLocationModal
                 isOpen={isLocationModalOpen}

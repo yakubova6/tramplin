@@ -47,6 +47,7 @@ function EmployerProfileSection({
                                     onHandleDeleteLogo,
                                     onHandleSaveProfile,
                                     onHandleSaveCompanyData,
+                                    onHandleSubmitEmployerProfileForModeration,
                                     employerLocations,
                                     selectedEmployerLocation,
                                     onOpenCreateLocation,
@@ -106,6 +107,8 @@ function EmployerProfileSection({
             ? 'Это текущая версия профиля в вашем кабинете. После одобрения модератором она заменит публичную.'
             : moderationMeta.description
 
+    const showInitialModerationAction = moderationState === 'DRAFT'
+
     return (
         <div className="employer-profile">
             <input
@@ -121,20 +124,46 @@ function EmployerProfileSection({
                     <div className="employer-profile__view-header">
                         <h2>Информация о компании</h2>
                         <div className="employer-profile__view-actions">
-                            <button className="profile-card__edit-btn" onClick={() => setIsEditingProfile(true)}>
+                            <button
+                                type="button"
+                                className="profile-card__edit-btn"
+                                onClick={() => setIsEditingProfile(true)}
+                            >
                                 <img src={editIcon} alt="" className="icon" />
                                 Публичный профиль
                             </button>
-                            <button className="profile-card__edit-btn" onClick={() => setIsEditingCompanyData(true)}>
+                            <button
+                                type="button"
+                                className="profile-card__edit-btn"
+                                onClick={() => setIsEditingCompanyData(true)}
+                            >
                                 <img src={editIcon} alt="" className="icon" />
                                 Реквизиты компании
                             </button>
                         </div>
                     </div>
 
+                    {showInitialModerationAction && (
+                        <div className="employer-profile__moderation-actions">
+                            <div className="employer-profile__moderation-hint">
+                                Вы уже сохранили черновик профиля. Чтобы профиль впервые попал на проверку к куратору,
+                                отправьте его на модерацию отдельной кнопкой.
+                            </div>
+
+                            <Button
+                                className="button--primary"
+                                onClick={onHandleSubmitEmployerProfileForModeration}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Отправка...' : 'Отправить профиль на модерацию'}
+                            </Button>
+                        </div>
+                    )}
+
                     {shouldShowVersionSwitch && (
                         <div className="employer-profile__moderation-hint">
-                            У вас есть изменения, которые еще не одобрены модератором. Переключайтесь между текущей версией профиля и публичной версией, которую сейчас видят пользователи.
+                            У вас есть изменения, которые ещё не одобрены модератором. Переключайтесь между
+                            текущей версией профиля и публичной версией, которую сейчас видят пользователи.
                         </div>
                     )}
 
@@ -162,7 +191,9 @@ function EmployerProfileSection({
                             <div className="employer-profile__revision-header">
                                 <h3>Профиль требует доработки</h3>
                                 {isModerationFeedbackLoading && (
-                                    <span className="employer-profile__revision-meta">Загружаем комментарий куратора…</span>
+                                    <span className="employer-profile__revision-meta">
+                                        Загружаем комментарий куратора…
+                                    </span>
                                 )}
                             </div>
 
@@ -249,18 +280,22 @@ function EmployerProfileSection({
                             <Label>Название</Label>
                             <div className="field-value">{displayedProfile.companyName || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>ИНН</Label>
                             <div className="field-value">{displayedProfile.inn || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Юр. название</Label>
                             <div className="field-value">{displayedProfile.legalName || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Сфера</Label>
                             <div className="field-value">{displayedProfile.industry || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Сайт</Label>
                             <div className="field-value">
@@ -271,33 +306,44 @@ function EmployerProfileSection({
                                 ) : '—'}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Локация</Label>
                             <div className="field-value">
                                 {displayedLocation ? getLocationLabel(displayedLocation) : displayedProfile.cityName || '—'}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Размер</Label>
                             <div className="field-value">
                                 {COMPANY_SIZE_OPTIONS.find((item) => item.value === displayedProfile.companySize)?.label || '—'}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Год основания</Label>
                             <div className="field-value">{displayedProfile.foundedYear || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field employer-profile__field--wide">
                             <Label>Описание</Label>
                             <div className="field-value">{displayedProfile.description || '—'}</div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Социальные сети</Label>
                             <div className="field-value">
                                 {displayedProfile.socialLinks?.length > 0 ? (
                                     <div className="links-list">
                                         {displayedProfile.socialLinks.map((item, index) => (
-                                            <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noopener noreferrer" className="link-item">
+                                            <a
+                                                key={`${item.url}-${index}`}
+                                                href={item.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="link-item"
+                                            >
                                                 <img src={linkIcon} alt="" className="icon-small" />
                                                 <span>{item.label || item.url}</span>
                                             </a>
@@ -306,6 +352,7 @@ function EmployerProfileSection({
                                 ) : '—'}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Контакты для связи</Label>
                             <div className="field-value">
@@ -322,6 +369,7 @@ function EmployerProfileSection({
                                 ) : '—'}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Статус верификации</Label>
                             <div className={`field-value verification-status status-${(verificationState || 'not_started').toLowerCase()}`}>
@@ -332,6 +380,7 @@ function EmployerProfileSection({
                                 {!['APPROVED', 'PENDING', 'REJECTED', 'NOT_STARTED'].includes(verificationState) && verificationState}
                             </div>
                         </div>
+
                         <div className="employer-profile__field">
                             <Label>Статус модерации</Label>
                             <div className={`field-value employer-profile__moderation-state employer-profile__moderation-state--${displayedModerationTone}`}>
@@ -356,7 +405,8 @@ function EmployerProfileSection({
                     </div>
 
                     <p className="employer-profile__section-hint">
-                        Здесь хранятся юридическое название и ИНН. Название компании для карточки редактируется в публичном профиле.
+                        Здесь хранятся юридическое название и ИНН. Название компании для карточки редактируется
+                        в публичном профиле.
                     </p>
 
                     <div className="employer-profile__edit-field">
@@ -373,10 +423,12 @@ function EmployerProfileSection({
                         <Input
                             value={profile.inn || ''}
                             maxLength={12}
-                            onChange={(e) => setProfile((prev) => ({
-                                ...prev,
-                                inn: e.target.value.replace(/[^\d]/g, '').slice(0, 12),
-                            }))}
+                            onChange={(e) =>
+                                setProfile((prev) => ({
+                                    ...prev,
+                                    inn: e.target.value.replace(/[^\d]/g, '').slice(0, 12),
+                                }))
+                            }
                         />
                         {errors.inn && <p className="field-error">{errors.inn}</p>}
                     </div>
@@ -406,7 +458,9 @@ function EmployerProfileSection({
                     </div>
 
                     <p className="employer-profile__section-hint">
-                        Сохранение обновляет текущую версию профиля. Если профиль уже был одобрен, изменения после сохранения отправятся на модерацию автоматически.
+                        {moderationState === 'DRAFT'
+                            ? 'При первом заполнении сохраните данные, затем отдельно отправьте профиль на модерацию.'
+                            : 'После сохранения изменения профиля будут автоматически отправлены на модерацию.'}
                     </p>
 
                     <div className="employer-profile__edit-section employer-profile__edit-section--accent">
@@ -478,10 +532,12 @@ function EmployerProfileSection({
                             <Label>Название компании <span className="required-star">*</span></Label>
                             <Input
                                 value={profile.companyName}
-                                onChange={(e) => setProfile((prev) => ({
-                                    ...prev,
-                                    companyName: e.target.value,
-                                }))}
+                                onChange={(e) =>
+                                    setProfile((prev) => ({
+                                        ...prev,
+                                        companyName: e.target.value,
+                                    }))
+                                }
                                 placeholder="Как компания будет отображаться на платформе"
                             />
                             {errors.companyName && <p className="field-error">{errors.companyName}</p>}
@@ -492,10 +548,12 @@ function EmployerProfileSection({
                                 <Label>Сфера деятельности <span className="required-star">*</span></Label>
                                 <Input
                                     value={profile.industry}
-                                    onChange={(e) => setProfile((prev) => ({
-                                        ...prev,
-                                        industry: e.target.value,
-                                    }))}
+                                    onChange={(e) =>
+                                        setProfile((prev) => ({
+                                            ...prev,
+                                            industry: e.target.value,
+                                        }))
+                                    }
                                 />
                                 {errors.industry && <p className="field-error">{errors.industry}</p>}
                             </div>
@@ -504,10 +562,12 @@ function EmployerProfileSection({
                                 <Label>Сайт компании</Label>
                                 <Input
                                     value={profile.websiteUrl}
-                                    onChange={(e) => setProfile((prev) => ({
-                                        ...prev,
-                                        websiteUrl: e.target.value,
-                                    }))}
+                                    onChange={(e) =>
+                                        setProfile((prev) => ({
+                                            ...prev,
+                                            websiteUrl: e.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                         </div>
@@ -545,10 +605,12 @@ function EmployerProfileSection({
                             <Label>Год основания</Label>
                             <Input
                                 value={profile.foundedYear || ''}
-                                onChange={(e) => setProfile((prev) => ({
-                                    ...prev,
-                                    foundedYear: e.target.value.replace(/[^\d]/g, '').slice(0, 4),
-                                }))}
+                                onChange={(e) =>
+                                    setProfile((prev) => ({
+                                        ...prev,
+                                        foundedYear: e.target.value.replace(/[^\d]/g, '').slice(0, 4),
+                                    }))
+                                }
                             />
                         </div>
                     </div>
@@ -557,7 +619,8 @@ function EmployerProfileSection({
                         <div className="employer-profile__edit-section-header">
                             <h3 className="employer-profile__edit-section-title">Описание и публичные каналы</h3>
                             <p className="employer-profile__edit-section-text">
-                                Добавьте описание, ссылки на сайт и способы связи, чтобы профиль выглядел завершённым и вызывал доверие.
+                                Добавьте описание, ссылки на сайт и способы связи, чтобы профиль выглядел завершённым
+                                и вызывал доверие.
                             </p>
                         </div>
 
@@ -566,10 +629,12 @@ function EmployerProfileSection({
                             <Textarea
                                 rows={4}
                                 value={profile.description}
-                                onChange={(e) => setProfile((prev) => ({
-                                    ...prev,
-                                    description: e.target.value,
-                                }))}
+                                onChange={(e) =>
+                                    setProfile((prev) => ({
+                                        ...prev,
+                                        description: e.target.value,
+                                    }))
+                                }
                             />
                         </div>
 

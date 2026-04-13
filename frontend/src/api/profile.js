@@ -624,13 +624,21 @@ export async function deleteEmployerFile(fileId) {
 
 export async function createEmployerVerification(payload) {
     const userId = await getSessionUserIdFromApi()
+
     if (!userId) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
     return apiRequest(`${API_BASE}/employer/verification?employerUserId=${userId}`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+            verificationMethod: payload.verificationMethod,
+            corporateEmail: payload.corporateEmail || null,
+            professionalLinks: Array.isArray(payload.professionalLinks)
+                ? payload.professionalLinks.filter(Boolean)
+                : [],
+            submittedComment: payload.submittedComment || null,
+        }),
     })
 }
 
@@ -1289,4 +1297,32 @@ export async function getEmployerProfileWorkspace(userId) {
     const currentUser = encodeURIComponent(JSON.stringify(await getAuthenticatedUserPayload()))
 
     return apiRequest(`${API_BASE}/profile/employer/${userId}/workspace?currentUser=${currentUser}`)
+}
+
+export async function completeEmployerOnboarding({
+                                                     companyData,
+                                                     publicProfile,
+                                                     verification,
+                                                 }) {
+    await updateEmployerCompanyData(companyData)
+    await updateEmployerProfile(publicProfile)
+
+    if (verification) {
+        await submitVerification(verification)
+    }
+
+    try {
+        await submitEmployerProfileForModeration()
+    } catch (error) {
+        if (error?.status !== 409) {
+            throw error
+        }
+    }
+
+    const userId = await getSessionUserIdFromApi()
+    if (!userId) {
+        throw createApiError('Пользователь не авторизован', 401)
+    }
+
+    return getEmployerProfileWorkspace(userId)
 }

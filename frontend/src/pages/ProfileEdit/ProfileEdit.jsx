@@ -16,7 +16,6 @@ import {
 import {
     createEmployerLocation,
     getEmployerLocations,
-    resolveGeoAddress,
     searchGeoCities,
     suggestGeoAddress,
 } from '../../api/geo'
@@ -85,7 +84,7 @@ function buildEmployerLocationLabel(location) {
         return `${address} (${cityName})`
     }
 
-    return address || title || `Локация #${location?.id}`
+    return address || title || cityName || `Локация #${location?.id}`
 }
 
 function normalizeText(value) {
@@ -96,6 +95,7 @@ function findMatchingLocation(locations, addressData) {
     const normalizedFiasId = normalizeText(addressData?.fiasId)
     const normalizedUnrestrictedValue = normalizeText(addressData?.unrestrictedValue)
     const normalizedAddressLine = normalizeText(addressData?.addressLine)
+    const normalizedCityId = String(addressData?.cityId || '')
 
     return locations.find((location) => {
         const sameFiasId =
@@ -111,10 +111,26 @@ function findMatchingLocation(locations, addressData) {
         const sameAddress =
             normalizedAddressLine &&
             normalizeText(location?.addressLine) === normalizedAddressLine &&
-            String(location?.cityId || '') === String(addressData?.cityId || '')
+            String(location?.cityId || '') === normalizedCityId
 
         return sameFiasId || sameUnrestrictedValue || sameAddress
     })
+}
+
+function createEmptyEmployerLocationForm() {
+    return {
+        title: 'Главный офис',
+        cityId: '',
+        cityName: '',
+        addressLine: '',
+        addressLine2: '',
+        postalCode: '',
+        latitude: '',
+        longitude: '',
+        fiasId: '',
+        unrestrictedValue: '',
+        qcGeo: '',
+    }
 }
 
 function ProfileEdit() {
@@ -131,26 +147,31 @@ function ProfileEdit() {
     const [isUniversityOpen, setIsUniversityOpen] = useState(false)
     const [isIndustryOpen, setIsIndustryOpen] = useState(false)
     const [isApplicantCityOpen, setIsApplicantCityOpen] = useState(false)
-    const [isEmployerCityOpen, setIsEmployerCityOpen] = useState(false)
-    const [isAddressOpen, setIsAddressOpen] = useState(false)
     const [isFacultyOpen, setIsFacultyOpen] = useState(false)
     const [isStudyProgramOpen, setIsStudyProgramOpen] = useState(false)
+
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false)
+    const [isLocationCityOpen, setIsLocationCityOpen] = useState(false)
+    const [isLocationAddressOpen, setIsLocationAddressOpen] = useState(false)
+    const [isLocationSaving, setIsLocationSaving] = useState(false)
 
     const [universityActiveIndex, setUniversityActiveIndex] = useState(-1)
     const [industryActiveIndex, setIndustryActiveIndex] = useState(-1)
     const [applicantCityActiveIndex, setApplicantCityActiveIndex] = useState(-1)
-    const [employerCityActiveIndex, setEmployerCityActiveIndex] = useState(-1)
-    const [addressActiveIndex, setAddressActiveIndex] = useState(-1)
     const [facultyActiveIndex, setFacultyActiveIndex] = useState(-1)
     const [studyProgramActiveIndex, setStudyProgramActiveIndex] = useState(-1)
+
+    const [locationCityActiveIndex, setLocationCityActiveIndex] = useState(-1)
+    const [locationAddressActiveIndex, setLocationAddressActiveIndex] = useState(-1)
 
     const universityRef = useRef(null)
     const industryRef = useRef(null)
     const applicantCityRef = useRef(null)
-    const employerCityRef = useRef(null)
-    const addressRef = useRef(null)
     const facultyRef = useRef(null)
     const studyProgramRef = useRef(null)
+
+    const locationCityRef = useRef(null)
+    const locationAddressRef = useRef(null)
 
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
@@ -183,19 +204,18 @@ function ProfileEdit() {
     const [industry, setIndustry] = useState('')
     const [industryQuery, setIndustryQuery] = useState('')
     const [websiteUrl, setWebsiteUrl] = useState('')
-    const [cityIdEmployer, setCityIdEmployer] = useState('')
-    const [cityQueryEmployer, setCityQueryEmployer] = useState('')
-    const [addressQuery, setAddressQuery] = useState('')
-    const [selectedAddressSuggestion, setSelectedAddressSuggestion] = useState(null)
     const [selectedLocationId, setSelectedLocationId] = useState('')
     const [companySize, setCompanySize] = useState('')
     const [foundedYear, setFoundedYear] = useState('')
     const [socialRows, setSocialRows] = useState([createLinkRow()])
     const [publicContactRows, setPublicContactRows] = useState([createLinkRow()])
 
+    const [locationForm, setLocationForm] = useState(createEmptyEmployerLocationForm())
+    const [locationErrors, setLocationErrors] = useState({})
+    const [locationCityOptions, setLocationCityOptions] = useState([])
+    const [locationAddressOptions, setLocationAddressOptions] = useState([])
+
     const [applicantCityOptions, setApplicantCityOptions] = useState([])
-    const [employerCityOptions, setEmployerCityOptions] = useState([])
-    const [addressOptions, setAddressOptions] = useState([])
     const [employerLocations, setEmployerLocations] = useState([])
 
     useEffect(() => {
@@ -283,14 +303,7 @@ function ProfileEdit() {
                         setIndustry(profile.industry || '')
                         setIndustryQuery(profile.industry || '')
                         setWebsiteUrl(profile.websiteUrl || '')
-                        setCityIdEmployer(profile.cityId ? String(profile.cityId) : '')
-                        setCityQueryEmployer(profile.cityName || profile.locationPreview?.city?.name || '')
                         setSelectedLocationId(profile.locationId ? String(profile.locationId) : '')
-                        setAddressQuery(
-                            profile.locationPreview?.unrestrictedValue ||
-                            profile.locationPreview?.addressLine ||
-                            ''
-                        )
                         setCompanySize(profile.companySize || '')
                         setFoundedYear(profile.foundedYear ? String(profile.foundedYear) : '')
                         setSocialRows(mapLinksToRows(profile.socialLinks, 'url'))
@@ -376,30 +389,33 @@ function ProfileEdit() {
         [applicantCityOptions]
     )
 
-    const employerCitySuggestionLabels = useMemo(
-        () => employerCityOptions.map((city) => city.name),
-        [employerCityOptions]
+    const locationCitySuggestionLabels = useMemo(
+        () => locationCityOptions.map((city) => city.name),
+        [locationCityOptions]
     )
 
-    const addressSuggestionLabels = useMemo(
+    const locationAddressSuggestionLabels = useMemo(
         () =>
-            addressOptions.map(
+            locationAddressOptions.map(
                 (item) => item.value || item.unrestrictedValue || item.addressLine || ''
             ),
-        [addressOptions]
+        [locationAddressOptions]
     )
 
     const employerLocationOptions = useMemo(() => {
-        const filtered = employerLocations.filter((location) => {
-            if (!cityIdEmployer) return true
-            return String(location.cityId) === String(cityIdEmployer)
-        })
-
-        return filtered.map((location) => ({
+        return employerLocations.map((location) => ({
             value: String(location.id),
             label: buildEmployerLocationLabel(location),
         }))
-    }, [cityIdEmployer, employerLocations])
+    }, [employerLocations])
+
+    const selectedEmployerLocation = useMemo(
+        () =>
+            employerLocations.find(
+                (location) => String(location.id) === String(selectedLocationId)
+            ) || null,
+        [employerLocations, selectedLocationId]
+    )
 
     useEffect(() => {
         const normalizedQuery = cityQuery.trim()
@@ -431,10 +447,10 @@ function ProfileEdit() {
     }, [cityQuery])
 
     useEffect(() => {
-        const normalizedQuery = cityQueryEmployer.trim()
+        const normalizedQuery = locationForm.cityName.trim()
 
-        if (normalizedQuery.length < 2) {
-            setEmployerCityOptions([])
+        if (!isLocationModalOpen || normalizedQuery.length < 2) {
+            setLocationCityOptions([])
             return
         }
 
@@ -444,11 +460,11 @@ function ProfileEdit() {
             try {
                 const cities = await searchGeoCities(normalizedQuery, 10)
                 if (!isCancelled) {
-                    setEmployerCityOptions(Array.isArray(cities) ? cities : [])
+                    setLocationCityOptions(Array.isArray(cities) ? cities : [])
                 }
             } catch {
                 if (!isCancelled) {
-                    setEmployerCityOptions([])
+                    setLocationCityOptions([])
                 }
             }
         }, 250)
@@ -457,13 +473,13 @@ function ProfileEdit() {
             isCancelled = true
             clearTimeout(timer)
         }
-    }, [cityQueryEmployer])
+    }, [isLocationModalOpen, locationForm.cityName])
 
     useEffect(() => {
-        const normalizedQuery = addressQuery.trim()
+        const normalizedQuery = locationForm.addressLine.trim()
 
-        if (!isEmployer || !cityIdEmployer || normalizedQuery.length < 3) {
-            setAddressOptions([])
+        if (!isLocationModalOpen || !locationForm.cityId || normalizedQuery.length < 3) {
+            setLocationAddressOptions([])
             return
         }
 
@@ -473,15 +489,15 @@ function ProfileEdit() {
             try {
                 const suggestions = await suggestGeoAddress({
                     query: normalizedQuery,
-                    cityId: Number(cityIdEmployer),
+                    cityId: Number(locationForm.cityId),
                 })
 
                 if (!isCancelled) {
-                    setAddressOptions(Array.isArray(suggestions) ? suggestions : [])
+                    setLocationAddressOptions(Array.isArray(suggestions) ? suggestions : [])
                 }
             } catch {
                 if (!isCancelled) {
-                    setAddressOptions([])
+                    setLocationAddressOptions([])
                 }
             }
         }, 300)
@@ -490,7 +506,7 @@ function ProfileEdit() {
             isCancelled = true
             clearTimeout(timer)
         }
-    }, [addressQuery, cityIdEmployer, isEmployer])
+    }, [isLocationModalOpen, locationForm.cityId, locationForm.addressLine])
 
     useEffect(() => {
         const handleOutsideClick = (event) => {
@@ -509,16 +525,6 @@ function ProfileEdit() {
                 setApplicantCityActiveIndex(-1)
             }
 
-            if (employerCityRef.current && !employerCityRef.current.contains(event.target)) {
-                setIsEmployerCityOpen(false)
-                setEmployerCityActiveIndex(-1)
-            }
-
-            if (addressRef.current && !addressRef.current.contains(event.target)) {
-                setIsAddressOpen(false)
-                setAddressActiveIndex(-1)
-            }
-
             if (facultyRef.current && !facultyRef.current.contains(event.target)) {
                 setIsFacultyOpen(false)
                 setFacultyActiveIndex(-1)
@@ -528,6 +534,16 @@ function ProfileEdit() {
                 setIsStudyProgramOpen(false)
                 setStudyProgramActiveIndex(-1)
             }
+
+            if (locationCityRef.current && !locationCityRef.current.contains(event.target)) {
+                setIsLocationCityOpen(false)
+                setLocationCityActiveIndex(-1)
+            }
+
+            if (locationAddressRef.current && !locationAddressRef.current.contains(event.target)) {
+                setIsLocationAddressOpen(false)
+                setLocationAddressActiveIndex(-1)
+            }
         }
 
         const handleEsc = (event) => {
@@ -535,18 +551,18 @@ function ProfileEdit() {
                 setIsUniversityOpen(false)
                 setIsIndustryOpen(false)
                 setIsApplicantCityOpen(false)
-                setIsEmployerCityOpen(false)
-                setIsAddressOpen(false)
                 setIsFacultyOpen(false)
                 setIsStudyProgramOpen(false)
+                setIsLocationCityOpen(false)
+                setIsLocationAddressOpen(false)
 
                 setUniversityActiveIndex(-1)
                 setIndustryActiveIndex(-1)
                 setApplicantCityActiveIndex(-1)
-                setEmployerCityActiveIndex(-1)
-                setAddressActiveIndex(-1)
                 setFacultyActiveIndex(-1)
                 setStudyProgramActiveIndex(-1)
+                setLocationCityActiveIndex(-1)
+                setLocationAddressActiveIndex(-1)
             }
         }
 
@@ -656,16 +672,30 @@ function ProfileEdit() {
             next.industry = 'Укажите индустрию'
         }
 
-        if (!cityIdEmployer) {
-            next.cityIdEmployer = 'Укажите город'
-        }
-
-        if (!selectedLocationId && !addressQuery.trim()) {
-            next.location = 'Выберите существующую локацию или укажите адрес главного офиса'
+        if (!selectedLocationId) {
+            next.locationId = 'Добавьте и выберите основную локацию компании'
         }
 
         if (websiteUrl.trim() && !/^https?:\/\//i.test(websiteUrl.trim())) {
             next.websiteUrl = 'Ссылка должна начинаться с http:// или https://'
+        }
+
+        return next
+    }
+
+    const validateLocationForm = () => {
+        const next = {}
+
+        if (!locationForm.title.trim()) {
+            next.title = 'Укажите название локации'
+        }
+
+        if (!locationForm.cityId) {
+            next.cityId = 'Город работодателя обязателен'
+        }
+
+        if (!locationForm.addressLine.trim()) {
+            next.addressLine = 'Укажите адрес'
         }
 
         return next
@@ -679,124 +709,106 @@ function ProfileEdit() {
         setCityQuery(found.name)
     }
 
-    const handleSelectEmployerCity = (selectedLabel) => {
-        const found = employerCityOptions.find((city) => city.name === selectedLabel)
-        if (!found) return
-
-        setCityIdEmployer(String(found.id))
-        setCityQueryEmployer(found.name)
-        setSelectedAddressSuggestion(null)
-        setAddressOptions([])
-
-        const selectedLocation = employerLocations.find(
-            (location) => String(location.id) === String(selectedLocationId)
-        )
-
-        if (selectedLocation && String(selectedLocation.cityId) !== String(found.id)) {
-            setSelectedLocationId('')
-            setAddressQuery('')
-        }
+    const handleSelectEmployerLocation = (locationIdValue) => {
+        setSelectedLocationId(locationIdValue)
     }
 
-    const handleSelectAddressSuggestion = (selectedLabel) => {
-        const found = addressOptions.find(
+    const openCreateLocationModal = () => {
+        setLocationForm(createEmptyEmployerLocationForm())
+        setLocationErrors({})
+        setLocationAddressOptions([])
+        setLocationCityOptions([])
+        setIsLocationModalOpen(true)
+    }
+
+    const handleSelectLocationCity = (selectedLabel) => {
+        const found = locationCityOptions.find((city) => city.name === selectedLabel)
+        if (!found) return
+
+        setLocationForm((prev) => ({
+            ...prev,
+            cityId: String(found.id),
+            cityName: found.name,
+        }))
+    }
+
+    const handleSelectLocationAddress = (selectedLabel) => {
+        const found = locationAddressOptions.find(
             (item) =>
                 (item.value || item.unrestrictedValue || item.addressLine || '') === selectedLabel
         )
 
         if (!found) return
 
-        setSelectedAddressSuggestion(found)
-        setAddressQuery(found.value || found.unrestrictedValue || found.addressLine || '')
-        setSelectedLocationId('')
-
-        if (found.cityId) {
-            setCityIdEmployer(String(found.cityId))
-        }
-
-        if (found.cityName) {
-            setCityQueryEmployer(found.cityName)
-        }
+        setLocationForm((prev) => ({
+            ...prev,
+            cityId: found.cityId ? String(found.cityId) : prev.cityId,
+            cityName: found.cityName || prev.cityName,
+            addressLine: found.addressLine || found.value || '',
+            postalCode: found.postalCode || '',
+            latitude: found.latitude ?? '',
+            longitude: found.longitude ?? '',
+            fiasId: found.fiasId || '',
+            unrestrictedValue: found.unrestrictedValue || found.value || '',
+            qcGeo: found.qcGeo ?? '',
+        }))
     }
 
-    const handleSelectEmployerLocation = (locationIdValue) => {
-        setSelectedLocationId(locationIdValue)
+    const handleSaveLocation = async () => {
+        const validation = validateLocationForm()
+        setLocationErrors(validation)
 
-        const selectedLocation = employerLocations.find(
-            (location) => String(location.id) === String(locationIdValue)
-        )
-
-        if (!selectedLocation) return
-
-        setCityIdEmployer(String(selectedLocation.cityId || ''))
-        setCityQueryEmployer(selectedLocation.city?.name || cityQueryEmployer)
-        setAddressQuery(
-            selectedLocation.unrestrictedValue ||
-            selectedLocation.addressLine ||
-            ''
-        )
-        setSelectedAddressSuggestion(null)
-    }
-
-    const ensureEmployerMainOfficeLocation = async () => {
-        if (selectedLocationId) {
-            return Number(selectedLocationId)
+        if (Object.keys(validation).length > 0) {
+            toast({
+                title: 'Проверьте форму',
+                description: Object.values(validation)[0] || 'Заполните обязательные поля локации',
+                variant: 'destructive',
+            })
+            return
         }
 
-        let resolvedAddress = selectedAddressSuggestion
-
-        if (!resolvedAddress && addressQuery.trim()) {
-            resolvedAddress = await resolveGeoAddress(addressQuery.trim())
-        }
-
-        if (!resolvedAddress?.addressLine) {
-            const error = new Error('Не удалось определить адрес главного офиса')
-            error.status = 400
-            throw error
-        }
-
-        const finalCityId = Number(resolvedAddress.cityId || cityIdEmployer || 0)
-
-        if (!finalCityId) {
-            const error = new Error('Не удалось определить город главного офиса')
-            error.status = 400
-            throw error
-        }
-
-        if (
-            cityIdEmployer &&
-            resolvedAddress.cityId &&
-            Number(cityIdEmployer) !== Number(resolvedAddress.cityId)
-        ) {
-            const error = new Error('Адрес главного офиса не соответствует выбранному городу')
-            error.status = 400
-            throw error
-        }
+        setIsLocationSaving(true)
 
         try {
-            const createdLocation = await createEmployerLocation({
-                title: 'Главный офис',
-                cityId: finalCityId,
-                addressLine: resolvedAddress.addressLine,
-                addressLine2: null,
-                postalCode: resolvedAddress.postalCode || null,
-                latitude: resolvedAddress.latitude ?? null,
-                longitude: resolvedAddress.longitude ?? null,
-                fiasId: resolvedAddress.fiasId || null,
+            const payload = {
+                title: locationForm.title.trim(),
+                cityId: Number(locationForm.cityId),
+                addressLine: locationForm.addressLine.trim(),
+                addressLine2: locationForm.addressLine2.trim() || null,
+                postalCode: locationForm.postalCode || null,
+                latitude:
+                    locationForm.latitude !== '' && locationForm.latitude !== null
+                        ? Number(locationForm.latitude)
+                        : null,
+                longitude:
+                    locationForm.longitude !== '' && locationForm.longitude !== null
+                        ? Number(locationForm.longitude)
+                        : null,
+                fiasId: locationForm.fiasId || null,
                 unrestrictedValue:
-                    resolvedAddress.unrestrictedValue ||
-                    resolvedAddress.value ||
-                    addressQuery.trim(),
-                qcGeo: resolvedAddress.qcGeo ?? null,
-            })
+                    locationForm.unrestrictedValue || locationForm.addressLine.trim(),
+                qcGeo:
+                    locationForm.qcGeo !== '' && locationForm.qcGeo !== null
+                        ? Number(locationForm.qcGeo)
+                        : null,
+            }
 
+            const createdLocation = await createEmployerLocation(payload)
             const refreshedLocations = await getEmployerLocations().catch(() => [])
-            setEmployerLocations(Array.isArray(refreshedLocations) ? refreshedLocations : [])
+            const safeLocations = Array.isArray(refreshedLocations) ? refreshedLocations : []
+
+            setEmployerLocations(safeLocations)
 
             if (createdLocation?.id) {
                 setSelectedLocationId(String(createdLocation.id))
-                return Number(createdLocation.id)
             }
+
+            setIsLocationModalOpen(false)
+
+            toast({
+                title: 'Локация создана',
+                description: 'Главный офис добавлен и выбран в профиле',
+            })
         } catch (error) {
             if (error?.code === 'employer_location_duplicate') {
                 const refreshedLocations = await getEmployerLocations().catch(() => [])
@@ -804,27 +816,32 @@ function ProfileEdit() {
                 setEmployerLocations(safeLocations)
 
                 const matchedLocation = findMatchingLocation(safeLocations, {
-                    cityId: finalCityId,
-                    addressLine: resolvedAddress.addressLine,
-                    unrestrictedValue:
-                        resolvedAddress.unrestrictedValue ||
-                        resolvedAddress.value ||
-                        addressQuery.trim(),
-                    fiasId: resolvedAddress.fiasId,
+                    cityId: locationForm.cityId,
+                    addressLine: locationForm.addressLine,
+                    unrestrictedValue: locationForm.unrestrictedValue || locationForm.addressLine,
+                    fiasId: locationForm.fiasId,
                 })
 
                 if (matchedLocation?.id) {
                     setSelectedLocationId(String(matchedLocation.id))
-                    return Number(matchedLocation.id)
+                    setIsLocationModalOpen(false)
+
+                    toast({
+                        title: 'Локация уже существует',
+                        description: 'Существующая локация выбрана как основная',
+                    })
+                    return
                 }
             }
 
-            throw error
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось создать локацию',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsLocationSaving(false)
         }
-
-        const error = new Error('Не удалось создать локацию главного офиса')
-        error.status = 400
-        throw error
     }
 
     const handleSubmit = async (event) => {
@@ -846,21 +863,15 @@ function ProfileEdit() {
 
         try {
             if (isEmployer) {
-                const locationId = await ensureEmployerMainOfficeLocation()
-                const finalCityId = cityIdEmployer ? Number(cityIdEmployer) : null
-
-                await updateEmployerCompanyData({
-                    legalName: legalName.trim(),
-                    inn: inn.trim(),
-                })
-
                 await updateEmployerProfile({
                     companyName: companyName.trim(),
                     description: description.trim() || null,
                     industry: industry.trim() || null,
                     websiteUrl: websiteUrl.trim() || null,
-                    cityId: finalCityId,
-                    locationId,
+                    cityId: selectedEmployerLocation?.cityId
+                        ? Number(selectedEmployerLocation.cityId)
+                        : null,
+                    locationId: selectedLocationId ? Number(selectedLocationId) : null,
                     companySize: companySize || null,
                     foundedYear: foundedYear ? toShort(foundedYear) : null,
                     socialLinks: socialRows
@@ -878,9 +889,14 @@ function ProfileEdit() {
                         })),
                 })
 
+                await updateEmployerCompanyData({
+                    legalName: legalName.trim(),
+                    inn: inn.trim(),
+                })
+
                 toast({
                     title: 'Профиль компании сохранён',
-                    description: 'Главный офис создан или привязан корректно.',
+                    description: 'Основная локация привязана корректно.',
                 })
 
                 navigate('/employer')
@@ -949,7 +965,7 @@ function ProfileEdit() {
                     </CardTitle>
                     <CardDescription>
                         {isEmployer
-                            ? 'Сохранение работодателя теперь идёт через отдельные данные компании, корректную локацию главного офиса и публичный профиль.'
+                            ? 'Заполните данные компании и выберите основную локацию. Если офиса ещё нет, создайте его прямо здесь.'
                             : 'Расскажите о себе — это поможет работодателям найти вас'}
                     </CardDescription>
                 </CardHeader>
@@ -1002,99 +1018,75 @@ function ProfileEdit() {
                                     {errors.legalName && <p className="field-error">{errors.legalName}</p>}
                                 </div>
 
-                                <div className="profile-edit-form__grid-2">
-                                    <div className="profile-edit-form__field" ref={industryRef}>
-                                        <Autocomplete
-                                            label="Индустрия"
-                                            required={true}
-                                            value={industryQuery}
-                                            onChange={(val) => {
-                                                setIndustryQuery(val)
-                                                setIndustry(val)
-                                            }}
-                                            suggestions={industrySuggestions}
-                                            isOpen={isIndustryOpen}
-                                            onOpenChange={setIsIndustryOpen}
-                                            activeIndex={industryActiveIndex}
-                                            onActiveIndexChange={setIndustryActiveIndex}
-                                            inputRef={industryRef}
-                                            placeholder="IT, Образование, Финансы, Ритейл..."
-                                            error={errors.industry}
-                                            onSelect={(selected) => {
-                                                const value = typeof selected === 'string' ? selected : selected?.name || ''
-                                                setIndustry(value)
-                                                setIndustryQuery(value)
-                                            }}
-                                        />
-                                    </div>
-
-                                    <div className="profile-edit-form__field" ref={employerCityRef}>
-                                        <Autocomplete
-                                            label="Город"
-                                            required={true}
-                                            value={cityQueryEmployer}
-                                            onChange={(val) => {
-                                                setCityQueryEmployer(val)
-                                                setCityIdEmployer('')
-                                                setSelectedLocationId('')
-                                                setSelectedAddressSuggestion(null)
-                                                setAddressQuery('')
-                                            }}
-                                            suggestions={employerCitySuggestionLabels}
-                                            isOpen={isEmployerCityOpen}
-                                            onOpenChange={setIsEmployerCityOpen}
-                                            activeIndex={employerCityActiveIndex}
-                                            onActiveIndexChange={setEmployerCityActiveIndex}
-                                            inputRef={employerCityRef}
-                                            placeholder="Начните вводить город"
-                                            error={errors.cityIdEmployer}
-                                            onSelect={(selected) => {
-                                                const value = typeof selected === 'string' ? selected : selected?.name || ''
-                                                handleSelectEmployerCity(value)
-                                            }}
-                                        />
-                                    </div>
+                                <div className="profile-edit-form__field" ref={industryRef}>
+                                    <Autocomplete
+                                        label="Индустрия"
+                                        required={true}
+                                        value={industryQuery}
+                                        onChange={(val) => {
+                                            setIndustryQuery(val)
+                                            setIndustry(val)
+                                        }}
+                                        suggestions={industrySuggestions}
+                                        isOpen={isIndustryOpen}
+                                        onOpenChange={setIsIndustryOpen}
+                                        activeIndex={industryActiveIndex}
+                                        onActiveIndexChange={setIndustryActiveIndex}
+                                        inputRef={industryRef}
+                                        placeholder="IT, Образование, Финансы, Ритейл..."
+                                        error={errors.industry}
+                                        onSelect={(selected) => {
+                                            const value = typeof selected === 'string' ? selected : selected?.name || ''
+                                            setIndustry(value)
+                                            setIndustryQuery(value)
+                                        }}
+                                    />
                                 </div>
 
                                 <div className="profile-edit-form__field">
-                                    <CustomSelect
-                                        label="Главный офис"
-                                        value={selectedLocationId}
-                                        onChange={handleSelectEmployerLocation}
-                                        options={employerLocationOptions}
-                                        placeholder="Выберите уже созданную локацию работодателя"
-                                    />
-                                    <div className="field-hint">
-                                        Можно выбрать уже существующую локацию работодателя или ниже указать новый адрес — тогда локация создастся автоматически.
-                                    </div>
-                                </div>
+                                    <Label>
+                                        Основная локация компании
+                                        <span className="required-star"> *</span>
+                                    </Label>
 
-                                <div className="profile-edit-form__field" ref={addressRef}>
-                                    <Autocomplete
-                                        label="Новый адрес главного офиса"
-                                        required={!selectedLocationId}
-                                        value={addressQuery}
-                                        onChange={(val) => {
-                                            setAddressQuery(val)
-                                            setSelectedAddressSuggestion(null)
-                                            setSelectedLocationId('')
-                                        }}
-                                        suggestions={addressSuggestionLabels}
-                                        isOpen={isAddressOpen}
-                                        onOpenChange={setIsAddressOpen}
-                                        activeIndex={addressActiveIndex}
-                                        onActiveIndexChange={setAddressActiveIndex}
-                                        inputRef={addressRef}
-                                        placeholder="Например: Москва, ул. Тверская, д. 1"
-                                        error={errors.location}
-                                        onSelect={(selected) => {
-                                            const value = typeof selected === 'string' ? selected : selected?.value || ''
-                                            handleSelectAddressSuggestion(value)
-                                        }}
-                                    />
-                                    <div className="field-hint">
-                                        Этот адрес будет использован для создания employer location и затем поставлен в профиль как главный офис.
+                                    {employerLocations.length > 0 ? (
+                                        <CustomSelect
+                                            value={selectedLocationId}
+                                            onChange={handleSelectEmployerLocation}
+                                            options={[
+                                                { value: '', label: 'Выберите локацию' },
+                                                ...employerLocationOptions,
+                                            ]}
+                                            placeholder="Выберите локацию"
+                                        />
+                                    ) : (
+                                        <div className="field-hint">
+                                            У компании пока нет созданных локаций.
+                                        </div>
+                                    )}
+
+                                    {errors.locationId && <p className="field-error">{errors.locationId}</p>}
+
+                                    <div className="profile-edit-form__actions-inline">
+                                        <Button
+                                            type="button"
+                                            className="button--outline"
+                                            onClick={openCreateLocationModal}
+                                        >
+                                            {employerLocations.length > 0
+                                                ? 'Добавить локацию'
+                                                : 'Добавить главный офис'}
+                                        </Button>
                                     </div>
+
+                                    {selectedEmployerLocation && (
+                                        <div className="field-hint">
+                                            Выбрано: {buildEmployerLocationLabel(selectedEmployerLocation)}
+                                            {selectedEmployerLocation.addressLine2
+                                                ? `, ${selectedEmployerLocation.addressLine2}`
+                                                : ''}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="profile-edit-form__field">
@@ -1421,6 +1413,122 @@ function ProfileEdit() {
                     </form>
                 </CardContent>
             </Card>
+
+            {isLocationModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal">
+                        <h3>Добавить локацию компании</h3>
+
+                        <div className="modal__field">
+                            <Label>Название локации <span className="required-star">*</span></Label>
+                            <Input
+                                value={locationForm.title}
+                                onChange={(e) =>
+                                    setLocationForm((prev) => ({
+                                        ...prev,
+                                        title: e.target.value,
+                                    }))
+                                }
+                                placeholder="Например: Главный офис"
+                            />
+                            {locationErrors.title && <p className="field-error">{locationErrors.title}</p>}
+                        </div>
+
+                        <div className="modal__field modal__field--city" ref={locationCityRef}>
+                            <Autocomplete
+                                label="Город работодателя"
+                                required={true}
+                                value={locationForm.cityName}
+                                onChange={(val) =>
+                                    setLocationForm((prev) => ({
+                                        ...prev,
+                                        cityId: '',
+                                        cityName: val,
+                                    }))
+                                }
+                                suggestions={locationCitySuggestionLabels}
+                                isOpen={isLocationCityOpen}
+                                onOpenChange={setIsLocationCityOpen}
+                                activeIndex={locationCityActiveIndex}
+                                onActiveIndexChange={setLocationCityActiveIndex}
+                                inputRef={locationCityRef}
+                                placeholder="Начните вводить город"
+                                error={locationErrors.cityId}
+                                onSelect={(selected) => {
+                                    const value = typeof selected === 'string' ? selected : selected?.name || ''
+                                    handleSelectLocationCity(value)
+                                }}
+                            />
+                        </div>
+
+                        <div className="modal__field modal__field--address" ref={locationAddressRef}>
+                            <Autocomplete
+                                label="Адрес"
+                                required={true}
+                                value={locationForm.addressLine}
+                                onChange={(val) =>
+                                    setLocationForm((prev) => ({
+                                        ...prev,
+                                        addressLine: val,
+                                        unrestrictedValue: '',
+                                        postalCode: '',
+                                        latitude: '',
+                                        longitude: '',
+                                        fiasId: '',
+                                        qcGeo: '',
+                                    }))
+                                }
+                                suggestions={locationAddressSuggestionLabels}
+                                isOpen={isLocationAddressOpen}
+                                onOpenChange={setIsLocationAddressOpen}
+                                activeIndex={locationAddressActiveIndex}
+                                onActiveIndexChange={setLocationAddressActiveIndex}
+                                inputRef={locationAddressRef}
+                                placeholder="Например: Москва, ул. Тверская, д. 1"
+                                error={locationErrors.addressLine}
+                                onSelect={(selected) => {
+                                    const value = typeof selected === 'string' ? selected : selected?.value || ''
+                                    handleSelectLocationAddress(value)
+                                }}
+                            />
+                        </div>
+
+                        <div className="modal__field">
+                            <Label>Дополнительный адрес</Label>
+                            <Input
+                                value={locationForm.addressLine2}
+                                onChange={(e) =>
+                                    setLocationForm((prev) => ({
+                                        ...prev,
+                                        addressLine2: e.target.value,
+                                    }))
+                                }
+                                placeholder="Этаж, офис, корпус"
+                            />
+                        </div>
+
+                        <div className="modal__actions">
+                            <Button
+                                type="button"
+                                className="button--primary"
+                                onClick={handleSaveLocation}
+                                disabled={isLocationSaving}
+                            >
+                                {isLocationSaving ? 'Сохранение...' : 'Сохранить локацию'}
+                            </Button>
+
+                            <Button
+                                type="button"
+                                className="button--ghost"
+                                onClick={() => setIsLocationModalOpen(false)}
+                                disabled={isLocationSaving}
+                            >
+                                Отменить
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
