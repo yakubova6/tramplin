@@ -1,47 +1,185 @@
-// api/admin.js
+import { toQuery } from './http'
 
-import { httpJson } from './http'
+const API_BASE = '/api/admin/curators'
+const CSRF_URL = '/api/auth/csrf'
 
-const API_BASE = '/api'
+let csrfState = null
 
-/**
- * Получение CSRF токена
- * GET /api/Auth/csrf
- */
-async function getCsrfToken() {
+function createError(message, status = 0, code = null) {
+    const error = new Error(message)
+    error.status = status
+    error.code = code
+    return error
+}
+
+async function parseResponseBody(response) {
+    if (response.status === 204) return null
+
+    const contentType = response.headers.get('content-type') || ''
+    const isJson = contentType.includes('application/json')
+
+    if (isJson) {
+        try {
+            return await response.json()
+        } catch {
+            return null
+        }
+    }
+
     try {
-        const response = await fetch(`${API_BASE}/auth/csrf`, {
-            credentials: 'include',
-        })
-        const data = await response.json()
-        return data
-    } catch (error) {
-        console.warn('Failed to get CSRF token:', error)
+        const text = await response.text()
+        return text || null
+    } catch {
         return null
     }
 }
 
-/**
- * Создание куратора (только для ADMIN)
- * POST /api/admin/curators
- */
-export async function createCurator(payload) {
-    // Получаем CSRF токен
-    const csrf = await getCsrfToken()
+async function getCsrf(forceRefresh = false) {
+    if (csrfState && !forceRefresh) {
+        return csrfState
+    }
+
+    let response
+
+    try {
+        response = await fetch(CSRF_URL, {
+            method: 'GET',
+            credentials: 'include',
+        })
+    } catch {
+        throw createError(
+            'Не удалось подготовить защищённый запрос. Попробуйте ещё раз.',
+            0
+        )
+    }
+
+    const data = await parseResponseBody(response)
+
+    if (!response.ok) {
+        const message =
+            (typeof data === 'object' && data?.message) ||
+            (typeof data === 'object' && data?.error) ||
+            'Не удалось получить CSRF-токен'
+
+        throw createError(message, response.status)
+    }
+
+    const headerName = data?.headerName || 'X-XSRF-TOKEN'
+    const token = data?.token || ''
+
+    if (!token) {
+        throw createError(
+            'Не удалось подготовить защищённый запрос. Обновите страницу и попробуйте снова.',
+            response.status || 0
+        )
+    }
+
+    csrfState = {
+        headerName,
+        token,
+    }
+
+    return csrfState
+}
+
+async function adminRequest(url, options = {}) {
+    const {
+        headers: customHeaders,
+        skipCsrf = false,
+        _retryWithFreshCsrf = false,
+        forceCsrfRefresh = false,
+        ...fetchOptions
+    } = options
+
+    const method = (fetchOptions.method || 'GET').toUpperCase()
+    const shouldAttachCsrf =
+        !skipCsrf && !['GET', 'HEAD', 'OPTIONS'].includes(method)
 
     const headers = {
         'Content-Type': 'application/json',
+        ...(customHeaders || {}),
     }
 
-    // Добавляем CSRF токен в заголовки, если он есть
-    if (csrf?.headerName && csrf?.token) {
+    if (shouldAttachCsrf) {
+        const csrf = await getCsrf(forceCsrfRefresh)
         headers[csrf.headerName] = csrf.token
-        console.log('[API] Adding CSRF header:', csrf.headerName, csrf.token)
     }
 
-    return httpJson(`${API_BASE}/admin/curators`, {
+    let response
+
+    try {
+        response = await fetch(url, {
+            credentials: 'include',
+            headers,
+            ...fetchOptions,
+        })
+    } catch {
+        throw createError(
+            'Сервер недоступен. Проверьте подключение и попробуйте снова.',
+            0
+        )
+    }
+
+    const data = await parseResponseBody(response)
+
+    if (!response.ok) {
+        if (response.status === 403 && shouldAttachCsrf && !_retryWithFreshCsrf) {
+            csrfState = null
+
+            return adminRequest(url, {
+                ...fetchOptions,
+                headers: customHeaders,
+                skipCsrf,
+                _retryWithFreshCsrf: true,
+                forceCsrfRefresh: true,
+            })
+        }
+
+        const message =
+            (typeof data === 'object' && data?.message) ||
+            (typeof data === 'object' && data?.error) ||
+            (typeof data === 'string' && data) ||
+            'Ошибка запроса'
+
+        const code =
+            (typeof data === 'object' && (data?.code || data?.errorCode)) || null
+
+        throw createError(message, response.status, code)
+    }
+
+    return data
+}
+
+export async function getCurators(params = {}) {
+    const query = toQuery({
+        limit: params.limit ?? 20,
+        offset: params.offset ?? 0,
+        search: params.search?.trim() || undefined,
+    })
+
+    return adminRequest(`${API_BASE}${query ? `?${query}` : ''}`, {
+        method: 'GET',
+        skipCsrf: true,
+    })
+}
+
+export async function getCuratorDetail(curatorId) {
+    return adminRequest(`${API_BASE}/${curatorId}`, {
+        method: 'GET',
+        skipCsrf: true,
+    })
+}
+
+export async function createCurator(payload) {
+    return adminRequest(API_BASE, {
         method: 'POST',
         body: JSON.stringify(payload),
-        headers: headers
+    })
+}
+
+export async function updateCuratorAccess(curatorId, payload) {
+    return adminRequest(`${API_BASE}/${curatorId}/access`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
     })
 }

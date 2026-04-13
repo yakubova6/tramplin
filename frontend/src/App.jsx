@@ -11,6 +11,7 @@ import ProfileEdit from './pages/ProfileEdit/ProfileEdit'
 import ApplicantSearchPage from './pages/ApplicantSearch/ApplicantSearchPage'
 import ApplicantPublicProfile from './pages/ApplicantPublicProfile/ApplicantPublicProfile'
 import SecuritySettings from './pages/Settings/SecuritySettings/SecuritySettings'
+import CuratorsAdminPage from './pages/Admin/CuratorsAdminPage/CuratorsAdminPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import './styles/main.scss'
 
@@ -47,6 +48,12 @@ function App() {
             <Route path="/curator">
                 <ProtectedRoute allowedRoles={['CURATOR', 'ADMIN']}>
                     <CuratorDashboard />
+                </ProtectedRoute>
+            </Route>
+
+            <Route path="/admin/curators">
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                    <CuratorsAdminPage />
                 </ProtectedRoute>
             </Route>
 
