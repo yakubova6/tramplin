@@ -35,5 +35,6 @@ data class EmployerOpportunityEditPayload(
     val tagIds: List<Long>,
     val moderationComment: String?,
     val createdAt: OffsetDateTime?,
-    val updatedAt: OffsetDateTime?
+    val updatedAt: OffsetDateTime?,
+    val media: List<EmployerOpportunityMediaItem> = emptyList(),
 )

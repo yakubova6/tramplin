@@ -95,18 +95,24 @@ class EmployerOpportunityMediaService(
         return updatedAttachments
     }
 
-    private fun loadManageableOwnedOpportunity(
+    private fun loadOwnedOpportunity(
         currentUserId: Long,
         opportunityId: Long,
     ): OpportunityDto {
-        val opportunity = opportunityDao.findByIdAndEmployerUserId(opportunityId, currentUserId)
+        return opportunityDao.findByIdAndEmployerUserId(opportunityId, currentUserId)
             .orElseThrow {
                 OpportunityNotFoundDomainException(
                     message = "Возможность не найдена",
                     code = "opportunity_not_found",
                 )
             }
+    }
 
+    private fun loadManageableOwnedOpportunity(
+        currentUserId: Long,
+        opportunityId: Long,
+    ): OpportunityDto {
+        val opportunity = loadOwnedOpportunity(currentUserId, opportunityId)
         validateMediaEditableStatus(opportunity)
         return opportunity
     }

@@ -1,5 +1,6 @@
 package ru.itplanet.trampline.opportunity.service
 
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -11,6 +12,10 @@ import ru.itplanet.trampline.commons.model.OpportunityContactInfo
 import ru.itplanet.trampline.commons.model.enums.OpportunityStatus
 import ru.itplanet.trampline.commons.model.enums.OpportunityType
 import ru.itplanet.trampline.commons.model.enums.WorkFormat
+import ru.itplanet.trampline.commons.model.file.FileAttachmentEntityType
+import ru.itplanet.trampline.commons.model.file.FileAttachmentRole
+import ru.itplanet.trampline.commons.model.file.InternalFileAttachmentResponse
+import ru.itplanet.trampline.opportunity.client.MediaServiceClient
 import ru.itplanet.trampline.opportunity.converter.EmployerOpportunityConverter
 import ru.itplanet.trampline.opportunity.dao.EmployerProfileDao
 import ru.itplanet.trampline.opportunity.dao.OpportunityDao
@@ -26,6 +31,7 @@ import ru.itplanet.trampline.opportunity.exception.OpportunityValidationExceptio
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityCard
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityEditPayload
 import ru.itplanet.trampline.opportunity.model.EmployerOpportunityListItem
+import ru.itplanet.trampline.opportunity.model.EmployerOpportunityMediaItem
 import ru.itplanet.trampline.opportunity.model.OpportunityPage
 import ru.itplanet.trampline.opportunity.model.enums.TagModerationStatus
 import ru.itplanet.trampline.opportunity.model.request.CreateEmployerOpportunityContactInfoRequest
@@ -49,6 +55,7 @@ class EmployerOpportunityServiceImpl(
     private val employerOpportunityConverter: EmployerOpportunityConverter,
     private val employerOpportunityCreatePolicy: EmployerOpportunityCreatePolicy,
     private val opportunityDomainValidator: OpportunityDomainValidator,
+    private val mediaServiceClient: MediaServiceClient,
 ) : EmployerOpportunityService {
 
     @Transactional
@@ -121,7 +128,7 @@ class EmployerOpportunityServiceImpl(
         opportunityId: Long,
     ): EmployerOpportunityEditPayload {
         val opportunity = getOwnedOpportunity(opportunityId, currentUserId)
-        return employerOpportunityConverter.toEditPayload(opportunity)
+        return buildEditPayload(opportunity)
     }
 
     @Transactional
@@ -157,7 +164,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.moderationComment = null
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(saved)
     }
 
     @Transactional
@@ -174,7 +181,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.moderationComment = null
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(saved)
     }
 
     @Transactional
@@ -189,7 +196,7 @@ class EmployerOpportunityServiceImpl(
         opportunity.status = OpportunityStatus.CLOSED
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(saved)
     }
 
     @Transactional
@@ -204,7 +211,45 @@ class EmployerOpportunityServiceImpl(
         opportunity.status = OpportunityStatus.ARCHIVED
 
         val saved = opportunityDao.saveAndFlush(opportunity)
-        return employerOpportunityConverter.toEditPayload(saved)
+        return buildEditPayload(saved)
+    }
+
+    private fun buildEditPayload(
+        opportunity: OpportunityDto,
+    ): EmployerOpportunityEditPayload {
+        val opportunityId = requireNotNull(opportunity.id)
+
+        return employerOpportunityConverter.toEditPayload(opportunity).copy(
+            media = loadOpportunityMedia(opportunityId),
+        )
+    }
+
+    private fun loadOpportunityMedia(
+        opportunityId: Long,
+    ): List<EmployerOpportunityMediaItem> {
+        return try {
+            mediaServiceClient.getAttachments(
+                entityType = FileAttachmentEntityType.OPPORTUNITY,
+                entityId = opportunityId,
+            )
+                .filter { it.attachmentRole == FileAttachmentRole.MEDIA }
+                .sortedWith(compareBy<InternalFileAttachmentResponse>({ it.sortOrder }, { it.attachmentId }))
+                .map { attachment ->
+                    EmployerOpportunityMediaItem(
+                        attachmentId = attachment.attachmentId,
+                        fileId = attachment.fileId,
+                        originalFileName = attachment.file.originalFileName,
+                        mediaType = attachment.file.mediaType,
+                        sortOrder = attachment.sortOrder,
+                        downloadUrl = runCatching {
+                            mediaServiceClient.getDownloadUrl(attachment.fileId).url
+                        }.getOrNull(),
+                    )
+                }
+        } catch (ex: Exception) {
+            logger.warn("Failed to load opportunity media for opportunityId={}", opportunityId, ex)
+            emptyList()
+        }
     }
 
     private fun getOwnedOpportunity(
@@ -640,4 +685,8 @@ class EmployerOpportunityServiceImpl(
         val city: CityDto?,
         val location: LocationDto?,
     )
+
+    private companion object {
+        private val logger = LoggerFactory.getLogger(EmployerOpportunityServiceImpl::class.java)
+    }
 }
