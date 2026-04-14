@@ -9,6 +9,7 @@ function Input({
                    required = false,
                    className = '',
                    name,
+                   ...rest
                }) {
     return (
         <input
@@ -20,6 +21,7 @@ function Input({
             placeholder={placeholder}
             required={required}
             className={`input ${className}`.trim()}
+            {...rest}
         />
     )
 }

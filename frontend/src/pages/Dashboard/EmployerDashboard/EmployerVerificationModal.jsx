@@ -16,6 +16,7 @@ function EmployerVerificationModal({
                                        onSubmit,
                                        onClose,
                                        userEmail = '',
+                                       companyInn = '',
                                    }) {
     if (!isOpen) return null
 
@@ -54,16 +55,12 @@ function EmployerVerificationModal({
                     <div className="modal__field">
                         <Label>ИНН</Label>
                         <Input
-                            value={verificationData.inn}
-                            maxLength={12}
-                            onChange={(e) => setVerificationData((prev) => ({
-                                ...prev,
-                                inn: e.target.value.replace(/[^\d]/g, '').slice(0, 12),
-                            }))}
-                            placeholder="1234567890"
+                            value={verificationData.inn || companyInn || ''}
+                            readOnly
+                            placeholder="ИНН из реквизитов компании"
                         />
                         <p className="field-hint">
-                            Для проверки будет использован ИНН из реквизитов компании. Перед отправкой он сохранится в профиле.
+                            Для проверки будет использован ИНН из реквизитов компании. Изменить его можно в разделе «Реквизиты компании».
                         </p>
                     </div>
                 )}

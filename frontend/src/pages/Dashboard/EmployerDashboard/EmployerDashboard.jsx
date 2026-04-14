@@ -449,6 +449,17 @@ function EmployerDashboard() {
         inn: profile.inn?.trim() || '',
     })
 
+    const openVerificationModalWithTinDefault = (companyInn = profile.inn || '') => {
+        setVerificationLinkRows([createLinkRow()])
+        setVerificationData((prev) => ({
+            ...prev,
+            verificationMethod: 'TIN',
+            inn: companyInn,
+            submittedComment: '',
+        }))
+        setShowVerificationModal(true)
+    }
+
     const resetOpportunityForm = () => {
         setOpportunityMode('create')
         setEditingOpportunityId(null)
@@ -791,11 +802,11 @@ function EmployerDashboard() {
         }
 
         if (method === 'TIN') {
-            const normalizedInn = String(verificationData.inn || profile.inn || '').trim()
+            const normalizedInn = String(profile.inn || verificationData.inn || '').trim()
             if (!normalizedInn || !/^\d{10}(\d{2})?$/.test(normalizedInn)) {
                 toast({
                     title: 'Ошибка',
-                    description: 'Укажите корректный ИНН из 10 или 12 цифр',
+                    description: 'Чтобы пройти верификацию по ИНН, сначала заполните корректный ИНН в разделе «Реквизиты компании»',
                     variant: 'destructive',
                 })
                 return
@@ -817,19 +828,7 @@ function EmployerDashboard() {
         setIsLoading(true)
 
         try {
-            const normalizedInn = String(verificationData.inn || profile.inn || '').trim()
-
-            if (method === 'TIN' && normalizedInn !== String(profile.inn || '').trim()) {
-                await updateEmployerCompanyData({
-                    legalName: profile.legalName?.trim() || '',
-                    inn: normalizedInn,
-                })
-
-                setProfile((prev) => ({
-                    ...prev,
-                    inn: normalizedInn,
-                }))
-            }
+            const normalizedInn = String(profile.inn || verificationData.inn || '').trim()
 
             const payload = {
                 verificationMethod: method,
@@ -848,7 +847,7 @@ function EmployerDashboard() {
                 payload.professionalLinks = rowsToLinks(verificationLinkRows).map((item) => item.url)
             }
 
-            await createEmployerVerification(payload, user.userId)
+            await createEmployerVerification(payload)
             await reloadEmployerProfile()
 
             toast({
@@ -1166,30 +1165,56 @@ function EmployerDashboard() {
             return
         }
 
+        const activeVerificationStates = ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW']
+        const normalizedVerificationState = String(profile.verificationStatus || '').toUpperCase()
+        const isVerificationFlowLocked = activeVerificationStates.includes(normalizedVerificationState)
+
+        if (isVerificationFlowLocked) {
+            toast({
+                title: 'Верификация уже выполняется',
+                description: 'Дождитесь завершения текущей проверки компании, чтобы отправить новую заявку',
+                variant: 'destructive',
+            })
+            return
+        }
+
         setIsLoading(true)
 
         try {
             const companyPayload = buildEmployerCompanyPayload()
             const hasCompanyChanges = !areCompanyPayloadsEqual(companyPayload, initialCompanySnapshot)
+            const isAlreadyVerified = normalizedVerificationState === 'APPROVED'
 
-            if (!hasCompanyChanges) {
+            if (hasCompanyChanges) {
+                await updateEmployerCompanyData(companyPayload)
+                await reloadEmployerProfile()
+
                 toast({
-                    title: 'Без изменений',
-                    description: 'Реквизиты компании не изменились',
+                    title: 'Реквизиты сохранены',
+                    description: 'Теперь выберите способ верификации компании',
+                })
+
+                setIsEditingCompanyData(false)
+                openVerificationModalWithTinDefault(companyPayload.inn)
+                return
+            }
+
+            if (isAlreadyVerified) {
+                toast({
+                    title: 'Компания уже верифицирована',
+                    description: 'Реквизиты не изменились. Повторная отправка не требуется',
                 })
                 setIsEditingCompanyData(false)
                 return
             }
 
-            await updateEmployerCompanyData(companyPayload)
-            await reloadEmployerProfile()
-
             toast({
-                title: 'Реквизиты сохранены',
-                description: 'Юридические данные компании обновлены',
+                title: 'Реквизиты готовы',
+                description: 'Теперь выберите способ верификации компании',
             })
 
             setIsEditingCompanyData(false)
+            openVerificationModalWithTinDefault(companyPayload.inn)
         } catch (error) {
             console.error('Save company data error:', error)
             toast({
@@ -1216,34 +1241,14 @@ function EmployerDashboard() {
             return
         }
 
-        const companyValidation = validateCompanyData()
-
-        if (!companyValidation.isValid) {
-            toast({
-                title: 'Ошибка',
-                description:
-                    Object.values(companyValidation.nextErrors)[0] ||
-                    'Проверьте юридические данные компании',
-                variant: 'destructive',
-            })
-            return
-        }
-
         setIsLoading(true)
 
         try {
             const profilePayload = buildEmployerProfilePayload()
-            const companyPayload = buildEmployerCompanyPayload()
-
             const hasPublicChanges = !areProfilePayloadsEqual(profilePayload, initialProfileSnapshot)
-            const hasCompanyChanges = !areCompanyPayloadsEqual(companyPayload, initialCompanySnapshot)
 
             if (hasPublicChanges) {
                 await updateEmployerProfile(profilePayload)
-            }
-
-            if (hasCompanyChanges) {
-                await updateEmployerCompanyData(companyPayload)
             }
 
             if (isProfileAlreadyOnModeration(profile.moderationStatus)) {
@@ -1262,7 +1267,7 @@ function EmployerDashboard() {
 
             toast({
                 title: 'Профиль отправлен',
-                description: 'Профиль отправлен на модерацию',
+                description: 'Публичный профиль отправлен на модерацию',
             })
 
             setIsEditingProfile(false)
@@ -1654,6 +1659,7 @@ function EmployerDashboard() {
                 onSubmit={handleSubmitVerification}
                 onClose={() => setShowVerificationModal(false)}
                 userEmail={user?.email || ''}
+                companyInn={profile.inn || ''}
             />
 
             <EmployerLocationModal

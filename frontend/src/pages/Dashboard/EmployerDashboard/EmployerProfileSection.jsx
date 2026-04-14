@@ -107,11 +107,12 @@ function EmployerProfileSection({
             ? 'Это текущая версия профиля в вашем кабинете. После одобрения модератором она заменит публичную.'
             : moderationMeta.description
 
-    const showInitialModerationAction = moderationState === 'DRAFT'
-
-    // Определяем, показывать ли ИНН и юридическое название
+    const showInitialModerationAction = ['DRAFT', 'NEEDS_REVISION'].includes(moderationState)
     const isPublicView = shouldShowVersionSwitch && profileVersionView === 'public'
     const showSensitiveFields = !isPublicView
+    const isVerificationFlowLocked = ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW'].includes(
+        String(verificationState || '').toUpperCase()
+    )
 
     return (
         <div className="employer-profile">
@@ -150,8 +151,9 @@ function EmployerProfileSection({
                     {showInitialModerationAction && (
                         <div className="employer-profile__moderation-actions">
                             <div className="employer-profile__moderation-hint">
-                                Вы уже сохранили черновик профиля. Чтобы профиль впервые попал на проверку к куратору,
-                                отправьте его на модерацию отдельной кнопкой.
+                                {moderationState === 'NEEDS_REVISION'
+                                    ? 'После правок сохраните данные и снова отправьте публичный профиль на модерацию отдельной кнопкой.'
+                                    : 'Вы уже сохранили черновик профиля. Чтобы профиль впервые попал на проверку к куратору, отправьте его на модерацию отдельной кнопкой.'}
                             </div>
 
                             <Button
@@ -419,9 +421,17 @@ function EmployerProfileSection({
                     </div>
 
                     <p className="employer-profile__section-hint">
-                        Здесь хранятся юридическое название и ИНН. Название компании для карточки редактируется
-                        в публичном профиле.
+                        Здесь хранятся юридическое название и ИНН. После сохранения реквизитов откроется шаг
+                        верификации компании, где можно выбрать способ подтверждения: по ИНН, корпоративной почте
+                        или профессиональным ссылкам. Название компании для карточки редактируется в публичном профиле.
                     </p>
+
+                    {isVerificationFlowLocked && (
+                        <p className="employer-profile__section-hint">
+                            По компании уже идёт активная проверка. Дождитесь её завершения, чтобы обновить
+                            реквизиты и отправить новую заявку на верификацию.
+                        </p>
+                    )}
 
                     <div className="employer-profile__edit-field">
                         <Label>Юридическое название <span className="required-star">*</span></Label>
@@ -448,8 +458,12 @@ function EmployerProfileSection({
                     </div>
 
                     <div className="employer-profile__edit-actions">
-                        <Button className="button--primary" onClick={onHandleSaveCompanyData} disabled={isLoading}>
-                            {isLoading ? 'Сохранение...' : 'Сохранить реквизиты'}
+                        <Button
+                            className="button--primary"
+                            onClick={onHandleSaveCompanyData}
+                            disabled={isLoading || isVerificationFlowLocked}
+                        >
+                            {isLoading ? 'Сохранение...' : 'Сохранить и продолжить верификацию'}
                         </Button>
                         <Button className="button--ghost" onClick={() => setIsEditingCompanyData(false)}>
                             Отменить
@@ -472,8 +486,8 @@ function EmployerProfileSection({
                     </div>
 
                     <p className="employer-profile__section-hint">
-                        {moderationState === 'DRAFT'
-                            ? 'При первом заполнении сохраните данные, затем отдельно отправьте профиль на модерацию.'
+                        {['DRAFT', 'NEEDS_REVISION'].includes(moderationState)
+                            ? 'Сохранение обновляет черновик профиля. Когда всё будет готово, отправьте публичный профиль на модерацию отдельной кнопкой.'
                             : 'После сохранения изменения профиля будут автоматически отправлены на модерацию.'}
                     </p>
 
