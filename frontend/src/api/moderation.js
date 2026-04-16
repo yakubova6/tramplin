@@ -2,6 +2,35 @@ import { httpJson, toQuery } from './http'
 
 const API_BASE = '/api/moderation'
 
+async function httpForm(url, formData, options = {}) {
+    const response = await fetch(url, {
+        method: options.method || 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: {
+            ...(options.headers || {}),
+        },
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    const data = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null)
+
+    if (!response.ok) {
+        const message = (typeof data === 'object' && data?.message)
+            || (typeof data === 'object' && data?.error)
+            || (typeof data === 'string' && data)
+            || 'Ошибка запроса'
+
+        const error = new Error(message)
+        error.status = response.status
+        throw error
+    }
+
+    return data
+}
+
 export const ENTITY_TYPES = [
     { value: '', label: 'Все типы' },
     { value: 'APPLICANT_PROFILE', label: 'Профиль соискателя' },
@@ -13,8 +42,8 @@ export const ENTITY_TYPES = [
 
 export const TASK_TYPES = [
     { value: '', label: 'Все типы' },
-    { value: 'PROFILE_REVIEW', label: 'Проверка профиля соискателя' },
-    { value: 'COMPANY_REVIEW', label: 'Проверка профиля работодателя' },
+    { value: 'PROFILE_REVIEW', label: 'Проверка профиля' },
+    { value: 'COMPANY_REVIEW', label: 'Проверка компании' },
     { value: 'VERIFICATION_REVIEW', label: 'Проверка верификации' },
     { value: 'OPPORTUNITY_REVIEW', label: 'Проверка вакансии' },
     { value: 'TAG_REVIEW', label: 'Проверка тега' },
@@ -48,6 +77,10 @@ export const SEVERITY_OPTIONS = [
 export const SORT_OPTIONS = [
     { value: 'createdAt,desc', label: 'Сначала новые' },
     { value: 'createdAt,asc', label: 'Сначала старые' },
+    { value: 'updatedAt,desc', label: 'Недавно обновлённые' },
+    { value: 'updatedAt,asc', label: 'Давно обновлённые' },
+    { value: 'priority,desc', label: 'Сначала высокий приоритет' },
+    { value: 'priority,asc', label: 'Сначала низкий приоритет' },
 ]
 
 export async function getModerationTasks(params = {}) {
@@ -60,7 +93,6 @@ export async function getModerationTasks(params = {}) {
         mine: params.mine,
         createdFrom: params.createdFrom,
         createdTo: params.createdTo,
-        search: params.search,
         page: params.page ?? 0,
         size: params.size ?? 20,
         sort: params.sort || 'createdAt,desc',
@@ -75,6 +107,10 @@ export async function getModerationTaskDetail(taskId) {
 
 export async function getEntityModerationHistory(entityType, entityId) {
     return httpJson(`${API_BASE}/entities/${entityType}/${entityId}/history`)
+}
+
+export async function getEntityAttachments(entityType, entityId) {
+    return httpJson(`${API_BASE}/entities/${entityType}/${entityId}/attachments`)
 }
 
 export async function getModerationDashboard() {
@@ -104,6 +140,20 @@ export async function rejectModerationTask(taskId, payload) {
     }
 
     return httpJson(`${API_BASE}/tasks/${taskId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    })
+}
+
+export async function requestChangesModerationTask(taskId, payload) {
+    const body = {
+        comment: payload.comment || '',
+        reasonCode: payload.reasonCode || '',
+        fieldIssues: Array.isArray(payload.fieldIssues) ? payload.fieldIssues : [],
+        notifyUser: payload.notifyUser ?? true,
+    }
+
+    return httpJson(`${API_BASE}/tasks/${taskId}/request-changes`, {
         method: 'POST',
         body: JSON.stringify(body),
     })
@@ -140,7 +190,7 @@ export async function assignModerationTask(taskId, payload) {
 export async function createManualModerationTask(payload) {
     const body = {
         entityType: payload.entityType,
-        entityId: payload.entityId,
+        entityId: Number(payload.entityId),
         taskType: payload.taskType,
         priority: payload.priority || 'MEDIUM',
         comment: payload.comment || '',
@@ -150,4 +200,21 @@ export async function createManualModerationTask(payload) {
         method: 'POST',
         body: JSON.stringify(body),
     })
+}
+
+export async function uploadModerationTaskAttachment(taskId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return httpForm(`${API_BASE}/tasks/${taskId}/attachments`, formData)
+}
+
+export async function deleteModerationTaskAttachment(taskId, attachmentId) {
+    return httpJson(`${API_BASE}/tasks/${taskId}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+    })
+}
+
+export async function getModerationTaskAttachmentDownloadUrl(taskId, fileId) {
+    return httpJson(`${API_BASE}/tasks/${taskId}/attachments/${fileId}/download-url`)
 }
