@@ -24,6 +24,9 @@ import {
     searchGeoCities,
     suggestGeoAddress,
     createEmployerVerification,
+    uploadEmployerVerificationAttachment,
+    getEmployerVerificationModerationTask,
+    cancelEmployerVerificationModerationTask,
 } from '@/api/profile'
 
 import {
@@ -55,6 +58,11 @@ import {
     normalizeLocationState,
     statusBucket,
 } from './employerDashboard.helpers'
+
+const DISMISSED_ALERTS_STORAGE_KEY = 'employer_dashboard_dismissed_alerts'
+
+const ACTIVE_VERIFICATION_STATUSES = ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW']
+const FINALIZED_VERIFICATION_STATUSES = ['APPROVED', 'REJECTED', 'REVOKED']
 
 const areProfilePayloadsEqual = (a = {}, b = {}) => {
     return JSON.stringify({
@@ -130,6 +138,11 @@ function EmployerDashboard() {
         inn: '',
         submittedComment: '',
     })
+
+    const [currentVerification, setCurrentVerification] = useState(null)
+    const [verificationModerationTask, setVerificationModerationTask] = useState(null)
+    const [verificationAttachments, setVerificationAttachments] = useState([])
+    const [isVerificationAttachmentUploading, setIsVerificationAttachmentUploading] = useState(false)
 
     const [profile, setProfile] = useState({
         userId: null,
@@ -208,10 +221,22 @@ function EmployerDashboard() {
     const addressSearchRef = useRef(null)
     const logoInputRef = useRef(null)
 
-    const verificationState = profile.verificationStatus || 'NOT_STARTED'
-    const moderationState = profile.moderationStatus || 'DRAFT'
+    const verificationState = String(profile.verificationStatus || 'NOT_STARTED').toUpperCase()
+    const moderationState = String(profile.moderationStatus || 'DRAFT').toUpperCase()
     const isVerified = verificationState === 'APPROVED'
     const moderationMeta = getEmployerModerationStatusMeta(moderationState)
+
+    const verificationAlertStateSignature = useMemo(() => {
+        const verificationTaskStatus = String(verificationModerationTask?.status || '').toUpperCase()
+        const profileTaskStatus = String(activeModerationTask?.status || '').toUpperCase()
+
+        return JSON.stringify({
+            verificationState,
+            moderationState,
+            verificationTaskStatus,
+            profileTaskStatus,
+        })
+    }, [verificationState, moderationState, verificationModerationTask?.status, activeModerationTask?.status])
 
     const selectedEmployerLocation = useMemo(
         () => employerLocations.find((item) => Number(item.id) === Number(profile.locationId)) || null,
@@ -499,13 +524,12 @@ function EmployerDashboard() {
     })
 
     const openVerificationModalWithTinDefault = (companyInn = profile.inn || '') => {
-        setVerificationLinkRows([createLinkRow()])
         setVerificationData((prev) => ({
             ...prev,
-            verificationMethod: 'TIN',
+            verificationMethod: prev?.verificationMethod || 'TIN',
             inn: companyInn,
-            submittedComment: '',
         }))
+
         setShowVerificationModal(true)
     }
 
@@ -551,6 +575,37 @@ function EmployerDashboard() {
         setAddressSuggestions([])
         setIsAddressSearchOpen(false)
     }, [])
+
+    const resetVerificationForm = useCallback(() => {
+        setVerificationData({
+            verificationMethod: 'TIN',
+            corporateEmail: '',
+            inn: profile?.inn || '',
+            submittedComment: '',
+        })
+        setVerificationLinkRows([createLinkRow()])
+    }, [profile?.inn])
+
+    const openVerificationModal = useCallback(() => {
+        const fallbackStatus = String(profile?.verificationStatus || '').toUpperCase()
+
+        setShowVerificationModal(true)
+
+        if (!currentVerification && ['PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].includes(fallbackStatus)) {
+            setCurrentVerification({
+                id: null,
+                status: fallbackStatus,
+                verificationStatus: fallbackStatus,
+            })
+        }
+
+        setVerificationData((prev) => ({
+            ...prev,
+            inn: prev.inn || profile?.inn || '',
+            corporateEmail: prev.corporateEmail || user?.email || '',
+        }))
+    }, [currentVerification, profile?.verificationStatus, profile?.inn, user?.email])
+
 
     const validatePublicProfile = () => {
         const nextErrors = {}
@@ -823,8 +878,110 @@ function EmployerDashboard() {
         }
     }
 
+    const handleUploadVerificationAttachment = async (file) => {
+        const verificationId = currentVerification?.id
+
+        if (!verificationId) {
+            toast({
+                title: 'Не удалось прикрепить файл',
+                description:
+                    'Идентификатор заявки пока недоступен. API не позволяет заново получить заявку после перезагрузки страницы.',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setIsVerificationAttachmentUploading(true)
+
+        try {
+            const uploaded = await uploadEmployerVerificationAttachment(verificationId, file)
+
+            const normalizedAttachments = Array.isArray(uploaded) ? uploaded : []
+
+            setVerificationAttachments((prev) => {
+                const prevList = Array.isArray(prev) ? prev : []
+                return [...prevList, ...normalizedAttachments]
+            })
+
+            toast({
+                title: 'Файл прикреплён',
+                description: 'Файл успешно добавлен к заявке',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось прикрепить файл',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsVerificationAttachmentUploading(false)
+        }
+    }
+
+    const handleCancelVerificationModerationTask = async () => {
+        const verificationId = currentVerification?.id
+
+        if (!verificationId) {
+            toast({
+                title: 'Не удалось отменить задачу',
+                description: 'Идентификатор заявки отсутствует',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setIsLoading(true)
+
+        try {
+            await cancelEmployerVerificationModerationTask(verificationId)
+
+            setVerificationModerationTask(null)
+
+            toast({
+                title: 'Готово',
+                description: 'Задача модерации отменена',
+            })
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось отменить задачу модерации',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const moderationTaskLabel = useMemo(() => {
+        const exists = Boolean(
+            verificationModerationTask?.exists ||
+            verificationModerationTask?.taskId
+        )
+
+        return exists ? 'Создана' : 'Не создана'
+    }, [verificationModerationTask])
+
     const handleSubmitVerification = async () => {
-        const method = String(verificationData.verificationMethod || 'TIN').toUpperCase()
+        const method = String(verificationData?.verificationMethod || 'TIN').toUpperCase()
+
+        const currentStatus = String(
+            currentVerification?.status ||
+            currentVerification?.verificationStatus ||
+            ''
+        ).toUpperCase()
+
+        const hasActiveVerification =
+            Boolean(currentVerification?.id) &&
+            ['PENDING', 'APPROVED'].includes(currentStatus)
+
+        if (hasActiveVerification) {
+            toast({
+                title: 'Заявка уже отправлена',
+                description: 'Откройте текущую заявку и при необходимости прикрепите файлы',
+            })
+            setShowVerificationModal(true)
+            return
+        }
 
         if (!user?.userId) {
             toast({
@@ -836,7 +993,7 @@ function EmployerDashboard() {
         }
 
         if (method === 'CORPORATE_EMAIL') {
-            const email = String(verificationData.corporateEmail || user?.email || '').trim()
+            const email = String(verificationData?.corporateEmail || user?.email || '').trim()
 
             if (!email) {
                 toast({
@@ -846,21 +1003,16 @@ function EmployerDashboard() {
                 })
                 return
             }
-
-            if (!verificationData.corporateEmail && user?.email) {
-                setVerificationData((prev) => ({
-                    ...prev,
-                    corporateEmail: user.email,
-                }))
-            }
         }
 
         if (method === 'TIN') {
-            const normalizedInn = String(profile.inn || verificationData.inn || '').trim()
+            const normalizedInn = String(profile?.inn || verificationData?.inn || '').trim()
+
             if (!normalizedInn || !/^\d{10}(\d{2})?$/.test(normalizedInn)) {
                 toast({
                     title: 'Ошибка',
-                    description: 'Чтобы пройти верификацию по ИНН, сначала заполните корректный ИНН в разделе «Реквизиты компании»',
+                    description:
+                        'Чтобы пройти верификацию по ИНН, сначала заполните корректный ИНН в разделе «Реквизиты компании»',
                     variant: 'destructive',
                 })
                 return
@@ -868,7 +1020,8 @@ function EmployerDashboard() {
         }
 
         if (method === 'PROFESSIONAL_LINKS') {
-            const hasLinks = verificationLinkRows.some((row) => row.url?.trim())
+            const hasLinks = verificationLinkRows.some((row) => row?.url?.trim())
+
             if (!hasLinks) {
                 toast({
                     title: 'Ошибка',
@@ -882,34 +1035,64 @@ function EmployerDashboard() {
         setIsLoading(true)
 
         try {
-            const normalizedInn = String(profile.inn || verificationData.inn || '').trim()
-
             const payload = {
                 verificationMethod: method,
-                submittedComment: verificationData.submittedComment?.trim() || '',
-            }
-
-            if (method === 'TIN') {
-                payload.inn = normalizedInn
+                professionalLinks:
+                    method === 'PROFESSIONAL_LINKS'
+                        ? rowsToLinks(verificationLinkRows).map((item) => item.url)
+                        : [],
+                submittedComment: verificationData?.submittedComment?.trim() || '',
             }
 
             if (method === 'CORPORATE_EMAIL') {
-                payload.corporateEmail = String(verificationData.corporateEmail || user?.email || '').trim()
+                payload.corporateEmail = String(
+                    verificationData?.corporateEmail || user?.email || ''
+                ).trim()
             }
 
-            if (method === 'PROFESSIONAL_LINKS') {
-                payload.professionalLinks = rowsToLinks(verificationLinkRows).map((item) => item.url)
+            const createdVerification = await createEmployerVerification(payload)
+
+            const normalizedVerification = createdVerification
+                ? {
+                    id: createdVerification?.id ?? null,
+                    employerUserId: createdVerification?.employerUserId ?? user.userId,
+                    status: String(createdVerification?.status || 'PENDING').toUpperCase(),
+                    verificationMethod: createdVerification?.verificationMethod || method,
+                    corporateEmail: createdVerification?.corporateEmail || '',
+                    inn: createdVerification?.inn || profile?.inn || '',
+                    professionalLinks: Array.isArray(createdVerification?.professionalLinks)
+                        ? createdVerification.professionalLinks
+                        : [],
+                    submittedComment: createdVerification?.submittedComment || '',
+                    submittedAt: createdVerification?.submittedAt || null,
+                    createdAt: createdVerification?.createdAt || null,
+                }
+                : null
+
+            setCurrentVerification(normalizedVerification)
+            setVerificationAttachments([])
+
+            if (normalizedVerification?.id) {
+                try {
+                    const task = await getEmployerVerificationModerationTask(normalizedVerification.id)
+                    setVerificationModerationTask(task || null)
+                } catch {
+                    setVerificationModerationTask(null)
+                }
+            } else {
+                setVerificationModerationTask(null)
             }
 
-            await createEmployerVerification(payload)
             await reloadEmployerProfile()
 
             toast({
                 title: 'Заявка отправлена',
-                description: 'Заявка на верификацию компании успешно отправлена',
+                description: normalizedVerification?.id
+                    ? 'Теперь вы можете прикрепить файлы к заявке'
+                    : 'Заявка создана, но API не вернул идентификатор заявки',
             })
 
-            setShowVerificationModal(false)
+            setShowVerificationModal(true)
         } catch (error) {
             toast({
                 title: 'Ошибка',
@@ -952,6 +1135,9 @@ function EmployerDashboard() {
                 setResponsesPage({ items: [], total: 0, limit: 50, offset: 0 })
                 setEmployerLocations([])
                 setActiveModerationTask(null)
+                setCurrentVerification(null)
+                setVerificationModerationTask(null)
+                setVerificationAttachments([])
                 return
             }
 
@@ -1027,6 +1213,9 @@ function EmployerDashboard() {
                 setResponsesPage({ items: [], total: 0, limit: 50, offset: 0 })
                 setEmployerLocations([])
                 setActiveModerationTask(null)
+                setCurrentVerification(null)
+                setVerificationModerationTask(null)
+                setVerificationAttachments([])
                 return
             }
 
@@ -1115,6 +1304,57 @@ function EmployerDashboard() {
         }
     }, [showVerificationModal, verificationData.verificationMethod, verificationData.corporateEmail, user?.email])
 
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(DISMISSED_ALERTS_STORAGE_KEY)
+            if (!raw) {
+                setDismissedDashboardAlerts([])
+                return
+            }
+
+            const parsed = JSON.parse(raw)
+            if (parsed?.signature === verificationAlertStateSignature && Array.isArray(parsed?.keys)) {
+                setDismissedDashboardAlerts(parsed.keys)
+                return
+            }
+
+            setDismissedDashboardAlerts([])
+        } catch {
+            setDismissedDashboardAlerts([])
+        }
+    }, [verificationAlertStateSignature])
+
+    useEffect(() => {
+        try {
+            sessionStorage.setItem(
+                DISMISSED_ALERTS_STORAGE_KEY,
+                JSON.stringify({
+                    signature: verificationAlertStateSignature,
+                    keys: dismissedDashboardAlerts,
+                })
+            )
+        } catch {}
+    }, [dismissedDashboardAlerts, verificationAlertStateSignature])
+
+    const closeVerificationModal = useCallback(() => {
+        setShowVerificationModal(false)
+    }, [])
+
+    useEffect(() => {
+        if (!showVerificationModal) return
+        if (currentVerification) return
+
+        const fallbackStatus = String(profile?.verificationStatus || '').toUpperCase()
+
+        if (['PENDING', 'APPROVED', 'REJECTED', 'REVOKED'].includes(fallbackStatus)) {
+            setCurrentVerification({
+                id: null,
+                status: fallbackStatus,
+                verificationStatus: fallbackStatus,
+            })
+        }
+    }, [showVerificationModal, currentVerification, profile?.verificationStatus])
+
     const filteredOpportunities = useMemo(() => {
         return opportunities.filter((opp) => {
             const matchesSearch =
@@ -1131,6 +1371,13 @@ function EmployerDashboard() {
     const dashboardAlerts = useMemo(() => {
         const alerts = []
 
+        const hasVerificationPending = ACTIVE_VERIFICATION_STATUSES.includes(verificationState)
+        const hasVerificationRejected = verificationState === 'REJECTED'
+        const hasVerificationRevoked = verificationState === 'REVOKED'
+        const hasModerationPending = isProfileAlreadyOnModeration(moderationState)
+        const hasModerationRevision = moderationState === 'REQUESTED_CHANGES' || moderationState === 'REJECTED'
+        const hasModerationApproved = moderationState === 'APPROVED'
+
         if (!isVerified) {
             if (verificationState === 'NOT_STARTED') {
                 alerts.push({
@@ -1144,44 +1391,44 @@ function EmployerDashboard() {
                 })
             }
 
-            if (['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW'].includes(verificationState)) {
+            if (hasVerificationPending) {
                 alerts.push({
                     key: 'verification-pending',
                     variant: 'pending',
                     closable: true,
                     title: 'Верификация компании на проверке',
-                    text: 'Пока заявка рассматривается, публикация новых карточек временно ограничена.',
-                    buttonText: 'Открыть профиль',
-                    onClick: () => setActiveTab('profile'),
+                    text: 'Заявка уже создана. Вы можете открыть её снова, посмотреть статус и прикреплённые файлы.',
+                    buttonText: 'Продолжить верификацию',
+                    onClick: () => setShowVerificationModal(true),
                 })
             }
 
-            if (verificationState === 'REJECTED') {
+            if (hasVerificationRejected) {
                 alerts.push({
                     key: 'verification-rejected',
                     variant: 'revision',
                     closable: false,
                     title: 'Верификация отклонена',
-                    text: 'Проверьте реквизиты компании, исправьте данные и отправьте заявку повторно.',
-                    buttonText: 'Исправить данные',
-                    onClick: () => setActiveTab('profile'),
+                    text: 'Проверьте данные компании и отправьте заявку повторно.',
+                    buttonText: 'Доработать заявку',
+                    onClick: () => setShowVerificationModal(true),
                 })
             }
 
-            if (verificationState === 'REVOKED') {
+            if (hasVerificationRevoked) {
                 alerts.push({
                     key: 'verification-revoked',
                     variant: 'revision',
                     closable: false,
                     title: 'Верификация отозвана',
-                    text: 'Нужно повторно пройти верификацию компании, чтобы снова публиковать вакансии и мероприятия.',
+                    text: 'Нужно повторно пройти верификацию компании.',
                     buttonText: 'Пройти заново',
                     onClick: () => setShowVerificationModal(true),
                 })
             }
         }
 
-        if (isProfileAlreadyOnModeration(moderationState)) {
+        if (hasModerationPending && !hasVerificationPending) {
             alerts.push({
                 key: 'moderation-pending',
                 variant: 'pending',
@@ -1195,7 +1442,7 @@ function EmployerDashboard() {
             })
         }
 
-        if (moderationState === 'REQUESTED_CHANGES' || moderationState === 'REJECTED') {
+        if (hasModerationRevision) {
             alerts.push({
                 key: 'moderation-revision',
                 variant: 'revision',
@@ -1210,7 +1457,7 @@ function EmployerDashboard() {
             })
         }
 
-        if (moderationState === 'APPROVED') {
+        if (hasModerationApproved && !hasVerificationPending) {
             alerts.push({
                 key: 'moderation-approved',
                 variant: 'approved',
@@ -1346,9 +1593,8 @@ function EmployerDashboard() {
             return
         }
 
-        const activeVerificationStates = ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW']
         const normalizedVerificationState = String(profile.verificationStatus || '').toUpperCase()
-        const isVerificationFlowLocked = activeVerificationStates.includes(normalizedVerificationState)
+        const isVerificationFlowLocked = ACTIVE_VERIFICATION_STATUSES.includes(normalizedVerificationState)
 
         if (isVerificationFlowLocked) {
             toast({
@@ -1858,9 +2104,16 @@ function EmployerDashboard() {
                 verificationLinkRows={verificationLinkRows}
                 setVerificationLinkRows={setVerificationLinkRows}
                 onSubmit={handleSubmitVerification}
-                onClose={() => setShowVerificationModal(false)}
+                onClose={closeVerificationModal}
                 userEmail={user?.email || ''}
-                companyInn={profile.inn || ''}
+                companyInn={profile?.inn || ''}
+                currentVerification={currentVerification}
+                verificationModerationTask={verificationModerationTask}
+                verificationAttachments={verificationAttachments}
+                isVerificationAttachmentUploading={isVerificationAttachmentUploading}
+                onUploadVerificationAttachment={handleUploadVerificationAttachment}
+                onCancelVerificationModerationTask={handleCancelVerificationModerationTask}
+                profileVerificationStatus={profileVerificationStatus}
             />
 
             <EmployerLocationModal

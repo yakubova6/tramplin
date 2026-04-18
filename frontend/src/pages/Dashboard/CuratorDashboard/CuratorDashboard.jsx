@@ -20,7 +20,7 @@ import {
     addModerationComment,
     cancelModerationTask,
     getEntityModerationHistory,
-    getEntityAttachments,
+    getModerationEntityAttachments,
     uploadModerationTaskAttachment,
     deleteModerationTaskAttachment,
     getModerationTaskAttachmentDownloadUrl,
@@ -462,7 +462,7 @@ function CuratorDashboard() {
 
             const [history, attachments] = await Promise.all([
                 getEntityModerationHistory(data.entityType, data.entityId),
-                getEntityAttachments(data.entityType, data.entityId).catch(() => []),
+                getModerationEntityAttachments(data.entityType, data.entityId).catch(() => []),
             ])
 
             setTaskHistory(history || [])

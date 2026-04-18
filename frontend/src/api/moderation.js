@@ -1,6 +1,62 @@
-import { httpJson, toQuery } from './http'
+import { httpJson, toQuery, getRequiredCurrentUserPayload } from './http.js'
+import { apiRequest } from './profile.js'
 
 const API_BASE = '/api/moderation'
+
+function createApiError(message, status = 0, extra = {}) {
+    const error = new Error(message)
+    error.status = status
+    error.code = extra.code || null
+    error.details = extra.details || {}
+    error.payload = extra.payload || null
+    return error
+}
+
+const MODERATION_HISTORY_ENTITY_TYPES = [
+    'APPLICANT_PROFILE',
+    'EMPLOYER_PROFILE',
+    'EMPLOYER_VERIFICATION',
+    'OPPORTUNITY',
+    'TAG',
+]
+
+const MODERATION_ATTACHMENT_ENTITY_TYPES = [
+    'APPLICANT_PROFILE',
+    'EMPLOYER_PROFILE',
+    'EMPLOYER_VERIFICATION',
+    'OPPORTUNITY',
+    'OPPORTUNITY_RESPONSE',
+    'MODERATION_TASK',
+]
+
+function buildQueryString(params = {}) {
+    const searchParams = new URLSearchParams()
+
+    Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return
+
+        if (typeof value === 'object' && !Array.isArray(value)) {
+            Object.entries(value).forEach(([nestedKey, nestedValue]) => {
+                if (nestedValue === undefined || nestedValue === null || nestedValue === '') return
+                searchParams.append(`${key}.${nestedKey}`, String(nestedValue))
+            })
+            return
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (item !== undefined && item !== null && item !== '') {
+                    searchParams.append(key, String(item))
+                }
+            })
+            return
+        }
+
+        searchParams.append(key, String(value))
+    })
+
+    return searchParams.toString()
+}
 
 async function httpForm(url, formData, options = {}) {
     const response = await fetch(url, {
@@ -102,15 +158,85 @@ export async function getModerationTasks(params = {}) {
 }
 
 export async function getModerationTaskDetail(taskId) {
-    return httpJson(`${API_BASE}/tasks/${taskId}`)
+    const currentUser = await getRequiredCurrentUserPayload()
+
+    if (!taskId || Number(taskId) <= 0) {
+        throw createApiError('Некорректный идентификатор задачи модерации', 400, {
+            details: { taskId },
+        })
+    }
+
+    const query = buildQueryString({
+        currentUser: {
+            userId: currentUser.userId,
+            email: currentUser.email,
+            role: currentUser.role,
+        },
+    })
+
+    return apiRequest(
+        `${API_BASE}/tasks/${Number(taskId)}?${query}`
+    )
 }
 
 export async function getEntityModerationHistory(entityType, entityId) {
-    return httpJson(`${API_BASE}/entities/${entityType}/${entityId}/history`)
+    const currentUser = await getRequiredCurrentUserPayload()
+
+    const normalizedEntityType = String(entityType || '').trim().toUpperCase()
+
+    if (!MODERATION_HISTORY_ENTITY_TYPES.includes(normalizedEntityType)) {
+        throw createApiError('Некорректный тип сущности для истории модерации', 400, {
+            details: { entityType },
+        })
+    }
+
+    if (!entityId || Number(entityId) <= 0) {
+        throw createApiError('Некорректный идентификатор сущности', 400, {
+            details: { entityId },
+        })
+    }
+
+    const query = buildQueryString({
+        currentUser: {
+            userId: currentUser.userId,
+            email: currentUser.email,
+            role: currentUser.role,
+        },
+    })
+
+    return apiRequest(
+        `${API_BASE}/entities/${normalizedEntityType}/${Number(entityId)}/history?${query}`
+    )
 }
 
-export async function getEntityAttachments(entityType, entityId) {
-    return httpJson(`${API_BASE}/entities/${entityType}/${entityId}/attachments`)
+export async function getModerationEntityAttachments(entityType, entityId) {
+    const currentUser = await getRequiredCurrentUserPayload()
+
+    const normalizedEntityType = String(entityType || '').trim().toUpperCase()
+
+    if (!MODERATION_ATTACHMENT_ENTITY_TYPES.includes(normalizedEntityType)) {
+        throw createApiError('Некорректный тип сущности для получения файлов', 400, {
+            details: { entityType },
+        })
+    }
+
+    if (!entityId || Number(entityId) <= 0) {
+        throw createApiError('Некорректный идентификатор сущности', 400, {
+            details: { entityId },
+        })
+    }
+
+    const query = buildQueryString({
+        currentUser: {
+            userId: currentUser.userId,
+            email: currentUser.email,
+            role: currentUser.role,
+        },
+    })
+
+    return apiRequest(
+        `${API_BASE}/entities/${normalizedEntityType}/${Number(entityId)}/attachments?${query}`
+    )
 }
 
 export async function getModerationDashboard() {
@@ -216,5 +342,29 @@ export async function deleteModerationTaskAttachment(taskId, attachmentId) {
 }
 
 export async function getModerationTaskAttachmentDownloadUrl(taskId, fileId) {
-    return httpJson(`${API_BASE}/tasks/${taskId}/attachments/${fileId}/download-url`)
+    const currentUser = await getRequiredCurrentUserPayload()
+
+    if (!taskId || Number(taskId) <= 0) {
+        throw createApiError('Некорректный идентификатор задачи модерации', 400, {
+            details: { taskId },
+        })
+    }
+
+    if (!fileId || Number(fileId) <= 0) {
+        throw createApiError('Некорректный идентификатор файла', 400, {
+            details: { fileId },
+        })
+    }
+
+    const query = buildQueryString({
+        currentUser: {
+            userId: currentUser.userId,
+            email: currentUser.email,
+            role: currentUser.role,
+        },
+    })
+
+    return apiRequest(
+        `${API_BASE}/tasks/${Number(taskId)}/attachments/${Number(fileId)}/download-url?${query}`
+    )
 }

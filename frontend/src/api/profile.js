@@ -74,44 +74,51 @@ async function getAuthenticatedUserPayload() {
     return getRequiredCurrentUserPayload()
 }
 
-async function apiRequest(endpoint, options = {}) {
-    console.log(`[API] ${options.method || 'GET'} ${endpoint}`)
+export async function apiRequest(url, options = {}) {
+    const { body, headers = {}, ...restOptions } = options
 
-    let response
-    try {
-        response = await fetch(endpoint, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(options.headers || {}),
-            },
-            ...options,
-        })
-    } catch {
-        throw createApiError('Сервер недоступен. Попробуйте позже.', 0)
+    const isFormData = body instanceof FormData
+
+    const finalHeaders = {
+        ...headers,
     }
 
-    const data = await parseApiResponse(response)
+    if (!isFormData && !finalHeaders['Content-Type']) {
+        finalHeaders['Content-Type'] = 'application/json'
+    }
+
+    const response = await fetch(url, {
+        ...restOptions,
+        headers: finalHeaders,
+        body,
+        credentials: 'include',
+    })
 
     if (!response.ok) {
-        const errorMessage =
-            (typeof data === 'object' && data?.message) ||
-            (typeof data === 'object' && data?.error) ||
-            (typeof data === 'string' && data) ||
-            'Ошибка запроса'
+        let errorPayload = null
 
-        if (response.status === 401) {
-            clearSessionUserCache()
+        try {
+            errorPayload = await response.json()
+        } catch {
+            errorPayload = null
         }
 
-        throw createApiError(errorMessage, response.status, {
-            code: typeof data === 'object' ? data?.code : null,
-            details: typeof data === 'object' ? data?.details : {},
-            payload: data,
-        })
+        const error = new Error(
+            errorPayload?.message || `HTTP error ${response.status}`
+        )
+        error.status = response.status
+        error.code = errorPayload?.code || null
+        error.details = errorPayload?.details || {}
+        error.payload = errorPayload || null
+        throw error
     }
 
-    return data
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+        return response.json()
+    }
+
+    return response.text()
 }
 
 async function multipartRequest(endpoint, formData, options = {}) {
@@ -624,6 +631,7 @@ export async function deleteEmployerFile(fileId) {
 
 export async function createEmployerVerification(payload) {
     const userId = await getSessionUserIdFromApi()
+
     if (!userId) {
         throw createApiError('Пользователь не авторизован', 401)
     }
@@ -635,33 +643,49 @@ export async function createEmployerVerification(payload) {
 }
 
 export async function uploadEmployerVerificationAttachment(verificationId, file) {
-    if (!verificationId) throw createApiError('Не указан verificationId', 400)
-    if (!file) throw createApiError('Файл не выбран', 400)
+    const currentUser = await getRequiredCurrentUserPayload()
 
-    const formData = await createMultipartWithCurrentUser(file)
-    return multipartRequest(`${API_BASE}/employer/verifications/${verificationId}/attachments`, formData, {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append(
+        'currentUser',
+        new Blob([JSON.stringify(currentUser)], { type: 'application/json' })
+    )
+
+    return apiRequest(`${API_BASE}/employer/verifications/${verificationId}/attachments`, {
         method: 'POST',
+        body: formData,
     })
 }
 
 export async function getEmployerVerificationModerationTask(verificationId) {
     const userId = await getSessionUserIdFromApi()
+
     if (!userId) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
-    return apiRequest(`${API_BASE}/employer/verification/${verificationId}/moderation-task?employerUserId=${userId}`)
+    return apiRequest(
+        `${API_BASE}/employer/verification/${verificationId}/moderation-task?employerUserId=${userId}`,
+        {
+            method: 'GET',
+        }
+    )
 }
 
 export async function cancelEmployerVerificationModerationTask(verificationId) {
     const userId = await getSessionUserIdFromApi()
+
     if (!userId) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
-    return apiRequest(`${API_BASE}/employer/verification/${verificationId}/moderation-task/cancel?employerUserId=${userId}`, {
-        method: 'POST',
-    })
+    return apiRequest(
+        `${API_BASE}/employer/verification/${verificationId}/moderation-task/cancel?employerUserId=${userId}`,
+        {
+            method: 'POST',
+        }
+    )
 }
 
 function normalizeOpportunity(item = {}) {
