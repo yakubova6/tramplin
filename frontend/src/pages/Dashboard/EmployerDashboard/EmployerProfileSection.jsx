@@ -62,10 +62,6 @@ function EmployerProfileSection({
         moderationState === 'PENDING_MODERATION'
     )
 
-    const isProfileOnModeration = ['PENDING_MODERATION', 'IN_PROGRESS', 'UNDER_REVIEW', 'ON_MODERATION'].includes(
-        String(moderationState || '').toUpperCase()
-    )
-
     useEffect(() => {
         if (!shouldShowVersionSwitch) {
             setProfileVersionView('current')
@@ -208,8 +204,7 @@ function EmployerProfileSection({
                             </div>
 
                             <p className="employer-profile__revision-text">
-                                Куратор вернул профиль на правки. Исправьте данные, сохраните изменения и затем
-                                отправьте профиль на модерацию повторно.
+                                Куратор вернул профиль на правки. Исправьте данные и сохраните изменения.
                             </p>
 
                             {moderationFeedback?.comment && (
@@ -256,8 +251,7 @@ function EmployerProfileSection({
 
                             <div className="employer-profile__hero-submeta">
                                 <div
-                                    className={`employer-profile__status-chip employer-profile__status-chip--${displayedModerationTone}`}
-                                >
+                                    className={`employer-profile__status-chip employer-profile__status-chip--${displayedModerationTone}`}>
                                     <span className="employer-profile__status-chip-label">
                                         {shouldShowVersionSwitch
                                             ? profileVersionView === 'public'
@@ -271,8 +265,7 @@ function EmployerProfileSection({
                                 </div>
 
                                 <div
-                                    className={`employer-profile__status-chip employer-profile__status-chip--verification-${(verificationState || 'not_started').toLowerCase()}`}
-                                >
+                                    className={`employer-profile__status-chip employer-profile__status-chip--verification-${(verificationState || 'not_started').toLowerCase()}`}>
                                     <span className="employer-profile__status-chip-label">Верификация</span>
                                     <span className="employer-profile__status-chip-value">
                                         {verificationState === 'APPROVED' && 'Пройдена'}
@@ -364,7 +357,7 @@ function EmployerProfileSection({
                                                 rel="noopener noreferrer"
                                                 className="link-item"
                                             >
-                                                <img src={linkIcon} alt="" className="icon-small" />
+                                                <img src={linkIcon} alt="" className="icon-small"/>
                                                 <span>{item.label || item.url}</span>
                                             </a>
                                         ))}
@@ -380,7 +373,7 @@ function EmployerProfileSection({
                                     <div className="links-list">
                                         {displayedProfile.publicContacts.map((item, index) => (
                                             <div key={`${item.value}-${index}`} className="link-item">
-                                                <img src={linkIcon} alt="" className="icon-small" />
+                                                <img src={linkIcon} alt="" className="icon-small"/>
                                                 <span>{item.label ? `${item.label}: ` : ''}</span>
                                                 {renderContactMethod(item)}
                                             </div>
@@ -392,7 +385,8 @@ function EmployerProfileSection({
 
                         <div className="employer-profile__field">
                             <Label>Статус верификации</Label>
-                            <div className={`field-value verification-status status-${(verificationState || 'not_started').toLowerCase()}`}>
+                            <div
+                                className={`field-value verification-status status-${(verificationState || 'not_started').toLowerCase()}`}>
                                 {verificationState === 'APPROVED' && 'Верифицирован'}
                                 {verificationState === 'PENDING' && 'На проверке'}
                                 {verificationState === 'REJECTED' && 'Отклонён'}
@@ -405,8 +399,7 @@ function EmployerProfileSection({
                         <div className="employer-profile__field">
                             <Label>Статус модерации</Label>
                             <div
-                                className={`field-value employer-profile__moderation-state employer-profile__moderation-state--${displayedModerationTone}`}
-                            >
+                                className={`field-value employer-profile__moderation-state employer-profile__moderation-state--${displayedModerationTone}`}>
                                 {displayedModerationLabel}
                             </div>
                         </div>
@@ -493,16 +486,10 @@ function EmployerProfileSection({
                     </div>
 
                     <p className="employer-profile__section-hint">
-                        Сохранение обновляет текущую версию профиля в кабинете. Чтобы изменения попали к куратору,
-                        отправьте публичный профиль на модерацию отдельной кнопкой.
+                        {['DRAFT', 'NEEDS_REVISION'].includes(moderationState)
+                            ? 'Сохранение обновляет черновик профиля. Когда всё будет готово, отправьте публичный профиль на модерацию отдельной кнопкой.'
+                            : 'После сохранения изменения профиля будут автоматически отправлены на модерацию.'}
                     </p>
-
-                    {isProfileOnModeration && (
-                        <p className="employer-profile__section-hint">
-                            Сейчас профиль уже находится на модерации. Вы можете сохранить изменения как текущую
-                            версию, но повторная отправка пока недоступна.
-                        </p>
-                    )}
 
                     <div className="employer-profile__edit-section employer-profile__edit-section--accent">
                         <div className="employer-profile__edit-section-header">
@@ -706,17 +693,6 @@ function EmployerProfileSection({
                         <Button className="button--primary" onClick={onHandleSaveProfile} disabled={isLoading}>
                             {isLoading ? 'Сохранение...' : 'Сохранить'}
                         </Button>
-
-                        {!isProfileOnModeration && (
-                            <Button
-                                className="button--outline"
-                                onClick={onHandleSubmitEmployerProfileForModeration}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? 'Отправка...' : 'Сохранить и отправить на модерацию'}
-                            </Button>
-                        )}
-
                         <Button className="button--ghost" onClick={() => setIsEditingProfile(false)}>
                             Отменить
                         </Button>

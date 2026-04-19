@@ -1640,7 +1640,6 @@ function EmployerDashboard() {
 
     const handleSaveProfile = async () => {
         const validation = validatePublicProfile()
-
         if (!validation.isValid) {
             toast({
                 title: 'Ошибка',
@@ -1656,21 +1655,21 @@ function EmployerDashboard() {
             const profilePayload = buildEmployerProfilePayload()
             const hasPublicChanges = !areProfilePayloadsEqual(profilePayload, initialProfileSnapshot)
 
-            if (!hasPublicChanges) {
-                toast({
-                    title: 'Без изменений',
-                    description: 'Публичный профиль не изменился',
-                })
-                setIsEditingProfile(false)
-                return
+            if (hasPublicChanges) {
+                await updateEmployerProfile(profilePayload)
             }
 
-            await updateEmployerProfile(profilePayload)
+            if (!isProfileAlreadyOnModeration(profile.moderationStatus)) {
+                await submitEmployerProfileForModeration()
+            }
+
             await reloadEmployerProfile()
 
             toast({
-                title: 'Изменения сохранены',
-                description: 'Публичный профиль сохранён как текущая версия. Отправка на модерацию выполняется отдельно.',
+                title: 'Профиль сохранён',
+                description: hasPublicChanges
+                    ? 'Изменения сохранены и отправлены на модерацию'
+                    : 'Профиль отправлен на модерацию',
             })
 
             setIsEditingProfile(false)
