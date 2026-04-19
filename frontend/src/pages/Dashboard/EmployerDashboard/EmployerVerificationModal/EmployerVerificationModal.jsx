@@ -282,25 +282,46 @@ function EmployerVerificationModal({
     }
 
     const handleOpenAttachment = (file) => {
-        const fileId = file?.fileId || file?.id
-        if (onOpenAttachment && fileId && employerUserId) {
-            onOpenAttachment(employerUserId, fileId)
-        } else if (file?.url) {
-            window.open(file.url, '_blank')
+        const fileData = file?.file || file
+        const fileId = fileData?.fileId || file?.fileId
+        const verificationId = file?.entityId // entityId = 42 (ID верификации)
+        const ownerUserId = fileData?.ownerUserId
+
+        console.log('File data:', { fileId, verificationId, ownerUserId })
+
+        if (verificationId && fileId) {
+            const downloadUrl = `/api/employer/verifications/${verificationId}/attachments/${fileId}`
+            console.log('Attempting to open via verification endpoint:', downloadUrl)
+            window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+            return
         }
+
+        if (ownerUserId && fileId) {
+            const downloadUrl = `/api/profile/employer/${ownerUserId}/files/${fileId}`
+            console.log('Attempting to open via profile endpoint:', downloadUrl)
+            window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+            return
+        }
+
+        alert('Не удалось открыть файл')
     }
 
     const handleDeleteAttachment = (file) => {
-        const fileId = file?.fileId || file?.id
+        const fileId = file?.fileId || file?.file?.fileId || file?.id
         if (fileId && onDeleteAttachment) {
             onDeleteAttachment(fileId, file)
         }
     }
 
     const getAttachmentKey = (file, index) => {
-        const fileId = file?.fileId || file?.id
+        const fileId = file?.fileId || file?.file?.fileId || file?.id
         const attachmentId = file?.attachmentId
-        const fileName = file?.file?.originalFileName || file?.originalFileName || file?.fileName || file?.name || ''
+        const fileName =
+            file?.file?.originalFileName ||
+            file?.originalFileName ||
+            file?.fileName ||
+            file?.name ||
+            ''
 
         if (fileId && attachmentId) {
             return `file_${fileId}_att_${attachmentId}`
@@ -646,7 +667,7 @@ function EmployerVerificationModal({
                                 </div>
                                 {verificationAttachments.map((file, index) => {
                                     const attachmentKey = getAttachmentKey(file, index)
-                                    const fileId = file?.fileId || file?.id
+                                    const fileId = file?.fileId || file?.file?.fileId || file?.id
                                     const fileName =
                                         file?.file?.originalFileName ||
                                         file?.originalFilename ||
@@ -655,7 +676,8 @@ function EmployerVerificationModal({
                                         file?.name ||
                                         `Файл ${index + 1}`
 
-                                    const canOpen = Boolean(fileId && employerUserId)
+                                    const ownerUserId = file?.file?.ownerUserId || employerUserId
+                                    const canOpen = Boolean(fileId && ownerUserId)
                                     const canDelete = Boolean(fileId && !isDeletingAttachment && canUploadAttachments)
 
                                     return (

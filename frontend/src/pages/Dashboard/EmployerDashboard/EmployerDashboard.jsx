@@ -611,6 +611,15 @@ function EmployerDashboard() {
 
             try {
                 const attachments = await getEmployerVerificationAttachments(verificationId)
+                console.log('Attachments response:', JSON.stringify(attachments, null, 2))
+
+                if (attachments.length > 0) {
+                    console.log('First attachment structure:', attachments[0])
+                    console.log('Available fields:', Object.keys(attachments[0]))
+                    if (attachments[0].file) {
+                        console.log('File object fields:', Object.keys(attachments[0].file))
+                    }
+                }
                 setVerificationAttachments(Array.isArray(attachments) ? attachments : [])
             } catch {
                 // Silently fail
@@ -1931,8 +1940,18 @@ function EmployerDashboard() {
         }
     }
 
-    const handleOpenVerificationAttachment = (employerUserId, fileId) => {
-        openVerificationAttachment(employerUserId, fileId)
+    const handleOpenVerificationAttachment = (attachment) => {
+        const url = attachment?.url || attachment?.file?.url
+
+        if (url) {
+            window.open(url, '_blank', 'noopener,noreferrer')
+        } else {
+            toast({
+                title: 'Ошибка',
+                description: 'Не удалось открыть файл: URL не найден',
+                variant: 'destructive',
+            })
+        }
     }
 
     const handleDeleteVerificationAttachment = async (fileId) => {

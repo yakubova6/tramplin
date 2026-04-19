@@ -1360,16 +1360,32 @@ export async function completeEmployerOnboarding({
 
 // ========== VERIFICATION ATTACHMENTS ==========
 
-export async function getVerificationAttachmentDownloadUrl(employerUserId, fileId) {
+export function getVerificationAttachmentDownloadUrl(employerUserId, fileId) {
     if (!employerUserId || !fileId) return null
     return `${API_BASE}/profile/employer/${employerUserId}/files/${fileId}`
 }
 
-export async function openVerificationAttachment(employerUserId, fileId) {
-    const url = getVerificationAttachmentDownloadUrl(employerUserId, fileId)
-    if (!url) return
+export async function openVerificationAttachment(attachment) {
+    if (attachment?.url) {
+        window.open(attachment.url, '_blank', 'noopener,noreferrer')
+        return
+    }
 
-    window.open(url, '_blank')
+    if (attachment?.file?.url) {
+        window.open(attachment.file.url, '_blank', 'noopener,noreferrer')
+        return
+    }
+
+    const fileId = attachment?.fileId || attachment?.id
+    const ownerUserId = attachment?.ownerUserId || attachment?.file?.ownerUserId
+
+    if (ownerUserId && fileId) {
+        const url = `${API_BASE}/profile/employer/${ownerUserId}/files/${fileId}`
+        window.open(url, '_blank', 'noopener,noreferrer')
+    } else {
+        console.error('No URL found for attachment:', attachment)
+        throw new Error('Невозможно открыть файл: отсутствует URL')
+    }
 }
 
 export async function deleteVerificationAttachment(fileId) {
