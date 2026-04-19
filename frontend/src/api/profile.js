@@ -666,7 +666,12 @@ export async function getEmployerVerificationAttachments(verificationId) {
         throw createApiError('Пользователь не авторизован', 401)
     }
 
-    return apiRequest(`/api/employer/verifications/${verificationId}/attachments`, {
+    const currentUser = await getAuthenticatedUserPayload()
+
+    // Важно: currentUser нужно передавать как JSON строку
+    const currentUserParam = encodeURIComponent(JSON.stringify(currentUser))
+
+    return apiRequest(`/api/employer/verifications/${verificationId}/attachments?currentUser=${currentUserParam}`, {
         method: 'GET',
     })
 }
