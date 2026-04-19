@@ -1429,35 +1429,25 @@ function EmployerDashboard() {
 
     useEffect(() => {
         try {
-            const raw = sessionStorage.getItem(DISMISSED_ALERTS_STORAGE_KEY)
-            if (!raw) {
-                setDismissedDashboardAlerts([])
-                return
+            const stored = localStorage.getItem(DISMISSED_ALERTS_STORAGE_KEY)
+            if (stored) {
+                const parsed = JSON.parse(stored)
+                if (Array.isArray(parsed)) {
+                    setDismissedDashboardAlerts(parsed)
+                }
             }
-
-            const parsed = JSON.parse(raw)
-            if (parsed?.signature === verificationAlertStateSignature && Array.isArray(parsed?.keys)) {
-                setDismissedDashboardAlerts(parsed.keys)
-                return
-            }
-
-            setDismissedDashboardAlerts([])
-        } catch {
-            setDismissedDashboardAlerts([])
+        } catch (e) {
+            console.error('Failed to load dismissed alerts', e)
         }
-    }, [verificationAlertStateSignature])
+    }, [])
 
     useEffect(() => {
         try {
-            sessionStorage.setItem(
-                DISMISSED_ALERTS_STORAGE_KEY,
-                JSON.stringify({
-                    signature: verificationAlertStateSignature,
-                    keys: dismissedDashboardAlerts,
-                })
-            )
-        } catch {}
-    }, [dismissedDashboardAlerts, verificationAlertStateSignature])
+            localStorage.setItem(DISMISSED_ALERTS_STORAGE_KEY, JSON.stringify(dismissedDashboardAlerts))
+        } catch (e) {
+            console.error('Failed to save dismissed alerts', e)
+        }
+    }, [dismissedDashboardAlerts])
 
     const filteredOpportunities = useMemo(() => {
         return opportunities.filter((opp) => {
@@ -1532,45 +1522,49 @@ function EmployerDashboard() {
             }
         }
 
-        if (hasModerationPending && !hasVerificationPending) {
-            alerts.push({
-                key: 'moderation-pending',
-                variant: 'pending',
-                closable: true,
-                title: 'Публичный профиль находится на модерации',
-                text: activeModerationTask?.status
-                    ? `Текущий статус задачи: ${activeModerationTask.status}. Новая отправка сейчас не требуется.`
-                    : 'Изменения уже отправлены на модерацию. Дождитесь завершения проверки.',
-                buttonText: 'Открыть профиль',
-                onClick: () => setActiveTab('profile'),
-            })
-        }
+        const shouldShowModerationAlerts = isVerified || verificationState === 'NOT_STARTED'
 
-        if (hasModerationRevision) {
-            alerts.push({
-                key: 'moderation-revision',
-                variant: 'revision',
-                closable: false,
-                title: 'По профилю есть замечания модератора',
-                text: moderationFeedback?.summary || 'Исправьте замечания и отправьте профиль повторно.',
-                buttonText: 'Исправить профиль',
-                onClick: () => {
-                    setActiveTab('profile')
-                    setIsEditingProfile(true)
-                },
-            })
-        }
+        if (shouldShowModerationAlerts) {
+            if (hasModerationPending) {
+                alerts.push({
+                    key: 'moderation-pending',
+                    variant: 'pending',
+                    closable: true,
+                    title: 'Публичный профиль находится на модерации',
+                    text: activeModerationTask?.status
+                        ? `Текущий статус задачи: ${activeModerationTask.status}. Новая отправка сейчас не требуется.`
+                        : 'Изменения уже отправлены на модерацию. Дождитесь завершения проверки.',
+                    buttonText: 'Открыть профиль',
+                    onClick: () => setActiveTab('profile'),
+                })
+            }
 
-        if (hasModerationApproved && !hasVerificationPending) {
-            alerts.push({
-                key: 'moderation-approved',
-                variant: 'approved',
-                closable: true,
-                title: 'Публичный профиль одобрен',
-                text: 'Публичная версия профиля доступна пользователям платформы.',
-                buttonText: 'Открыть профиль',
-                onClick: () => setActiveTab('profile'),
-            })
+            if (hasModerationRevision) {
+                alerts.push({
+                    key: 'moderation-revision',
+                    variant: 'revision',
+                    closable: false,
+                    title: 'По профилю есть замечания модератора',
+                    text: moderationFeedback?.summary || 'Исправьте замечания и отправьте профиль повторно.',
+                    buttonText: 'Исправить профиль',
+                    onClick: () => {
+                        setActiveTab('profile')
+                        setIsEditingProfile(true)
+                    },
+                })
+            }
+
+            if (hasModerationApproved) {
+                alerts.push({
+                    key: 'moderation-approved',
+                    variant: 'approved',
+                    closable: true,
+                    title: 'Публичный профиль одобрен',
+                    text: 'Публичная версия профиля доступна пользователям платформы.',
+                    buttonText: 'Открыть профиль',
+                    onClick: () => setActiveTab('profile'),
+                })
+            }
         }
 
         return alerts
