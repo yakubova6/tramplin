@@ -3,6 +3,7 @@ package ru.itplanet.trampline.profile.service
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.itplanet.trampline.profile.dao.EmployerProfileDao
+import ru.itplanet.trampline.profile.dao.EmployerVerificationDao
 import ru.itplanet.trampline.profile.exception.ProfileForbiddenException
 import ru.itplanet.trampline.profile.exception.ProfileNotFoundException
 import ru.itplanet.trampline.profile.model.EmployerProfileWorkspace
@@ -11,6 +12,7 @@ import ru.itplanet.trampline.profile.model.EmployerProfileWorkspace
 class EmployerProfileWorkspaceQueryService(
     private val profileService: ProfileService,
     private val employerProfileDao: EmployerProfileDao,
+    private val employerVerificationDao: EmployerVerificationDao,
 ) {
 
     @Transactional(readOnly = true)
@@ -36,6 +38,10 @@ class EmployerProfileWorkspaceQueryService(
         val hasApprovedPublicVersion =
             profileDto.approvedPublicSnapshot.isObject && profileDto.approvedPublicSnapshot.size() > 0
 
+        val currentVerificationId = employerVerificationDao
+            .findTopByEmployerUserIdOrderByCreatedAtDescIdDesc(targetUserId)
+            ?.id
+
         return EmployerProfileWorkspace(
             currentProfile = profileService.getEmployerProfile(
                 currentUserId = currentUserId,
@@ -47,6 +53,7 @@ class EmployerProfileWorkspaceQueryService(
             ),
             moderationStatus = profileDto.moderationStatus,
             hasApprovedPublicVersion = hasApprovedPublicVersion,
+            currentVerificationId = currentVerificationId,
         )
     }
 }

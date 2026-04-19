@@ -6,5 +6,12 @@ import ru.itplanet.trampline.profile.model.enums.VerificationStatus
 
 interface EmployerVerificationDao : JpaRepository<EmployerVerificationDto, Long> {
 
-    fun existsByEmployerUserIdAndStatus(employerUserId: Long, status: VerificationStatus): Boolean
+    fun existsByEmployerUserIdAndStatus(
+        employerUserId: Long,
+        status: VerificationStatus,
+    ): Boolean
+
+    fun findTopByEmployerUserIdOrderByCreatedAtDescIdDesc(
+        employerUserId: Long,
+    ): EmployerVerificationDto?
 }

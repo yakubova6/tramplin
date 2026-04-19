@@ -150,6 +150,22 @@ class EmployerVerificationServiceImpl(
         }
     }
 
+    @Transactional(readOnly = true)
+    override fun getAttachments(
+        employerUserId: Long,
+        verificationId: Long,
+    ): List<InternalFileAttachmentResponse> {
+        val verification = getOwnedVerification(employerUserId, verificationId)
+
+        return runMediaAction(
+            logMessage = "Не удалось загрузить список вложений для verificationId=$verificationId, employerUserId=$employerUserId",
+            errorMessage = "Не удалось получить вложения запроса на верификацию",
+            code = "employer_verification_attachments_load_failed",
+        ) {
+            loadVerificationAttachments(requireNotNull(verification.id))
+        }
+    }
+
     @Transactional
     override fun cancelModerationTask(
         employerUserId: Long,

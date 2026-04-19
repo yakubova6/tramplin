@@ -7,4 +7,5 @@ data class EmployerProfileWorkspace(
     val publicProfile: EmployerProfile,
     val moderationStatus: EmployerProfileModerationStatus,
     val hasApprovedPublicVersion: Boolean,
+    val currentVerificationId: Long? = null,
 )

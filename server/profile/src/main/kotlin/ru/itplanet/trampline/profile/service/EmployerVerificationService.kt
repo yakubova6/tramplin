@@ -23,6 +23,11 @@ interface EmployerVerificationService {
         verificationId: Long,
     )
 
+    fun getAttachments(
+        employerUserId: Long,
+        verificationId: Long,
+    ): List<InternalFileAttachmentResponse>
+
     fun addAttachment(
         employerUserId: Long,
         verificationId: Long,
