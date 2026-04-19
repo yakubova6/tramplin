@@ -27,7 +27,6 @@ import {
     uploadEmployerVerificationAttachment,
     getEmployerVerificationModerationTask,
     cancelEmployerVerificationModerationTask,
-    openVerificationAttachment,
     getEmployerVerificationAttachments,
 } from '@/api/profile'
 
@@ -260,6 +259,11 @@ function EmployerDashboard() {
 
     const [isDeletingAttachment, setIsDeletingAttachment] = useState(false)
 
+    // Храним предыдущий статус модерации для отслеживания изменений
+    const prevModerationStateRef = useRef('DRAFT')
+    // Храним timestamp последнего показа уведомления об одобрении
+    const lastModerationApprovedAlertShownRef = useRef(null)
+
     const locationCitySearchRef = useRef(null)
     const addressSearchRef = useRef(null)
     const logoInputRef = useRef(null)
@@ -467,6 +471,7 @@ function EmployerDashboard() {
         }
     }, [])
 
+    // Загружаем историю модерации (если доступно, но не критично)
     const loadModerationFeedback = useCallback(async (entityId) => {
         if (!entityId) {
             setModerationFeedback(null)
@@ -500,6 +505,7 @@ function EmployerDashboard() {
             setModerationFeedback(extractModerationFeedback(sortedHistory, taskDetail))
             return sortedHistory
         } catch (error) {
+            // 403 - просто игнорируем, это не критично для работы
             if (error?.status === 403) {
                 setModerationFeedback(null)
                 return []
@@ -611,15 +617,6 @@ function EmployerDashboard() {
 
             try {
                 const attachments = await getEmployerVerificationAttachments(verificationId)
-                console.log('Attachments response:', JSON.stringify(attachments, null, 2))
-
-                if (attachments.length > 0) {
-                    console.log('First attachment structure:', attachments[0])
-                    console.log('Available fields:', Object.keys(attachments[0]))
-                    if (attachments[0].file) {
-                        console.log('File object fields:', Object.keys(attachments[0].file))
-                    }
-                }
                 setVerificationAttachments(Array.isArray(attachments) ? attachments : [])
             } catch {
                 // Silently fail
@@ -1455,6 +1452,27 @@ function EmployerDashboard() {
         }
     }, [dismissedDashboardAlerts])
 
+    useEffect(() => {
+        const prevStatus = prevModerationStateRef.current
+        const currentStatus = moderationState
+
+        if (prevStatus !== 'APPROVED' && currentStatus === 'APPROVED') {
+            const alertKey = `moderation-approved-${Date.now()}`
+
+            if (lastModerationApprovedAlertShownRef.current !== alertKey) {
+                lastModerationApprovedAlertShownRef.current = alertKey
+
+                toast({
+                    title: 'Публичный профиль одобрен',
+                    description: 'Публичная версия профиля доступна пользователям платформы.',
+                    variant: 'default',
+                })
+            }
+        }
+
+        prevModerationStateRef.current = currentStatus
+    }, [moderationState, toast])
+
     const filteredOpportunities = useMemo(() => {
         return opportunities.filter((opp) => {
             const matchesSearch =
@@ -1476,7 +1494,6 @@ function EmployerDashboard() {
         const hasVerificationRevoked = verificationState === 'REVOKED'
         const hasModerationPending = isProfileAlreadyOnModeration(moderationState)
         const hasModerationRevision = moderationState === 'REQUESTED_CHANGES' || moderationState === 'REJECTED'
-        const hasModerationApproved = moderationState === 'APPROVED'
 
         if (!isVerified) {
             if (verificationState === 'NOT_STARTED') {
@@ -1518,7 +1535,7 @@ function EmployerDashboard() {
             if (hasVerificationRevoked) {
                 alerts.push({
                     key: 'verification-revoked',
-                    variant: 'warning',
+                    variant: 'revision',
                     closable: false,
                     title: 'Верификация отозвана',
                     text: verificationModerationTask?.comment
@@ -1561,18 +1578,6 @@ function EmployerDashboard() {
                     },
                 })
             }
-
-            if (hasModerationApproved) {
-                alerts.push({
-                    key: 'moderation-approved',
-                    variant: 'approved',
-                    closable: true,
-                    title: 'Публичный профиль одобрен',
-                    text: 'Публичная версия профиля доступна пользователям платформы.',
-                    buttonText: 'Открыть профиль',
-                    onClick: () => setActiveTab('profile'),
-                })
-            }
         }
 
         return alerts
@@ -1582,6 +1587,7 @@ function EmployerDashboard() {
         isVerified,
         moderationFeedback?.summary,
         moderationState,
+        verificationModerationTask?.comment,
         verificationState,
     ])
 
