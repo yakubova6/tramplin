@@ -5,10 +5,10 @@ import { RUSSIAN_UNIVERSITIES } from '../../constants/universities'
 import { INDUSTRIES } from '../../constants/industries'
 import { FACULTIES } from '../../constants/faculties'
 import { STUDY_PROGRAMS } from '../../constants/studyPrograms'
-import { getCurrentUserInfo } from '../../api/auth'
 import {
     getApplicantProfile,
     getEmployerProfile,
+    getCurrentSessionUser,
     updateApplicantProfile,
     updateEmployerCompanyData,
     updateEmployerProfile,
@@ -232,33 +232,19 @@ function ProfileEdit() {
 
             try {
                 const localUser = getSessionUser()
-
-                if (!localUser) {
-                    const apiUserResponse = await getCurrentUserInfo()
-                    const apiUser = apiUserResponse?.user || apiUserResponse || null
-
-                    if (apiUser) {
-                        setSessionUser(apiUser)
-                        setUser(apiUser)
-                    } else {
-                        setUser(null)
-                    }
-
+                if (localUser) {
+                    setUser(localUser)
                     return
                 }
 
-                setUser(localUser)
-
-                const apiUserResponse = await getCurrentUserInfo()
-                const apiUser = apiUserResponse?.user || apiUserResponse || null
-
+                const apiUser = await getCurrentSessionUser()
                 if (apiUser) {
                     setSessionUser(apiUser)
                     setUser(apiUser)
-                } else {
-                    clearSessionUser()
-                    setUser(null)
+                    return
                 }
+
+                setUser(null)
             } catch (error) {
                 console.error('Error loading user:', error)
                 clearSessionUser()
@@ -357,7 +343,7 @@ function ProfileEdit() {
         return () => {
             isCancelled = true
         }
-    }, [isEmployer, user?.displayName, user?.id, user?.userId])
+    }, [isEmployer, user?.id, user?.userId])
 
     useEffect(() => {
         if (user && isEmployer && !companyName) {

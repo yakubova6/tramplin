@@ -2127,6 +2127,10 @@ function EmployerDashboard() {
                         expandedOpportunityId={expandedOpportunityId}
                         setExpandedOpportunityId={setExpandedOpportunityId}
                         employerLocations={employerLocations}
+                        onRefreshOpportunities={async () => {
+                            const refreshed = await getEmployerOpportunities()
+                            setOpportunities(refreshed.items || [])
+                        }}
                         onStartEditOpportunity={async (opportunityId) => {
                             const opportunity = await getEmployerOpportunityById(opportunityId)
 

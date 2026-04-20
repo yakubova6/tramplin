@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   getModerationTags,
   approveModerationTag,
@@ -18,30 +18,30 @@ const CuratorTagsPage = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadTags = async () => {
+  const loadTags = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = filterStatus != 'ALL' ? { status: filterStatus } : {};
+      const params = filterStatus !== 'ALL' ? { status: filterStatus } : {};
       const data = await getModerationTags(params);
-      // Если бэкенд возвращает объект с пагинацией, извлеките items
       const tagsArray = Array.isArray(data) ? data : data?.items || [];
       setTags(tagsArray);
-    } catch (err) {
+    } catch {
       setError('Не удалось загрузить теги');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus]);
 
   useEffect(() => {
     loadTags();
-  }, [filterStatus]);
+  }, [loadTags]);
 
   const handleApprove = async (id) => {
     try {
       await approveModerationTag(id);
       await loadTags();
-    } catch (err) {
+    } catch {
       alert('Ошибка при одобрении тега');
     }
   };
@@ -51,7 +51,7 @@ const CuratorTagsPage = () => {
     try {
       await rejectModerationTag(id);
       await loadTags();
-    } catch (err) {
+    } catch {
       alert('Ошибка при отклонении тега');
     }
   };
@@ -61,7 +61,7 @@ const CuratorTagsPage = () => {
       await createCuratorTag(tagData);
       setShowCreateForm(false);
       await loadTags();
-    } catch (err) {
+    } catch {
       alert('Ошибка при создании тега');
     }
   };

@@ -1,4 +1,5 @@
 import { clearSessionUser, setSessionUser } from '../utils/sessionStore'
+import { clearSessionUserCache, getSessionUserFromApi } from './http'
 
 const API_BASE = '/api/auth'
 
@@ -299,22 +300,20 @@ export async function validateSession() {
 
 export async function getCurrentUserInfo() {
     try {
-        const response = await request(`${API_BASE}/me`, {
-            method: 'GET',
-        })
-
-        const user = response?.user || response || null
+        const user = await getSessionUserFromApi({ force: false })
 
         if (user) {
             setSessionUser(user)
         } else {
             clearSessionUser()
+            clearSessionUserCache()
         }
 
-        return response
+        return user
     } catch (error) {
         if ([401, 403, 404, 500, 502, 503].includes(error.status)) {
             clearSessionUser()
+            clearSessionUserCache()
             return null
         }
 
@@ -329,6 +328,7 @@ export async function logoutUser() {
         })
     } finally {
         clearSessionUser()
+        clearSessionUserCache()
         csrfState = null
     }
 

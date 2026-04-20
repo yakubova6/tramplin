@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { getEmployerTags, cancelEmployerTagModeration, createEmployerTag } from '../../../api/employerTag.js';
 import TagStatusBadge from '../../../components/Tags/TagStatusBadge/TagStatusBadge.jsx';
 import TagModerationDetails from '../../../components/Tags/TagModerationDetails/TagModerationDetails.jsx';
@@ -13,30 +13,30 @@ const EmployerTagsPage = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [error, setError] = useState(null);
 
-  const loadTags = async () => {
+  const loadTags = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = filterStatus !== 'ALL' ? { status: filterStatus } : {};
       const data = await getEmployerTags(params);
-      console.log("DATA", data)
       setTags(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch {
       setError('Не удалось загрузить теги');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterStatus]);
 
   useEffect(() => {
     loadTags();
-  }, [filterStatus]);
+  }, [loadTags]);
 
   const handleCancel = async (tagId) => {
     if (!window.confirm('Вы уверены, что хотите отменить заявку на модерацию?')) return;
     try {
       await cancelEmployerTagModeration(tagId);
       await loadTags();
-    } catch (err) {
+    } catch {
       alert('Ошибка при отмене заявки');
     }
   };
@@ -46,7 +46,7 @@ const EmployerTagsPage = () => {
       await createEmployerTag(tagData);
       setShowCreateForm(false);
       await loadTags();
-    } catch (err) {
+    } catch {
       alert('Ошибка при создании тега');
     }
   };

@@ -12,7 +12,7 @@ import {
 import './Navbar.scss'
 
 function Navbar() {
-    const [location] = useLocation()
+    const [location, navigate] = useLocation()
     const [user, setUser] = useState(getSessionUser())
     const [displayName, setDisplayName] = useState('')
     const [isCheckingSession, setIsCheckingSession] = useState(!!getSessionUser())
@@ -133,7 +133,7 @@ function Navbar() {
         } catch (error) {
             console.error('Logout error:', error)
         } finally {
-            window.location.href = '/login'
+            navigate('/login')
         }
     }
 

@@ -176,32 +176,6 @@ export default function OpportunityDetailPage() {
                 const data = await getOpportunity(params.id)
                 if (!isMounted) return
                 setItem(data)
-
-                if (!currentUser) {
-                    setIsFavorite(isGuestFavoriteOpportunity(Number(params.id)))
-                    setIsEmployerFavorite(false)
-                    return
-                }
-
-                try {
-                    const favorites = await getSavedFavorites()
-                    if (!isMounted) return
-
-                    const existsInSaved = Array.isArray(favorites?.opportunities)
-                        ? favorites.opportunities.some((saved) => Number(saved.id) === Number(params.id))
-                        : false
-
-                    const existsEmployerInSaved = Array.isArray(favorites?.employers) && data?.employerUserId
-                        ? favorites.employers.some((saved) => Number(saved.id) === Number(data.employerUserId))
-                        : false
-
-                    setIsFavorite(existsInSaved)
-                    setIsEmployerFavorite(existsEmployerInSaved)
-                } catch {
-                    if (!isMounted) return
-                    setIsFavorite(false)
-                    setIsEmployerFavorite(false)
-                }
             } catch (err) {
                 if (!isMounted) return
                 setError(err?.message || 'Не удалось загрузить карточку')
@@ -217,7 +191,47 @@ export default function OpportunityDetailPage() {
         return () => {
             isMounted = false
         }
-    }, [params?.id, currentUser])
+    }, [params?.id])
+
+    useEffect(() => {
+        if (!params?.id) return
+
+        let isMounted = true
+
+        async function syncFavorites() {
+            if (!currentUser) {
+                setIsFavorite(isGuestFavoriteOpportunity(Number(params.id)))
+                setIsEmployerFavorite(false)
+                return
+            }
+
+            try {
+                const favorites = await getSavedFavorites()
+                if (!isMounted) return
+
+                const existsInSaved = Array.isArray(favorites?.opportunities)
+                    ? favorites.opportunities.some((saved) => Number(saved.id) === Number(params.id))
+                    : false
+
+                const existsEmployerInSaved = Array.isArray(favorites?.employers) && item?.employerUserId
+                    ? favorites.employers.some((saved) => Number(saved.id) === Number(item.employerUserId))
+                    : false
+
+                setIsFavorite(existsInSaved)
+                setIsEmployerFavorite(existsEmployerInSaved)
+            } catch {
+                if (!isMounted) return
+                setIsFavorite(false)
+                setIsEmployerFavorite(false)
+            }
+        }
+
+        syncFavorites()
+
+        return () => {
+            isMounted = false
+        }
+    }, [currentUser, item?.employerUserId, params?.id])
 
     const resourceLinks = useMemo(() => normalizeResourceLinks(item?.resourceLinks), [item?.resourceLinks])
 

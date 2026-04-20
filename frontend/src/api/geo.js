@@ -14,7 +14,10 @@ export async function searchGeoCities(search, limit = 10) {
         limit: Math.min(Math.max(Number(limit) || 10, 1), 20),
     })
 
-    return httpJson(`${API_BASE}/geo/cities?${query}`)
+    return httpJson(`${API_BASE}/geo/cities?${query}`, {
+        dedupe: true,
+        cacheTtlMs: 60_000,
+    })
 }
 
 export async function getGeoCity(id) {
@@ -22,7 +25,10 @@ export async function getGeoCity(id) {
         throw new Error('Не указан id города')
     }
 
-    return httpJson(`${API_BASE}/geo/cities/${id}`)
+    return httpJson(`${API_BASE}/geo/cities/${id}`, {
+        dedupe: true,
+        cacheTtlMs: 5 * 60_000,
+    })
 }
 
 export async function getGeoLocation(id) {
@@ -30,7 +36,10 @@ export async function getGeoLocation(id) {
         throw new Error('Не указан id локации')
     }
 
-    return httpJson(`${API_BASE}/geo/locations/${id}`)
+    return httpJson(`${API_BASE}/geo/locations/${id}`, {
+        dedupe: true,
+        cacheTtlMs: 5 * 60_000,
+    })
 }
 
 export async function suggestGeoAddress({ query, cityId = null }) {

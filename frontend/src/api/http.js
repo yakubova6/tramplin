@@ -33,51 +33,116 @@ async function parseResponseBody(response) {
 let sessionUserCache = null
 let sessionUserCacheAt = 0
 const SESSION_CACHE_TTL_MS = 15_000
+const GET_RESPONSE_CACHE = new Map()
+const GET_IN_FLIGHT_REQUESTS = new Map()
 
 export function clearSessionUserCache() {
     sessionUserCache = null
     sessionUserCacheAt = 0
 }
 
+export function clearHttpGetCache(match = null) {
+    if (!match) {
+        GET_RESPONSE_CACHE.clear()
+        return
+    }
+
+    for (const key of GET_RESPONSE_CACHE.keys()) {
+        if (typeof match === 'string' ? key.includes(match) : match.test(key)) {
+            GET_RESPONSE_CACHE.delete(key)
+        }
+    }
+}
+
 export async function httpJson(url, options = {}) {
     const fullUrl = url.startsWith('http') ? url : url
-    console.log('[HTTP]', options.method || 'GET', fullUrl)
+    const method = (options.method || 'GET').toUpperCase()
+    const cacheTtlMs = Number(options.cacheTtlMs) || 0
+    const dedupe = Boolean(options.dedupe)
+    const force = Boolean(options.force)
+    const cacheKey = options.cacheKey || `${method}:${fullUrl}`
+    const requestOptions = { ...options }
 
-    let response
-    try {
-        response = await fetch(fullUrl, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(options.headers || {}),
-            },
-            ...options,
-        })
-    } catch {
-        throw createHttpError('Сервер недоступен. Попробуйте позже.', 0)
+    delete requestOptions.cacheTtlMs
+    delete requestOptions.cacheKey
+    delete requestOptions.dedupe
+    delete requestOptions.force
+
+    console.log('[HTTP]', method, fullUrl)
+
+    const canUseGetCache = method === 'GET' && cacheTtlMs > 0
+    const canUseInFlightDedupe = method === 'GET' && dedupe
+
+    if (!force && canUseGetCache) {
+        const cached = GET_RESPONSE_CACHE.get(cacheKey)
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.data
+        }
     }
 
-    const data = await parseResponseBody(response)
+    if (!force && canUseInFlightDedupe) {
+        const inFlight = GET_IN_FLIGHT_REQUESTS.get(cacheKey)
+        if (inFlight) {
+            return inFlight
+        }
+    }
 
-    if (!response.ok) {
-        const message =
-            (typeof data === 'object' && data?.message) ||
-            (typeof data === 'object' && data?.error) ||
-            (typeof data === 'string' && data) ||
-            'Ошибка запроса'
-
-        if (response.status === 401) {
-            clearSessionUserCache()
+    const requestPromise = (async () => {
+        let response
+        try {
+            response = await fetch(fullUrl, {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(requestOptions.headers || {}),
+                },
+                ...requestOptions,
+            })
+        } catch {
+            throw createHttpError('Сервер недоступен. Попробуйте позже.', 0)
         }
 
-        throw createHttpError(message, response.status, {
-            code: typeof data === 'object' ? data?.code : null,
-            details: typeof data === 'object' ? data?.details : {},
-            payload: data,
-        })
+        const data = await parseResponseBody(response)
+
+        if (!response.ok) {
+            const message =
+                (typeof data === 'object' && data?.message) ||
+                (typeof data === 'object' && data?.error) ||
+                (typeof data === 'string' && data) ||
+                'Ошибка запроса'
+
+            if (response.status === 401) {
+                clearSessionUserCache()
+            }
+
+            throw createHttpError(message, response.status, {
+                code: typeof data === 'object' ? data?.code : null,
+                details: typeof data === 'object' ? data?.details : {},
+                payload: data,
+            })
+        }
+
+        if (canUseGetCache) {
+            GET_RESPONSE_CACHE.set(cacheKey, {
+                data,
+                expiresAt: Date.now() + cacheTtlMs,
+            })
+        }
+
+        return data
+    })()
+
+    if (canUseInFlightDedupe) {
+        GET_IN_FLIGHT_REQUESTS.set(cacheKey, requestPromise)
     }
 
-    return data
+    try {
+        return await requestPromise
+    } finally {
+        if (canUseInFlightDedupe) {
+            GET_IN_FLIGHT_REQUESTS.delete(cacheKey)
+        }
+    }
 }
 
 export function toQuery(params = {}) {

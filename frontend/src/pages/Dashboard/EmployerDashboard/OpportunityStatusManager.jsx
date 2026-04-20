@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { getOpportunityModerationTask, cancelOpportunityModerationTask, OPPORTUNITY_LABELS } from '@/api/opportunities'
+import { useState } from 'react'
+import { cancelOpportunityModerationTask, OPPORTUNITY_LABELS } from '@/api/opportunities'
 import { useToast } from '@/hooks/use-toast'
 
 const STATUS_CONFIG = {
@@ -12,25 +12,9 @@ const STATUS_CONFIG = {
     PLANNED: { color: 'blue', actions: ['edit', 'publish'] },
 }
 
-function OpportunityStatusManager({ opportunity, onStatusChange, onEdit, onClose, onArchive, onReturnToDraft }) {
+function OpportunityStatusManager({ opportunity, onStatusChange, onReturnToDraft }) {
     const { toast } = useToast()
-    const [moderationTask, setModerationTask] = useState(null)
     const [loading, setLoading] = useState(false)
-
-    useEffect(() => {
-        if (opportunity.status === 'PENDING_MODERATION') {
-            loadModerationTask()
-        }
-    }, [opportunity.id, opportunity.status])
-
-    const loadModerationTask = async () => {
-        try {
-            const task = await getOpportunityModerationTask(opportunity.id)
-            setModerationTask(task)
-        } catch (error) {
-            console.error('Failed to load moderation task:', error)
-        }
-    }
 
     const handleCancelModeration = async () => {
         if (!confirm('Отменить отправку на модерацию? Вы сможете продолжить редактирование.')) return
@@ -41,12 +25,9 @@ function OpportunityStatusManager({ opportunity, onStatusChange, onEdit, onClose
 
             toast({
                 title: 'Модерация отменена',
-                description: 'Публикация возвращена в черновики. Страница обновится.',
+                description: 'Публикация возвращена в черновики.',
             })
-
-            setTimeout(() => {
-                window.location.reload()
-            }, 1500)
+            await onStatusChange?.()
 
         } catch (error) {
             toast({
@@ -68,12 +49,9 @@ function OpportunityStatusManager({ opportunity, onStatusChange, onEdit, onClose
 
             toast({
                 title: 'Возвращено в черновики',
-                description: 'Теперь вы можете отредактировать публикацию. Страница обновится.',
+                description: 'Теперь вы можете отредактировать публикацию.',
             })
-
-            setTimeout(() => {
-                window.location.reload()
-            }, 1500)
+            await onStatusChange?.()
 
         } catch (error) {
             toast({
@@ -115,10 +93,10 @@ function OpportunityStatusManager({ opportunity, onStatusChange, onEdit, onClose
                 </div>
             )}
 
-            {opportunity.status === 'PENDING_MODERATION' && moderationTask && (
+            {opportunity.status === 'PENDING_MODERATION' && (
                 <div className="opportunity-status-manager__task">
                     <div className="opportunity-status-manager__task-info">
-                        <span>Задача модерации #{moderationTask.taskId}</span>
+                        <span>Публикация на модерации</span>
                         {isActionAllowed('cancel_moderation') && (
                             <button
                                 className="opportunity-status-manager__button opportunity-status-manager__button--small"

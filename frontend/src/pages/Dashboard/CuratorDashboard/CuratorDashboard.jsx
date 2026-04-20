@@ -19,7 +19,6 @@ import {
     assignModerationTask,
     addModerationComment,
     cancelModerationTask,
-    getEntityModerationHistory,
     getModerationEntityAttachments,
     uploadModerationTaskAttachment,
     deleteModerationTaskAttachment,
@@ -384,6 +383,7 @@ function CuratorDashboard() {
         search: '',
         sort: 'createdAt,desc',
     })
+    const [debouncedHistorySearch, setDebouncedHistorySearch] = useState('')
 
     const [approveComment, setApproveComment] = useState('')
     const [rejectComment, setRejectComment] = useState('')
@@ -404,6 +404,7 @@ function CuratorDashboard() {
     const [newCuratorName, setNewCuratorName] = useState('')
     const [newCuratorPassword, setNewCuratorPassword] = useState('')
     const [isCreating, setIsCreating] = useState(false)
+    const historyTaskDetailsCacheRef = useRef(new Map())
 
     useEffect(() => {
         setCurrentUser(getSessionUser())
@@ -460,12 +461,11 @@ function CuratorDashboard() {
             setEntityDraft(deepClone(data.createdSnapshot || {}))
             setIsEditingEntity(false)
 
-            const [history, attachments] = await Promise.all([
-                getEntityModerationHistory(data.entityType, data.entityId),
+            const [attachments] = await Promise.all([
                 getModerationEntityAttachments(data.entityType, data.entityId).catch(() => []),
             ])
 
-            setTaskHistory(history || [])
+            setTaskHistory(Array.isArray(data?.history) ? data.history : [])
             setEntityAttachments(attachments || [])
             return data
         } catch (error) {
@@ -485,29 +485,48 @@ function CuratorDashboard() {
     const loadAllHistory = useCallback(async () => {
         setIsHistoryLoading(true)
         try {
-            const response = await getModerationTasks({ page: 0, size: 100, sort: historyFilters.sort })
-            let mergedHistory = []
+            const response = await getModerationTasks({
+                page: historyFilters.page,
+                size: historyFilters.size,
+                sort: historyFilters.sort,
+            })
+            const pageTasks = response.items || []
+            const missingTaskIds = pageTasks
+                .map((task) => task.id)
+                .filter((id) => !historyTaskDetailsCacheRef.current.has(id))
 
-            for (const task of response.items || []) {
-                try {
-                    const history = await getEntityModerationHistory(task.entityType, task.entityId)
-                    if (Array.isArray(history)) {
-                        mergedHistory.push(
-                            ...history.map((item) => ({
-                                ...item,
-                                taskType: task.taskType,
-                                entityType: task.entityType,
-                                entityId: task.entityId,
-                                taskId: task.id,
-                            })),
-                        )
+            if (missingTaskIds.length) {
+                const detailResults = await Promise.all(
+                    missingTaskIds.map((taskId) =>
+                        getModerationTaskDetail(taskId)
+                            .then((detail) => ({ ok: true, detail }))
+                            .catch((error) => ({ ok: false, taskId, error })),
+                    ),
+                )
+
+                detailResults.forEach((result) => {
+                    if (result.ok) {
+                        historyTaskDetailsCacheRef.current.set(result.detail.id, result.detail)
+                    } else {
+                        console.warn(`Failed to load detail for task ${result.taskId}`, result.error)
                     }
-                } catch (error) {
-                    console.warn(`Failed to load history for task ${task.id}`, error)
-                }
+                })
             }
 
-            const search = historyFilters.search.trim().toLowerCase()
+            let mergedHistory = pageTasks.flatMap((task) => {
+                const detail = historyTaskDetailsCacheRef.current.get(task.id)
+                const history = Array.isArray(detail?.history) ? detail.history : []
+
+                return history.map((item) => ({
+                    ...item,
+                    taskType: task.taskType,
+                    entityType: task.entityType,
+                    entityId: task.entityId,
+                    taskId: task.id,
+                }))
+            })
+
+            const search = debouncedHistorySearch.trim().toLowerCase()
             if (search) {
                 mergedHistory = mergedHistory.filter((item) => {
                     const haystack = [
@@ -534,10 +553,8 @@ function CuratorDashboard() {
                 return historyFilters.sort === 'createdAt,asc' ? dateA - dateB : dateB - dateA
             })
 
-            const start = historyFilters.page * historyFilters.size
-            const end = start + historyFilters.size
-            setAllHistory(mergedHistory.slice(start, end))
-            setHistoryTotalPages(Math.ceil(mergedHistory.length / historyFilters.size) || 0)
+            setAllHistory(mergedHistory)
+            setHistoryTotalPages(response.totalPages || 0)
         } catch (error) {
             console.error('Failed to load all history:', error)
             toast({
@@ -548,7 +565,14 @@ function CuratorDashboard() {
         } finally {
             setIsHistoryLoading(false)
         }
-    }, [historyFilters.page, historyFilters.search, historyFilters.size, historyFilters.sort, toast])
+    }, [debouncedHistorySearch, historyFilters.page, historyFilters.size, historyFilters.sort, toast])
+
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setDebouncedHistorySearch(historyFilters.search)
+        }, 350)
+        return () => window.clearTimeout(timeoutId)
+    }, [historyFilters.search])
 
     useEffect(() => {
         loadTasks()
@@ -962,11 +986,6 @@ function CuratorDashboard() {
         }
     }
 
-    const applyFilters = () => {
-        setPagination((prev) => ({ ...prev, page: 0 }))
-        loadTasks()
-    }
-
     const resetFilters = () => {
         setFilters({
             status: '',
@@ -1126,7 +1145,6 @@ function CuratorDashboard() {
                             </div>
 
                             <div className="filter-actions filter-actions--filters">
-                                <Button className="button--primary" onClick={applyFilters}>Применить</Button>
                                 <Button className="button--ghost" onClick={resetFilters}>Сбросить</Button>
                                 <Button className="button--ghost" onClick={() => { dismissActiveOverlayUi(); setIsManualTaskModalOpen(true) }}>Создать задачу</Button>
                             </div>

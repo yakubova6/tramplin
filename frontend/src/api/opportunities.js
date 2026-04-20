@@ -1,4 +1,4 @@
-import { httpJson, toQuery } from './http'
+import { clearHttpGetCache, httpJson, toQuery } from './http'
 import { getSessionUserId } from '../utils/sessionStore'
 
 const API_BASE = '/api'
@@ -50,12 +50,18 @@ function getRequiredUserId() {
 
 export async function listOpportunities(params = {}) {
     const query = toQuery(params)
-    return httpJson(`${API_BASE}/opportunities${query ? `?${query}` : ''}`)
+    return httpJson(`${API_BASE}/opportunities${query ? `?${query}` : ''}`, {
+        dedupe: true,
+        cacheTtlMs: 10_000,
+    })
 }
 
 export async function listOpportunityMap(params = {}) {
     const query = toQuery(params)
-    return httpJson(`${API_BASE}/opportunities/map${query ? `?${query}` : ''}`)
+    return httpJson(`${API_BASE}/opportunities/map${query ? `?${query}` : ''}`, {
+        dedupe: true,
+        cacheTtlMs: 8_000,
+    })
 }
 
 export async function listNearbyOpportunities(params = {}) {
@@ -79,7 +85,10 @@ export async function getOpportunity(id) {
 
 export async function listTags(category) {
     const query = toQuery({ category })
-    return httpJson(`${API_BASE}/tags${query ? `?${query}` : ''}`)
+    return httpJson(`${API_BASE}/tags${query ? `?${query}` : ''}`, {
+        dedupe: true,
+        cacheTtlMs: 60_000,
+    })
 }
 
 export async function listEmployerOpportunities(params = {}) {
@@ -99,13 +108,19 @@ export async function listEmployerOpportunities(params = {}) {
     })
 
     try {
-        return await httpJson(`${API_BASE}/employer/opportunities?${fullQuery}`)
+        return await httpJson(`${API_BASE}/employer/opportunities?${fullQuery}`, {
+            dedupe: true,
+            cacheTtlMs: 7_000,
+        })
     } catch (error) {
         console.warn('[opportunities] full employer opportunities query failed, retrying minimal query:', error)
 
         const fallbackQuery = toQuery({ currentUserId })
 
-        return httpJson(`${API_BASE}/employer/opportunities?${fallbackQuery}`)
+        return httpJson(`${API_BASE}/employer/opportunities?${fallbackQuery}`, {
+            dedupe: true,
+            cacheTtlMs: 7_000,
+        })
     }
 }
 
@@ -113,54 +128,67 @@ export async function getEmployerOpportunity(id) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities/${id}?${query}`)
+    return httpJson(`${API_BASE}/employer/opportunities/${id}?${query}`, {
+        dedupe: true,
+        cacheTtlMs: 12_000,
+    })
 }
 
 export async function createEmployerOpportunity(payload) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities?${query}`, {
+    const data = await httpJson(`${API_BASE}/employer/opportunities?${query}`, {
         method: 'POST',
         body: JSON.stringify(payload),
     })
+    clearHttpGetCache('/api/employer/opportunities')
+    return data
 }
 
 export async function updateEmployerOpportunity(id, payload) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities/${id}?${query}`, {
+    const data = await httpJson(`${API_BASE}/employer/opportunities/${id}?${query}`, {
         method: 'PUT',
         body: JSON.stringify(payload),
     })
+    clearHttpGetCache('/api/employer/opportunities')
+    return data
 }
 
 export async function closeEmployerOpportunity(id) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities/${id}/close?${query}`, {
+    const data = await httpJson(`${API_BASE}/employer/opportunities/${id}/close?${query}`, {
         method: 'POST',
     })
+    clearHttpGetCache('/api/employer/opportunities')
+    return data
 }
 
 export async function archiveEmployerOpportunity(id) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities/${id}/archive?${query}`, {
+    const data = await httpJson(`${API_BASE}/employer/opportunities/${id}/archive?${query}`, {
         method: 'POST',
     })
+    clearHttpGetCache('/api/employer/opportunities')
+    return data
 }
 
 export async function returnToDraftEmployerOpportunity(id) {
     const currentUserId = getRequiredUserId()
     const query = toQuery({ currentUserId })
 
-    return httpJson(`${API_BASE}/employer/opportunities/${id}/return-to-draft?${query}`, {
+    const data = await httpJson(`${API_BASE}/employer/opportunities/${id}/return-to-draft?${query}`, {
         method: 'POST',
     })
+    clearHttpGetCache('/api/employer/opportunities')
+    return data
 }
 
 export async function uploadOpportunityMedia(id, file) {

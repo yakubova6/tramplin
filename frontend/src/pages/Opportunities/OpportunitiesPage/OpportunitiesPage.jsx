@@ -551,8 +551,6 @@ function OpportunitiesPage() {
             })
 
             const normalized = normalizeNearbyResponse(nearbyData)
-            console.log('NEARBY RAW:', nearbyData)
-            console.log('NEARBY NORMALIZED:', normalized)
 
             setIsMapSearchActive(true)
             setMapSearchResults(normalized.items)
@@ -797,12 +795,6 @@ function OpportunitiesPage() {
                         </button>
                     </div>
                 </section>
-
-                {shouldShowMapControls && (
-                    <div className="opportunities-page__map-controls-row">
-                        {mapControlsContent}
-                    </div>
-                )}
 
                 {error && <p className="opportunities-page__error">{error}</p>}
                 {isLoading && <p className="opportunities-page__state">Загрузка...</p>}

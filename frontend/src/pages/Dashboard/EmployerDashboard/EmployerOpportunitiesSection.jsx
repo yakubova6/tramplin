@@ -20,6 +20,7 @@ function EmployerOpportunitiesSection({
                                           onUpdateOpportunityStatus,
                                           onDeleteOpportunity,
                                           employerLocations,
+                                      onRefreshOpportunities,
                                       }) {
 
     const getOpportunityLocation = (opp) => {
@@ -100,9 +101,7 @@ function EmployerOpportunitiesSection({
                             <div className="employer-opportunities__meta">
                                 <OpportunityStatusManager
                                     opportunity={opp}
-                                    onEdit={() => onStartEditOpportunity(opp.id)}
-                                    onClose={() => onUpdateOpportunityStatus(opp.id, 'close', 'Публикация закрыта')}
-                                    onArchive={() => onDeleteOpportunity(opp.id, opp.title)}
+                                    onStatusChange={onRefreshOpportunities}
                                     onReturnToDraft={(id) => onUpdateOpportunityStatus(id, 'draft', 'Публикация возвращена в черновик')}
                                 />
 

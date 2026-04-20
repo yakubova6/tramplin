@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLocation } from 'wouter'
 import { useToast } from '../../../hooks/use-toast'
 import DashboardLayout from '../DashboardLayout'
@@ -202,7 +202,7 @@ function SeekerDashboard() {
         error?.status === 403 &&
         error?.code === 'applicant_networking_requires_approved_profile'
 
-    const applyProfileFromApi = (profileData, currentUser = user) => {
+    const applyProfileFromApi = useCallback((profileData, currentUser) => {
         if (!profileData) return
 
         const nextProfile = mapApplicantProfileToState(profileData, currentUser)
@@ -211,20 +211,20 @@ function SeekerDashboard() {
         setCitySearchQuery(nextProfile.cityName || '')
         setTempPortfolioLinks(linksToArray(nextProfile.portfolioLinks || []))
         setTempContactLinks(linksToArray(nextProfile.contactLinks || []))
-    }
+    }, [])
 
-    const refreshApplicantFiles = async () => {
+    const refreshApplicantFiles = useCallback(async () => {
         const freshProfile = await getApplicantProfile()
         if (!freshProfile) return
-        applyProfileFromApi({ ...profile, ...freshProfile })
-    }
+        applyProfileFromApi(freshProfile, user)
+    }, [applyProfileFromApi, user])
 
-    const reloadApplicantProfile = async (currentUserOverride = user) => {
+    const reloadApplicantProfile = useCallback(async (currentUserOverride = user) => {
         const freshProfile = await getApplicantProfile()
         if (!freshProfile) return null
         applyProfileFromApi(freshProfile, currentUserOverride)
         return freshProfile
-    }
+    }, [applyProfileFromApi, user])
 
     const handleCancelPortfolioEdit = () => {
         setTempPortfolioLinks(linksToArray(profile.portfolioLinks || []))
@@ -273,7 +273,7 @@ function SeekerDashboard() {
         setIsCitySearchOpen(false)
     }
 
-    const loadContacts = async () => {
+    const loadContacts = useCallback(async () => {
         setIsContactsLoading(true)
         try {
             const contactsList = await getSeekerContacts()
@@ -296,9 +296,9 @@ function SeekerDashboard() {
         } finally {
             setIsContactsLoading(false)
         }
-    }
+    }, [toast])
 
-    const loadRecommendations = async () => {
+    const loadRecommendations = useCallback(async () => {
         setIsRecommendationsLoading(true)
         try {
             const data = await getSeekerRecommendations()
@@ -321,7 +321,7 @@ function SeekerDashboard() {
         } finally {
             setIsRecommendationsLoading(false)
         }
-    }
+    }, [toast])
 
     useEffect(() => {
         const loadData = async () => {
@@ -344,7 +344,12 @@ function SeekerDashboard() {
                     return
                 }
 
-                const profileData = await getApplicantProfile()
+                const [profileData, apps, saved] = await Promise.all([
+                    getApplicantProfile(),
+                    getSeekerApplications(),
+                    getSavedFavorites(),
+                ])
+
                 if (profileData) {
                     applyProfileFromApi(profileData, currentUser)
                 } else {
@@ -353,11 +358,6 @@ function SeekerDashboard() {
                         userId: currentUser.id,
                     }))
                 }
-
-                const [apps, saved] = await Promise.all([
-                    getSeekerApplications(),
-                    getSavedFavorites(),
-                ])
 
                 setApplications(apps)
                 setSavedFavorites(saved)
@@ -412,7 +412,7 @@ function SeekerDashboard() {
         }
 
         loadData()
-    }, [toast])
+    }, [applyProfileFromApi, toast])
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -442,7 +442,7 @@ function SeekerDashboard() {
 
     const submitApplicantProfileToModerationAction = async () => {
         const updatedProfile = await submitApplicantProfileForModeration()
-        applyProfileFromApi({ ...profile, ...updatedProfile })
+        applyProfileFromApi({ ...profile, ...updatedProfile }, user)
         return updatedProfile
     }
 
@@ -511,7 +511,7 @@ function SeekerDashboard() {
 
         try {
             const updatedProfile = await updateApplicantProfile(profile)
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
 
             if (profile.moderationStatus === 'APPROVED' || profile.moderationStatus === 'NEEDS_REVISION') {
                 await submitApplicantProfileToModerationAction()
@@ -551,7 +551,7 @@ function SeekerDashboard() {
         setIsLoading(true)
         try {
             const updatedProfile = await updateApplicantProfile({ ...profile, about: profile.about })
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
             setIsEditingAbout(false)
             await maybeResubmitAfterSave(updatedProfile, 'Информация о себе сохранена')
         } catch (error) {
@@ -569,7 +569,7 @@ function SeekerDashboard() {
         setIsLoading(true)
         try {
             const updatedProfile = await updateApplicantProfile({ ...profile, resumeText: profile.resumeText })
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
             setIsEditingResume(false)
             await maybeResubmitAfterSave(updatedProfile, 'Резюме сохранено')
         } catch (error) {
@@ -594,7 +594,7 @@ function SeekerDashboard() {
                 }))
 
             const updatedProfile = await updateApplicantProfile({ ...profile, portfolioLinks })
-            applyProfileFromApi({ ...profile, ...updatedProfile, portfolioLinks })
+            applyProfileFromApi({ ...profile, ...updatedProfile, portfolioLinks }, user)
             setIsEditingPortfolio(false)
             await maybeResubmitAfterSave(updatedProfile, 'Портфолио сохранено')
         } catch (error) {
@@ -620,7 +620,7 @@ function SeekerDashboard() {
                 }))
 
             const updatedProfile = await updateApplicantProfile({ ...profile, contactLinks })
-            applyProfileFromApi({ ...profile, ...updatedProfile, contactLinks })
+            applyProfileFromApi({ ...profile, ...updatedProfile, contactLinks }, user)
             setIsEditingContacts(false)
             await maybeResubmitAfterSave(updatedProfile, 'Контакты сохранены')
         } catch (error) {
@@ -839,7 +839,7 @@ function SeekerDashboard() {
         try {
             setIsAvatarUploading(true)
             const updatedProfile = await uploadApplicantAvatar(file)
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
             toast({
                 title: 'Аватар загружен',
                 description: 'Фото профиля успешно обновлено',
@@ -877,7 +877,7 @@ function SeekerDashboard() {
         try {
             setIsResumeFileUploading(true)
             const updatedProfile = await uploadApplicantResumeFile(file)
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
             toast({
                 title: 'Файл резюме загружен',
                 description: 'Резюме прикреплено к профилю',
@@ -935,7 +935,7 @@ function SeekerDashboard() {
     const handleDeleteApplicantMedia = async (fileId, kindLabel) => {
         try {
             const updatedProfile = await deleteApplicantFile(fileId)
-            applyProfileFromApi({ ...profile, ...updatedProfile })
+            applyProfileFromApi({ ...profile, ...updatedProfile }, user)
             toast({
                 title: 'Файл удалён',
                 description: `${kindLabel} удалён из профиля`,
