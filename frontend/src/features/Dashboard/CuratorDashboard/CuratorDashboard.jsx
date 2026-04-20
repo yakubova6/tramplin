@@ -1054,25 +1054,34 @@ function CuratorDashboard() {
     const canCancelTask = hasTaskAction(selectedTask, 'CANCEL')
     const canUploadAttachments = Boolean(selectedTask)
     const canEditEntity = canApproveTask && selectedTask?.assignee?.id === currentUserId
+    const statsCards = [
+        {
+            key: 'open',
+            label: 'Открытых задач',
+            value: dashboardStats?.openCount,
+        },
+        {
+            key: 'in-progress',
+            label: 'В работе',
+            value: dashboardStats?.inProgressCount,
+        },
+        {
+            key: 'mine',
+            label: 'Мои задачи',
+            value: dashboardStats?.myInProgressCount,
+        },
+    ]
 
     return (
         <DashboardLayout title="Панель модерации" subtitle="Управление задачами и верификация">
-            {dashboardStats && (
-                <div className="moderation-stats">
-                    <div className="stat-card">
-                        <div className="stat-card__value">{dashboardStats.openCount || 0}</div>
-                        <div className="stat-card__label">Открытых задач</div>
+            <div className="moderation-stats">
+                {statsCards.map((item) => (
+                    <div key={item.key} className="stat-card">
+                        <div className="stat-card__value">{Number.isFinite(item.value) ? item.value : '—'}</div>
+                        <div className="stat-card__label">{item.label}</div>
                     </div>
-                    <div className="stat-card">
-                        <div className="stat-card__value">{dashboardStats.inProgressCount || 0}</div>
-                        <div className="stat-card__label">В работе</div>
-                    </div>
-                    <div className="stat-card">
-                        <div className="stat-card__value">{dashboardStats.myInProgressCount || 0}</div>
-                        <div className="stat-card__label">Мои задачи</div>
-                    </div>
-                </div>
-            )}
+                ))}
+            </div>
 
             <div className="dashboard-tabs">
                 <button className={`dashboard-tabs__btn ${activeTab === 'tasks' ? 'is-active' : ''}`} onClick={() => setActiveTab('tasks')}>
