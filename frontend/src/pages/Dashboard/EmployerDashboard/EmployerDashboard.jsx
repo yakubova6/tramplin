@@ -35,7 +35,7 @@ import {
     getModerationTaskDetail,
 } from '@/api/moderation'
 
-import { listTags } from '@/api/opportunities'
+import { listTags, uploadOpportunityMedia, deleteOpportunityMedia, getOpportunityModerationTask, cancelOpportunityModerationTask } from '@/api/opportunities'
 
 import '@/pages/Dashboard/DashboardBase.scss'
 import './EmployerDashboard.scss'
@@ -258,6 +258,8 @@ function EmployerDashboard() {
     const [isLocationSaving, setIsLocationSaving] = useState(false)
 
     const [isDeletingAttachment, setIsDeletingAttachment] = useState(false)
+
+    const [opportunityMedia, setOpportunityMedia] = useState([])
 
     // Храним предыдущий статус модерации для отслеживания изменений
     const prevModerationStateRef = useRef('DRAFT')
@@ -2130,6 +2132,7 @@ function EmployerDashboard() {
 
                             setEditingOpportunityId(opportunity.id)
                             setOpportunityMode('edit')
+                            setOpportunityMedia(opportunity.media || [])
                             setResourceRows(
                                 opportunity.resourceLinks?.length > 0
                                     ? opportunity.resourceLinks.map((item) =>
@@ -2158,10 +2161,8 @@ function EmployerDashboard() {
                                 tagIds: opportunity.tagIds || [],
                                 contactEmail: opportunity.contactInfo?.email || opportunity.contactEmail || '',
                                 contactPhone: opportunity.contactInfo?.phone || opportunity.contactPhone || '',
-                                contactTelegram:
-                                    opportunity.contactInfo?.telegram || opportunity.contactTelegram || '',
-                                contactPerson:
-                                    opportunity.contactInfo?.contactPerson || opportunity.contactPerson || '',
+                                contactTelegram: opportunity.contactInfo?.telegram || opportunity.contactTelegram || '',
+                                contactPerson: opportunity.contactInfo?.contactPerson || opportunity.contactPerson || '',
                                 resourceLinks: opportunity.resourceLinks || [],
                             })
 
@@ -2189,6 +2190,7 @@ function EmployerDashboard() {
                 {activeTab === 'create' && (
                     <EmployerOpportunityForm
                         isVerified={isVerified}
+                        verificationState={verificationState}
                         isLoading={isLoading}
                         opportunityMode={opportunityMode}
                         opportunityForm={opportunityForm}
@@ -2200,6 +2202,9 @@ function EmployerDashboard() {
                         onResetOpportunityForm={resetOpportunityForm}
                         onSaveOpportunity={handleSaveOpportunity}
                         onChangeOpportunityForm={setOpportunityForm}
+                        media={opportunityMedia}
+                        mediaOpportunityId={editingOpportunityId}
+                        onMediaUpdate={setOpportunityMedia}
                     />
                 )}
 

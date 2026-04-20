@@ -4,6 +4,7 @@ import Label from '@/components/Label'
 import Textarea from '@/components/Textarea'
 import CustomSelect from '@/components/CustomSelect'
 import LinksEditor from '@/components/LinksEditor'
+import MediaGallery from './MediaGallery'
 
 import {
     OPPORTUNITY_TYPES,
@@ -26,6 +27,9 @@ function EmployerOpportunityForm({
                                      onResetOpportunityForm,
                                      onSaveOpportunity,
                                      onChangeOpportunityForm,
+                                     media,
+                                     mediaOpportunityId,
+                                     onMediaUpdate,
                                  }) {
     const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(opportunityForm.workFormat)
     const isVerificationPending = verificationState === 'PENDING'
@@ -279,6 +283,17 @@ function EmployerOpportunityForm({
                     ))}
                 </div>
             </div>
+
+            {opportunityMode === 'edit' && mediaOpportunityId && (
+                <div className="employer-create-form__field">
+                    <Label>Медиафайлы</Label>
+                    <MediaGallery
+                        opportunityId={mediaOpportunityId}
+                        media={media || []}
+                        onMediaUpdate={onMediaUpdate}
+                    />
+                </div>
+            )}
 
             <LinksEditor
                 label="Полезные ссылки / ресурсы"

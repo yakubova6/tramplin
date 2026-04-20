@@ -162,3 +162,49 @@ export async function returnToDraftEmployerOpportunity(id) {
         method: 'POST',
     })
 }
+
+export async function uploadOpportunityMedia(id, file) {
+    const currentUserId = getRequiredUserId()
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('currentUserId', currentUserId)
+
+    const response = await fetch(`${API_BASE}/employer/opportunities/${id}/media`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+    })
+
+    if (!response.ok) {
+        const error = new Error('Ошибка загрузки файла')
+        error.status = response.status
+        throw error
+    }
+
+    return response.json()
+}
+
+export async function deleteOpportunityMedia(id, attachmentId) {
+    const currentUserId = getRequiredUserId()
+    const query = toQuery({ currentUserId })
+
+    return httpJson(`${API_BASE}/employer/opportunities/${id}/media/${attachmentId}?${query}`, {
+        method: 'DELETE',
+    })
+}
+
+export async function getOpportunityModerationTask(id) {
+    const currentUserId = getRequiredUserId()
+    const query = toQuery({ currentUserId })
+
+    return httpJson(`${API_BASE}/employer/opportunities/${id}/moderation-task?${query}`)
+}
+
+export async function cancelOpportunityModerationTask(id) {
+    const currentUserId = getRequiredUserId()
+    const query = toQuery({ currentUserId })
+
+    return httpJson(`${API_BASE}/employer/opportunities/${id}/moderation-task/cancel?${query}`, {
+        method: 'POST',
+    })
+}

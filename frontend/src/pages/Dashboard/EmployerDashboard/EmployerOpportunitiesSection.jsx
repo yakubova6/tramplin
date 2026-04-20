@@ -1,5 +1,6 @@
 import Input from '@/components/Input'
 import CustomSelect from '@/components/CustomSelect'
+import OpportunityStatusManager from './OpportunityStatusManager'
 
 import { OPPORTUNITY_LABELS } from '@/api/opportunities'
 import { formatDate, statusBucket } from './employerDashboard.helpers'
@@ -80,7 +81,7 @@ function EmployerOpportunitiesSection({
             ) : (
                 <div className="employer-opportunities__list">
                     {filteredOpportunities.map((opp) => (
-                        <div key={opp.id} className="employer-opportunities__item">
+                        <div key={`${opp.id}-${opp.status}`} className="employer-opportunities__item">
                             <div className="employer-opportunities__info">
                                 <h3>{opp.title}</h3>
                                 <p className="employer-opportunities__type">
@@ -97,9 +98,13 @@ function EmployerOpportunitiesSection({
                             </div>
 
                             <div className="employer-opportunities__meta">
-                                <span className={`status-badge status-${opp.status?.toLowerCase?.() || 'default'}`}>
-                                    {OPPORTUNITY_LABELS.status[opp.status] || opp.status}
-                                </span>
+                                <OpportunityStatusManager
+                                    opportunity={opp}
+                                    onEdit={() => onStartEditOpportunity(opp.id)}
+                                    onClose={() => onUpdateOpportunityStatus(opp.id, 'close', 'Публикация закрыта')}
+                                    onArchive={() => onDeleteOpportunity(opp.id, opp.title)}
+                                    onReturnToDraft={(id) => onUpdateOpportunityStatus(id, 'draft', 'Публикация возвращена в черновик')}
+                                />
 
                                 <span className="employer-opportunities__date">
                                     Обновлено: {formatDate(opp.updatedAt || opp.createdAt)}
@@ -177,6 +182,26 @@ function EmployerOpportunitiesSection({
                                                         <span>{item.label || item.url}</span>
                                                     </a>
                                                 ))}
+                                            </div>
+                                        )}
+
+                                        {opp.media && opp.media.length > 0 && (
+                                            <div className="media-preview">
+                                                <strong>Медиафайлы:</strong>
+                                                <div className="media-preview__list">
+                                                    {opp.media.slice(0, 3).map((item) => (
+                                                        <div key={item.attachmentId} className="media-preview__item">
+                                                            {item.mediaType?.startsWith('image/') ? (
+                                                                <img src={item.downloadUrl} alt={item.originalFileName} />
+                                                            ) : (
+                                                                <span>Файл {item.originalFileName}</span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {opp.media.length > 3 && (
+                                                        <span>+ ещё {opp.media.length - 3}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
