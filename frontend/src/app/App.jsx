@@ -16,9 +16,20 @@ const ApplicantPublicProfile = lazy(() => import('@/features/ApplicantPublicProf
 const SecuritySettings = lazy(() => import('@/features/Settings/SecuritySettings/SecuritySettings'))
 const CuratorsAdminPage = lazy(() => import('@/features/Admin/CuratorsAdminPage/CuratorsAdminPage'))
 
+function AppFallback() {
+    return (
+        <div className="app-loading-screen" role="status" aria-live="polite">
+            <div className="app-loading-screen__card">
+                <div className="app-loading-screen__spinner" aria-hidden="true" />
+                <p>Загрузка...</p>
+            </div>
+        </div>
+    )
+}
+
 function App() {
     return (
-        <Suspense fallback={<div className="container" style={{ padding: '2rem 0' }}>Загрузка...</div>}>
+        <Suspense fallback={<AppFallback />}>
             <Switch>
                 <Route path="/" component={OpportunitiesPage} />
                 <Route path="/opportunities/:id" component={OpportunityDetailPage} />

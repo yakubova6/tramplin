@@ -201,11 +201,13 @@ export default function YandexOpportunityMap({
     const ymapsRef = useRef(null)
     const placemarksRef = useRef(new Map())
     const focusRetryRef = useRef(null)
+    const resizeObserverRef = useRef(null)
     const suppressCenterEventRef = useRef(false)
     const lastPointsSignatureRef = useRef('')
     const onOpenCardRef = useRef(onOpenCard)
     const onCenterChangeRef = useRef(onCenterChange)
     const didInitialFitRef = useRef(false)
+    const [isTouchMode, setIsTouchMode] = useState(false)
     const [isMapReady, setIsMapReady] = useState(false)
 
     const center = useMemo(() => {
@@ -231,6 +233,23 @@ export default function YandexOpportunityMap({
     }, [onOpenCard, onCenterChange])
 
     useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined
+
+        const mediaQuery = window.matchMedia('(hover: none), (pointer: coarse)')
+        const updateTouchMode = () => setIsTouchMode(mediaQuery.matches)
+
+        updateTouchMode()
+
+        if (typeof mediaQuery.addEventListener === 'function') {
+            mediaQuery.addEventListener('change', updateTouchMode)
+            return () => mediaQuery.removeEventListener('change', updateTouchMode)
+        }
+
+        mediaQuery.addListener(updateTouchMode)
+        return () => mediaQuery.removeListener(updateTouchMode)
+    }, [])
+
+    useEffect(() => {
         let isDisposed = false
 
         async function initMap() {
@@ -248,6 +267,10 @@ export default function YandexOpportunityMap({
             setIsMapReady(true)
 
             const map = mapRef.current
+
+            requestAnimationFrame(() => {
+                map.container.fitToViewport()
+            })
 
             if (!map.__centerChangeBound) {
                 map.events.add('actionend', () => {
@@ -280,6 +303,30 @@ export default function YandexOpportunityMap({
     }, [center])
 
     useEffect(() => {
+        const root = rootRef.current
+        const map = mapRef.current
+        if (!root || !map || typeof ResizeObserver === 'undefined') return
+
+        const handleResize = () => {
+            requestAnimationFrame(() => {
+                map.container.fitToViewport()
+            })
+        }
+
+        const observer = new ResizeObserver(() => {
+            handleResize()
+        })
+
+        observer.observe(root)
+        resizeObserverRef.current = observer
+
+        return () => {
+            observer.disconnect()
+            resizeObserverRef.current = null
+        }
+    }, [isMapReady])
+
+    useEffect(() => {
         const ymaps = ymapsRef.current
         const map = mapRef.current
         if (!isMapReady || !ymaps || !map) return
@@ -291,25 +338,30 @@ export default function YandexOpportunityMap({
             .filter((point) => point.latitude && point.longitude)
             .forEach((point) => {
                 const isFavorite = favoriteCompanies.has(point.companyName)
+                const placemarkState = isTouchMode
+                    ? {}
+                    : {
+                        balloonContentBody: buildBalloon(point),
+                        hintContent: buildHint(point),
+                    }
 
                 const placemark = new ymaps.Placemark(
                     [point.latitude, point.longitude],
-                    {
-                        balloonContentBody: buildBalloon(point),
-                        hintContent: buildHint(point),
-                    },
+                    placemarkState,
                     {
                         iconLayout: 'default#imageWithContent',
                         iconImageHref: markerSvg(isFavorite ? '#f59f0a' : '#0f5f68'),
                         iconImageSize: [34, 44],
                         iconImageOffset: [-17, -44],
-                        hintOpenTimeout: 80,
+                        hasBalloon: !isTouchMode,
+                        openBalloonOnClick: !isTouchMode,
+                        hintOpenTimeout: isTouchMode ? 0 : 80,
                         hintCloseTimeout: 0,
-                        hintFitPane: true,
+                        hintFitPane: !isTouchMode,
                         hintOffset: [18, -12],
                         balloonMaxWidth: 340,
                         balloonPanelMaxMapArea: 0,
-                        balloonAutoPan: true,
+                        balloonAutoPan: !isTouchMode,
                         balloonAutoPanDuration: 300,
                         balloonAutoPanCheckZoomRange: true,
                         balloonAutoPanMargin: [40, 40, 40, 40],
@@ -353,7 +405,7 @@ export default function YandexOpportunityMap({
         }
 
         map.container.fitToViewport()
-    }, [center, favoriteCompanies, favoriteCompaniesSignature, focusedOpportunityId, isMapReady, points, pointsSignature])
+    }, [center, favoriteCompanies, favoriteCompaniesSignature, focusedOpportunityId, isMapReady, isTouchMode, points, pointsSignature])
 
     useEffect(() => {
         if (!focusedOpportunityId || !mapRef.current) return
@@ -383,7 +435,9 @@ export default function YandexOpportunityMap({
                     suppressCenterEventRef.current = false
                 }, 400)
 
-                placemark.balloon.open()
+                if (!isTouchMode) {
+                    placemark.balloon.open()
+                }
             } catch (error) {
                 console.error('[YandexOpportunityMap] focus error', error)
             }
@@ -397,7 +451,7 @@ export default function YandexOpportunityMap({
                 clearTimeout(focusRetryRef.current)
             }
         }
-    }, [focusedOpportunityId, points])
+    }, [focusedOpportunityId, isTouchMode, points])
 
     return <div ref={rootRef} className="opportunities-page__map" />
 }

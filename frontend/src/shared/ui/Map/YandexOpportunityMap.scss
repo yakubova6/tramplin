@@ -5,8 +5,8 @@
 }
 
 .yandex-opportunity-map__popup--balloon {
-  width: 320px;
-  max-width: 320px;
+  width: 272px;
+  max-width: min(272px, calc(100vw - 56px));
 }
 
 .yandex-opportunity-map__popup--hint {
@@ -145,4 +145,30 @@
 .yandex-opportunity-map__tag--hint {
   font-size: 10px;
   padding: 2px 7px;
+}
+
+@media (max-width: 480px) {
+  .yandex-opportunity-map__popup--balloon {
+    display: none;
+  }
+
+  .yandex-opportunity-map__popup--balloon {
+    width: 236px;
+    max-width: min(236px, calc(100vw - 44px));
+  }
+
+  .yandex-opportunity-map__popup--balloon .yandex-opportunity-map__title {
+    font-size: 14px;
+  }
+
+  .yandex-opportunity-map__popup--balloon .yandex-opportunity-map__company,
+  .yandex-opportunity-map__description,
+  .yandex-opportunity-map__address {
+    font-size: 12px;
+  }
+
+  .yandex-opportunity-map__popup--balloon .yandex-opportunity-map__badge,
+  .yandex-opportunity-map__tag {
+    font-size: 10px;
+  }
 }
