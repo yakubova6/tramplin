@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, useLocation } from 'wouter'
 import Button from '@/shared/ui/Button'
 import Input from '@/shared/ui/Input'
@@ -213,6 +213,7 @@ function OpportunitiesPage() {
     const [pendingMapCenter, setPendingMapCenter] = useState(null)
     const [appliedMapCenter, setAppliedMapCenter] = useState(null)
     const [isMapDirty, setIsMapDirty] = useState(false)
+    const mapWrapRef = useRef(null)
 
     const [favoriteCompanies, setFavoriteCompanies] = useState(() =>
         getStorageSet('favorite_companies', getSessionUser())
@@ -456,6 +457,23 @@ function OpportunitiesPage() {
     const handleShowOnMap = (id) => {
         setViewMode('map')
         setFocusedOpportunityId(null)
+
+        if (typeof window !== 'undefined') {
+            const isPhoneViewport =
+                window.matchMedia('(max-width: 768px)').matches ||
+                window.matchMedia('(hover: none), (pointer: coarse)').matches
+
+            if (isPhoneViewport) {
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        mapWrapRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                        })
+                    }, 120)
+                })
+            }
+        }
 
         setTimeout(() => {
             setFocusedOpportunityId(id)
@@ -896,7 +914,7 @@ function OpportunitiesPage() {
                                 )}
                             </div>
 
-                            <div className="opportunities-page__map-wrap">
+                            <div className="opportunities-page__map-wrap" ref={mapWrapRef}>
                                 {shouldShowMapControls && (
                                     <div className="opportunities-page__map-overlay-controls">
                                         {mapControlsContent}

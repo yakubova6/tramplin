@@ -1418,7 +1418,7 @@ function ProfileEdit() {
 
                         <button
                             type="button"
-                            className="advanced-toggle"
+                            className={`advanced-toggle ${showAdvanced ? 'is-active' : ''}`}
                             onClick={() => setShowAdvanced((value) => !value)}
                         >
                             {showAdvanced ? 'Скрыть дополнительные поля' : 'Показать дополнительные поля'}

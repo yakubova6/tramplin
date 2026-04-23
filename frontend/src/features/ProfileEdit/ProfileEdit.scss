@@ -82,20 +82,32 @@
 }
 
 .advanced-toggle {
-  border: 1px dashed var(--color-border);
-  background: #fff;
+  border: 1px solid rgba(141, 215, 193, 0.72);
+  background: rgba(241, 252, 247, 0.72);
   border-radius: 10px;
   padding: 10px 12px;
   text-align: left;
   font-size: 14px;
-  color: var(--color-text-muted);
+  color: rgba(15, 118, 110, 0.88);
   cursor: pointer;
   transition: 0.2s ease;
 
   &:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary-dark);
-    background: #f9fefd;
+    border-color: rgba(99, 199, 167, 0.78);
+    background: rgba(232, 250, 242, 0.84);
+    color: rgba(11, 95, 87, 0.92);
+  }
+
+  &.is-active {
+    border-color: rgba(245, 163, 171, 0.74);
+    background: rgba(255, 241, 242, 0.76);
+    color: rgba(185, 28, 28, 0.9);
+  }
+
+  &.is-active:hover {
+    border-color: rgba(239, 133, 144, 0.8);
+    background: rgba(255, 228, 230, 0.86);
+    color: rgba(153, 27, 27, 0.94);
   }
 }
 

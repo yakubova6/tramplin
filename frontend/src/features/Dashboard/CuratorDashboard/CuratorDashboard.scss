@@ -2947,3 +2947,49 @@
   gap: 10px;
   box-sizing: border-box;
 }
+
+.moderation-editor-block {
+  display: grid;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.moderation-editor-block .moderation-editor-summary {
+  margin: 0;
+}
+
+.moderation-editor-block .moderation-attachments__empty {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.moderation-editor-block .moderation-patch-details {
+  margin: 0;
+}
+
+.moderation-editor-block .moderation-patch-details > summary {
+  margin: 0;
+  padding: 2px 0 0 2px;
+  list-style: none;
+}
+
+.moderation-editor-block .moderation-patch-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.moderation-editor-block .snapshot-content {
+  margin-top: 10px;
+}
+
+.modal-footer--detail-actions.modal-footer--detail-actions-has-cancel-row .button--cancel-task {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .modal-footer--detail-actions.modal-footer--detail-actions-has-cancel-row .button--cancel-task {
+    grid-column: auto;
+  }
+}

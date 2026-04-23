@@ -153,7 +153,36 @@ function renderDiffValue(value) {
     if (value === null || value === undefined || value === '') return '—'
     if (typeof value === 'boolean') return value ? 'Да' : 'Нет'
     if (Array.isArray(value)) return value.length ? JSON.stringify(value) : '—'
-    if (typeof value === 'object') return JSON.stringify(value)
+    if (typeof value === 'object') {
+        if (value?.name) return String(value.name)
+        if (value?.cityName) return String(value.cityName)
+        if (value?.title) return String(value.title)
+        if (value?.label) return String(value.label)
+
+        try {
+            return JSON.stringify(value)
+        } catch {
+            return '—'
+        }
+    }
+    return String(value)
+}
+
+function getEditableInputValue(value, type) {
+    if (value === null || value === undefined) return ''
+
+    if (type === 'number') {
+        return typeof value === 'number' ? String(value) : ''
+    }
+
+    if (typeof value === 'object') {
+        if (value?.name) return String(value.name)
+        if (value?.cityName) return String(value.cityName)
+        if (value?.title) return String(value.title)
+        if (value?.label) return String(value.label)
+        return ''
+    }
+
     return String(value)
 }
 
@@ -215,7 +244,7 @@ function EntityEditor({ entityType, originalSnapshot, draft, onChange }) {
                         <Label>{field.label}</Label>
                         <Input
                             type={field.type === 'number' ? 'number' : 'text'}
-                            value={currentValue ?? ''}
+                            value={getEditableInputValue(currentValue, field.type)}
                             onChange={(e) =>
                                 onChange(
                                     field.key,
@@ -266,7 +295,7 @@ function PreviewBlock({
                             <div key={field.key} className={`snapshot-field ${isChanged ? 'is-changed' : ''}`}>
                                 <span className="field-label">{field.label}:</span>
                                 <span className="field-value">
-                  {isChangedInDraft ? renderDiffValue(draftValue) : field.value || '—'}
+                  {isChangedInDraft ? renderDiffValue(draftValue) : renderDiffValue(field.value)}
                 </span>
                             </div>
                         )
@@ -416,6 +445,8 @@ function CuratorDashboard() {
     const [newCuratorPassword, setNewCuratorPassword] = useState('')
     const [isCreating, setIsCreating] = useState(false)
     const historyTaskDetailsCacheRef = useRef(new Map())
+    const detailModalBodyRef = useRef(null)
+    const entityEditorRef = useRef(null)
 
     useEffect(() => {
         setCurrentUser(getSessionUser())
@@ -690,6 +721,19 @@ function CuratorDashboard() {
     const handleEntityDraftChange = (key, value) => {
         setEntityDraft((prev) => ({ ...(prev || {}), [key]: value }))
     }
+
+    const scrollToEntityEditorStart = useCallback(() => {
+        requestAnimationFrame(() => {
+            const editor = entityEditorRef.current
+            if (!editor) return
+
+            editor.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+                inline: 'nearest',
+            })
+        })
+    }, [])
 
     const entityPatch = useMemo(() => {
         if (!selectedTask?.createdSnapshot || !entityDraft) return {}
@@ -1088,6 +1132,19 @@ function CuratorDashboard() {
     const canCancelTask = hasTaskAction(selectedTask, 'CANCEL')
     const canUploadAttachments = Boolean(selectedTask)
     const canEditEntity = canApproveTask && selectedTask?.assignee?.id === currentUserId
+    const detailActionsCount = [
+        canTakeTaskFromDetail,
+        canApproveTask,
+        canRequestChanges,
+        canRejectTask,
+        canCancelTask,
+    ].filter(Boolean).length
+    const detailFooterClassName = [
+        'modal-footer',
+        'modal-footer--wrap',
+        'modal-footer--detail-actions',
+        detailActionsCount === 3 && canCancelTask ? 'modal-footer--detail-actions-has-cancel-row' : '',
+    ].filter(Boolean).join(' ')
     const statsCards = [
         {
             key: 'open',
@@ -1355,7 +1412,7 @@ function CuratorDashboard() {
                             <button className="modal-close" onClick={closeDetailModal}>×</button>
                         </div>
 
-                        <div className="modal-body">
+                        <div className="modal-body" ref={detailModalBodyRef}>
                             {isDetailLoading || !selectedTask?.entityType ? (
                                 <div className="task-detail-skeleton">
                                     <div className="skeleton skeleton--title"></div>
@@ -1392,7 +1449,18 @@ function CuratorDashboard() {
 
                                     {canEditEntity && (
                                         <div className="moderation-entity-actions">
-                                            <Button className="button--ghost" onClick={() => setIsEditingEntity((prev) => !prev)}>
+                                            <Button
+                                                className="button--ghost"
+                                                onClick={() =>
+                                                    setIsEditingEntity((prev) => {
+                                                        const next = !prev
+                                                        if (next) {
+                                                            scrollToEntityEditorStart()
+                                                        }
+                                                        return next
+                                                    })
+                                                }
+                                            >
                                                 {isEditingEntity ? 'Скрыть редактор' : 'Исправить данные перед одобрением'}
                                             </Button>
                                         </div>
@@ -1411,7 +1479,7 @@ function CuratorDashboard() {
                                     )}
 
                                     {isEditingEntity && (
-                                        <div className="task-detail-snapshot">
+                                        <div className="task-detail-snapshot" ref={entityEditorRef}>
                                             <h4>Редактор сущности</h4>
                                             <p className="moderation-editor-note">Здесь можно скорректировать данные перед одобрением. Изменения применятся только после подтверждения.</p>
                                             <EntityEditor entityType={selectedTask.entityType} originalSnapshot={selectedTask.createdSnapshot} draft={entityDraft} onChange={handleEntityDraftChange} />
@@ -1419,7 +1487,7 @@ function CuratorDashboard() {
                                     )}
 
                                     {isEditingEntity && (
-                                        <div className="task-detail-snapshot">
+                                        <div className="task-detail-snapshot moderation-editor-block">
                                             <div className="moderation-editor-summary">Будет изменено полей: {Object.keys(entityPatch).length}</div>
                                             {!fieldDiffRows.length ? (
                                                 <div className="moderation-attachments__empty">Изменений пока нет.</div>
@@ -1552,7 +1620,7 @@ function CuratorDashboard() {
                             )}
                         </div>
 
-                        <div className="modal-footer modal-footer--wrap modal-footer--detail-actions">
+                        <div className={detailFooterClassName}>
                             {canTakeTaskFromDetail && (
                                 <Button className="button--primary" onClick={() => handleAssignToMe(selectedTask.id)}>Взять в работу</Button>
                             )}
@@ -1566,7 +1634,7 @@ function CuratorDashboard() {
                                 <Button className="button--danger" onClick={() => { dismissActiveOverlayUi(); setIsRejectModalOpen(true) }}>Отклонить</Button>
                             )}
                             {canCancelTask && (
-                                <Button className="button--ghost" onClick={handleCancelTask}>Отменить задачу</Button>
+                                <Button className="button--ghost button--cancel-task" onClick={handleCancelTask}>Отменить задачу</Button>
                             )}
                         </div>
                     </div>
