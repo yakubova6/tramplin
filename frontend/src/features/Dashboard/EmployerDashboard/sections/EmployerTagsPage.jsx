@@ -3,9 +3,17 @@ import { getEmployerTags, cancelEmployerTagModeration, createEmployerTag } from 
 import TagStatusBadge from '@/shared/ui/Tags/TagStatusBadge/TagStatusBadge.jsx';
 import TagModerationDetails from '@/shared/ui/Tags/TagModerationDetails/TagModerationDetails.jsx';
 import CreateTagForm from '@/shared/ui/Tags/CreateTagForm/CreateTagForm.jsx';
+import CustomSelect from '@/shared/ui/CustomSelect';
+import { getTagCategoryLabel } from '@/shared/lib/utils/tagCategories';
 import styles from './EmployerTagsPage.module.scss';
 
 const EmployerTagsPage = () => {
+  const filterOptions = [
+    { value: 'ALL', label: 'Все' },
+    { value: 'PENDING', label: 'На модерации' },
+    { value: 'APPROVED', label: 'Одобренные' },
+    { value: 'REJECTED', label: 'Отклонённые' },
+  ];
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTag, setSelectedTag] = useState(null);
@@ -63,13 +71,10 @@ const EmployerTagsPage = () => {
       </div>
 
       <div className={styles.filters}>
-        <label>Статус:</label>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="ALL">Все</option>
-          <option value="PENDING">На модерации</option>
-          <option value="APPROVED">Одобренные</option>
-          <option value="REJECTED">Отклонённые</option>
-        </select>
+        <div className={styles.filtersField}>
+          <label>Статус</label>
+          <CustomSelect value={filterStatus} onChange={setFilterStatus} options={filterOptions} />
+        </div>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -90,10 +95,10 @@ const EmployerTagsPage = () => {
             tags.map(tag => (
               <tr key={tag.id}>
                 <td>{tag.name}</td>
-                <td>{tag.category}</td>
+                <td>{getTagCategoryLabel(tag.category)}</td>
                 <td><TagStatusBadge status={tag.moderationStatus} /></td>
                 <td>
-                  <button className={styles.detailBtn} onClick={() => openDetails(tag)}>Детали</button>
+                  <button className={styles.detailBtn} onClick={() => openDetails(tag)}>Открыть карточку</button>
                   {tag.moderationStatus === 'PENDING' && (
                     <button className={styles.cancelBtn} onClick={() => handleCancel(tag.id)}>Отменить</button>
                   )}

@@ -18,6 +18,14 @@
   width: 90%;
   max-width: 500px;
   position: relative;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 24px 60px rgba(16, 42, 67, 0.2);
+}
+
+.modal h3 {
+  margin: 0 0 14px;
+  font-size: 22px;
+  color: var(--color-text);
 }
 
 .closeBtn {
@@ -31,17 +39,46 @@
 }
 
 .field {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
+  line-height: 1.45;
 }
 
 .label {
   font-weight: 600;
-  width: 160px;
+  min-width: 150px;
+  color: var(--color-text-muted);
 }
 
 .comment {
   color: #555;
   font-style: italic;
+}
+
+.content {
+  display: grid;
+  gap: 8px;
+}
+
+.history {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-alt);
+}
+
+.history ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.history li {
+  margin-bottom: 4px;
+}
+
+.error {
+  color: var(--color-danger);
 }

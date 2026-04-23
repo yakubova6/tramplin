@@ -111,7 +111,7 @@
 
 .links-editor {
   display: grid;
-  gap: 5px;
+  gap: 8px;
 }
 
 .links-editor__row {
@@ -122,6 +122,10 @@
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
   }
+}
+
+.links-editor--compact .links-editor__row {
+  grid-template-columns: 1fr auto;
 }
 
 .links-editor__remove {
@@ -156,6 +160,13 @@
     border-color: var(--color-primary);
     color: var(--color-primary-dark);
     background: #f9fefd;
+  }
+}
+
+.links-editor--compact {
+  .links-editor__remove {
+    min-height: var(--control-height);
+    width: var(--control-height);
   }
 }
 

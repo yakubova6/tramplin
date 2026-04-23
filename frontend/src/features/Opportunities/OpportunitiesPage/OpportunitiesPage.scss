@@ -3,6 +3,7 @@
 .opportunities-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f8fcff 0%, #f3f8ff 100%);
+  overflow-x: clip;
 
   &__hero {
     background: linear-gradient(135deg, #0f5f68 0%, #137783 100%);
@@ -27,6 +28,7 @@
   &__hero-inner {
     position: relative;
     z-index: 2;
+    min-width: 0;
 
     h1 {
       font-size: clamp(32px, 4.5vw, 52px);
@@ -55,6 +57,17 @@
     box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15);
     position: relative;
     z-index: 200;
+
+    > * {
+      min-width: 0;
+    }
+
+    .input,
+    .custom-select__button {
+      min-height: var(--control-height);
+      height: var(--control-height);
+      border-radius: var(--control-radius);
+    }
   }
 
   &__salary-filter {
@@ -135,11 +148,16 @@
     padding-block: 32px 48px;
     position: relative;
     z-index: 1;
+    min-width: 0;
+  }
+
+  &__content {
+    min-width: 0;
   }
 
   &__toolbar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 16px;
     margin-bottom: 24px;
@@ -157,19 +175,12 @@
       color: #113338;
       font-weight: 600;
       white-space: nowrap;
+      justify-self: start;
     }
   }
 
   &__toolbar-map-controls {
-    display: flex;
-    justify-content: center;
-    min-width: 0;
-  }
-
-  &__map-controls-row {
     display: none;
-    margin-top: -8px;
-    margin-bottom: 24px;
   }
 
   &__map-controls-inner {
@@ -264,6 +275,7 @@
     display: inline-flex;
     gap: 4px;
     justify-self: end;
+    margin-left: auto;
 
     button {
       display: flex;
@@ -316,6 +328,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
   }
 
   &__map-wrap {
@@ -327,6 +340,19 @@
       width: 100%;
       height: 100%;
       min-height: 680px;
+    }
+  }
+
+  &__map-overlay-controls {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 18;
+    pointer-events: none;
+
+    .opportunities-page__map-controls {
+      pointer-events: auto;
     }
   }
 
@@ -741,6 +767,14 @@
     color: #45666b;
   }
 
+  &__state {
+    display: grid;
+    place-items: center;
+    min-height: min(45vh, 320px);
+    font-weight: 600;
+    color: #0f5f68;
+  }
+
   &__error {
     color: #b91c1c;
   }
@@ -782,7 +816,8 @@
     width: 100%;
     border: 1px solid #d4e1e2;
     border-radius: 12px;
-    min-height: 42px;
+    min-height: var(--control-height);
+    height: var(--control-height);
     padding: 0 12px;
     background: #fff;
     display: flex;
@@ -866,12 +901,15 @@
 
     &__map-layout {
       grid-template-columns: 1fr;
+      min-height: auto;
+      overflow: visible;
     }
 
     &__map-side-list {
       max-height: none;
       border-right: none;
       border-bottom: 1px solid #d4e1e2;
+      overflow: visible;
     }
 
     &__map-wrap,
@@ -888,7 +926,7 @@
 @media (max-width: 1290px) {
   .opportunities-page {
     &__toolbar {
-      grid-template-columns: auto auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       justify-content: space-between;
       align-items: center;
     }
@@ -896,57 +934,67 @@
     &__toolbar-map-controls {
       display: none;
     }
-
-    &__map-controls-row {
-      display: block;
-    }
-
-    &__map-controls {
-      width: 100%;
-      justify-content: center;
-    }
-
-    &__map-controls-inner {
-      width: 100%;
-      justify-content: center;
-    }
   }
 }
 
 @media (max-width: 768px) {
   .opportunities-page {
+    &__hero {
+      padding: 26px 0 34px;
+    }
+
+    &__hero-inner p {
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    &__search-bar {
+      padding: 10px;
+      border-radius: 16px;
+      gap: 10px;
+    }
+
     &__toolbar {
       display: flex;
       flex-direction: column;
       align-items: stretch;
       padding: 12px;
       gap: 12px;
+
+      h2 {
+        white-space: normal;
+        font-size: 21px;
+        line-height: 1.3;
+      }
     }
 
     &__toolbar-map-controls {
       display: none;
     }
 
-    &__map-controls-row {
-      display: block;
-      margin-top: -8px;
-      margin-bottom: 20px;
-    }
+    &__map-overlay-controls {
+      top: 12px;
+      left: 12px;
+      right: 12px;
 
-    &__map-controls-inner {
-      width: 100%;
-      justify-content: stretch;
-    }
+      .opportunities-page__map-controls-inner {
+        width: 100%;
+        justify-content: stretch;
+        flex-direction: column;
+        align-items: stretch;
+      }
 
-    &__map-controls-badge,
-    &__map-controls-btn {
-      width: 100%;
-      justify-content: center;
+      .opportunities-page__map-controls-badge,
+      .opportunities-page__map-controls-btn {
+        width: 100%;
+        justify-content: center;
+      }
     }
 
     &__view-switcher {
       width: 100%;
       justify-content: center;
+      margin-left: 0;
     }
 
     &__view-switcher button {
@@ -970,5 +1018,199 @@
         justify-content: center;
       }
     }
+
+    &__map-layout {
+      border-radius: 16px;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    &__map-side-list {
+      padding: 12px;
+      overflow-x: hidden;
+    }
+
+    &__map-wrap,
+    .opportunities-page__map {
+      min-height: 320px;
+    }
+
+    &__empty {
+      padding: 24px 14px;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+
+      h3 {
+        font-size: 19px;
+        line-height: 1.3;
+      }
+
+      p {
+        font-size: 14px;
+        line-height: 1.45;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .opportunities-page {
+    .container {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      padding-inline: 12px;
+    }
+
+    &__main {
+      padding-block: 20px 28px;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    &__hero {
+      padding: 22px 0 28px;
+    }
+
+    &__hero-inner h1 {
+      font-size: clamp(24px, 8vw, 32px);
+    }
+
+    &__search-bar {
+      padding: 8px;
+      border-radius: 14px;
+      gap: 8px;
+    }
+
+    &__salary-filter {
+      padding: 10px 12px;
+
+      .salary-filter__inputs {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+        gap: 6px;
+        width: 100%;
+      }
+
+      .salary-input {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+
+    &__toolbar {
+      padding: 10px;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    &__view-switcher {
+      width: 100%;
+
+      button {
+        min-width: 0;
+      }
+    }
+
+    &__map-overlay-controls {
+      top: 8px;
+      left: 8px;
+      right: 8px;
+
+      .opportunities-page__map-controls-badge,
+      .opportunities-page__map-controls-btn {
+        min-height: 36px;
+        padding: 8px 10px;
+        white-space: normal;
+        text-align: center;
+      }
+    }
+
+    &__map-layout,
+    &__search-bar,
+    &__salary-filter {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+  }
+}
+
+/* === final mobile hardening for 480/360 === */
+@media (max-width: 480px) {
+  .opportunities-page,
+  .opportunities-page__main,
+  .opportunities-page__main > *,
+  .opportunities-page__content,
+  .opportunities-page__content > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .opportunities-page .container {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-inline: 12px !important;
+  }
+
+  .opportunities-page__map-layout,
+  .opportunities-page__map-side-list,
+  .opportunities-page__map-wrap,
+  .opportunities-page__search-bar,
+  .opportunities-page__salary-filter,
+  .opportunities-page__toolbar,
+  .opportunities-page__view-switcher,
+  .opportunities-page__view-switcher button,
+  .opportunities-page__tag-list,
+  .opportunities-page__compact-card,
+  .opportunities-page__card,
+  .opportunities-page__empty {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .opportunities-page__map-side-list {
+    overflow-x: hidden;
+  }
+
+  .opportunities-page__map-controls-inner {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .opportunities-page__map-controls-badge,
+  .opportunities-page__map-controls-btn {
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 360px) {
+  .opportunities-page .container {
+    padding-inline: 10px !important;
+  }
+
+  .opportunities-page__toolbar {
+    padding: 8px;
+  }
+
+  .opportunities-page__view-switcher button {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .opportunities-page__map-overlay-controls {
+    top: 6px;
+    left: 6px;
+    right: 6px;
   }
 }

@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12,55 +12,58 @@
 }
 
 .formContainer {
-  background: white;
-  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
   padding: 24px;
   width: 90%;
-  max-width: 450px;
+  max-width: 520px;
+  box-shadow: 0 24px 60px rgba(16, 42, 67, 0.18);
+}
+
+.formContainer h3 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  color: var(--color-text);
 }
 
 .field {
-  margin-bottom: 16px;
-}
-
-.field label {
-  display: block;
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-
-.field input, .field select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
 .error {
-  color: #c62828;
-  margin-bottom: 12px;
-  font-size: 0.85rem;
+  color: var(--color-danger);
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 12px;
   margin-top: 20px;
 }
 
-.actions button {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
+.actions :global(.button) {
+  min-height: 44px;
+  min-width: 140px;
 }
 
-.actions button[type="button"] {
-  background: #e0e0e0;
-}
+@media (max-width: 640px) {
+  .formContainer {
+    width: 100%;
+    border-radius: 16px;
+    padding: 18px;
+  }
 
-.actions button[type="submit"] {
-  background: #2c3e50;
-  color: white;
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions :global(.button) {
+    width: 100%;
+  }
 }

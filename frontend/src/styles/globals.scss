@@ -24,12 +24,16 @@ body {
   background:
           radial-gradient(circle at top left, rgba(31, 182, 170, 0.09), transparent 30%),
           linear-gradient(180deg, #fbfefe 0%, #f6fbfc 100%);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 #root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: clip;
 }
 
 main {
@@ -156,4 +160,13 @@ input {
 
 :focus-visible {
   @include focus-visible;
+}
+
+::selection {
+  background: rgba(31, 182, 170, 0.18);
+  color: var(--color-text);
+}
+
+.required-star {
+  color: var(--color-danger) !important;
 }

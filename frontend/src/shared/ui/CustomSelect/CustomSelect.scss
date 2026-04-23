@@ -1,30 +1,44 @@
 .custom-select {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .custom-select__wrapper {
   position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .custom-select__button {
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  min-height: 42px;
-  padding: 0 12px;
-  background: #fff;
+  border-radius: var(--control-radius);
+  min-height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  background: var(--control-bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   color: var(--color-text);
   cursor: pointer;
-  transition: 0.2s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  transition:
+    border-color var(--transition-duration),
+    box-shadow var(--transition-duration),
+    background-color var(--transition-duration),
+    transform var(--transition-duration);
 
   &:hover {
+    border-color: var(--color-border-strong);
+    background: #fff;
+  }
+
+  &:focus-visible {
     border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(31, 182, 170, 0.12);
+    background: #fff;
   }
 
   &.is-error {
@@ -34,17 +48,19 @@
 
 .custom-select__text {
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  text-align: left;
 }
 
 .custom-select__arrow {
   transition: transform 0.2s ease;
   font-size: 12px;
   flex-shrink: 0;
+  color: var(--color-text-soft);
 
   &.is-open {
     transform: rotate(180deg);
@@ -58,9 +74,10 @@
   right: 0;
   top: calc(100% + 6px);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 38px rgba(16, 42, 67, 0.14);
+  backdrop-filter: blur(10px);
   overflow: hidden;
   animation: fadeIn 0.15s ease;
 }
@@ -70,7 +87,7 @@
   border: none;
   background: transparent;
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 14px;
   cursor: pointer;
   color: var(--color-text);
   transition: background 0.1s;

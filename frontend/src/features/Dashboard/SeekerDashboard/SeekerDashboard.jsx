@@ -44,6 +44,7 @@ import editIcon from '@/assets/icons/edit.svg'
 import pencilIcon from '@/assets/icons/pencil.svg'
 import linkIcon from '@/assets/icons/link.svg'
 import trashIcon from '@/assets/icons/trash.svg'
+import cameraIcon from '@/assets/icons/camera-icon.svg'
 
 const PROFILE_VISIBILITY_OPTIONS = [
     { value: 'PUBLIC', label: 'Публично' },
@@ -1282,9 +1283,11 @@ function SeekerDashboard() {
                                 {isEditing && (
                                     <>
                                         <div className="profile-card__avatar-edit-badge" aria-hidden="true">
-                                            <span className="profile-card__camera-icon">
-                                                <span></span>
-                                            </span>
+                                            <img
+                                                src={cameraIcon}
+                                                alt="Изменить фото"
+                                                className="profile-card__camera-svg"
+                                            />
                                         </div>
 
                                         <div className="profile-card__avatar-overlay">
@@ -1776,8 +1779,8 @@ function SeekerDashboard() {
                                                 label=""
                                                 rows={tempContactLinks}
                                                 setRows={setTempContactLinks}
-                                                placeholderTitle="Название"
                                                 placeholderUrl="https://..."
+                                                compact
                                             />
                                             <div className="info-block__actions">
                                                 <button className="btn-primary-small" onClick={handleSaveContacts} disabled={isLoading}>Сохранить</button>

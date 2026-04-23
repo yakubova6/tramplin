@@ -671,7 +671,7 @@ function EmployerProfileSection({
                                 label="Социальные сети"
                                 rows={socialRows}
                                 setRows={setSocialRows}
-                                placeholderTitle="Название"
+                                compact
                                 placeholderUrl="https://..."
                             />
 
@@ -680,8 +680,8 @@ function EmployerProfileSection({
                                     label="Контакты для связи"
                                     rows={contactRows}
                                     setRows={setContactRows}
-                                    placeholderTitle="Тип контакта"
                                     placeholderUrl="mailto: / tel: / https://..."
+                                    compact
                                 />
                             </div>
 

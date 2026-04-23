@@ -165,6 +165,23 @@ function CuratorsAdminPage() {
         loadCurators()
     }, [loadCurators])
 
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape' && isDetailOpen && !isSavingAccess) {
+                setIsDetailOpen(false)
+                setIsDetailLoading(false)
+            }
+        }
+
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    }, [isDetailOpen, isSavingAccess])
+
+    useEffect(() => {
+        document.documentElement.classList.toggle('is-lock', isDetailOpen)
+        return () => document.documentElement.classList.remove('is-lock')
+    }, [isDetailOpen])
+
     const detailFields = useMemo(() => {
         if (!selectedCurator) return []
 

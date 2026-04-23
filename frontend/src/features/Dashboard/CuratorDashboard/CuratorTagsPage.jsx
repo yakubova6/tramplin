@@ -8,9 +8,17 @@ import {
 import TagStatusBadge from '@/shared/ui/Tags/TagStatusBadge/TagStatusBadge';
 import CuratorTagModerationDetails from '@/shared/ui/Tags/TagModerationDetails/CuratorTagModerationDetails';
 import CuratorCreateTagForm from '@/shared/ui/Tags/CreateTagForm/CuratorCreateTagForm';
+import CustomSelect from '@/shared/ui/CustomSelect';
+import { getTagCategoryLabel } from '@/shared/lib/utils/tagCategories';
 import styles from '@/features/Dashboard/EmployerDashboard/sections/EmployerTagsPage.module.scss';
 
 const CuratorTagsPage = () => {
+  const filterOptions = [
+    { value: 'PENDING', label: 'На модерации' },
+    { value: 'APPROVED', label: 'Одобренные' },
+    { value: 'REJECTED', label: 'Отклонённые' },
+    { value: 'ALL', label: 'Все' },
+  ];
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('PENDING');
@@ -47,7 +55,7 @@ const CuratorTagsPage = () => {
   };
 
   const handleReject = async (id) => {
-    if (!window.confirm('Отклонить заявку на создание тега?')) return;
+    if (!window.confirm('Отклонить заявку на тег?')) return;
     try {
       await rejectModerationTag(id);
       await loadTags();
@@ -73,18 +81,15 @@ const CuratorTagsPage = () => {
   return (
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Модерация тегов</h1>
-          <button className={styles.createBtn} onClick={() => setShowCreateForm(true)}>+ Создать тег</button>
+          <h1>Теги и модерация</h1>
+          <button className={styles.createBtn} onClick={() => setShowCreateForm(true)}>+ Новый тег</button>
         </div>
 
         <div className={styles.filters}>
-          <label>Статус:</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="PENDING">На модерации</option>
-            <option value="APPROVED">Одобренные</option>
-            <option value="REJECTED">Отклонённые</option>
-            <option value="ALL">Все</option>
-          </select>
+          <div className={styles.filtersField}>
+            <label>Статус</label>
+            <CustomSelect value={filterStatus} onChange={setFilterStatus} options={filterOptions} />
+          </div>
         </div>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -95,7 +100,7 @@ const CuratorTagsPage = () => {
             <th>Название</th>
             <th>Категория</th>
             <th>Статус</th>
-            <th>Создатель</th>
+            <th>Источник</th>
             <th>Действия</th>
           </tr>
           </thead>
@@ -106,12 +111,14 @@ const CuratorTagsPage = () => {
               tags.map(tag => (
                   <tr key={tag.id}>
                     <td>{tag.name}</td>
-                    <td>{tag.category}</td>
+                    <td>{getTagCategoryLabel(tag.category)}</td>
                     <td><TagStatusBadge status={tag.moderationStatus} /></td>
-                    <td>{tag.createdByType === 'EMPLOYER' ? 'Работодатель' : 'Система'}</td>
+                    <td>
+                      {tag.createdByType === 'EMPLOYER' ? 'Работодатель' : tag.createdByType === 'CURATOR' ? 'Куратор' : 'Система'}
+                    </td>
                     <td>
                       <button className={styles.detailBtn} onClick={() => openModerationTask(tag.id)}>
-                        Задача модерации
+                        Открыть карточку
                       </button>
                       {tag.moderationStatus === 'PENDING' && (
                           <>

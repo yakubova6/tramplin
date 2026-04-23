@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Input from '@/shared/ui/Input';
+import Label from '@/shared/ui/Label';
+import Button from '@/shared/ui/Button';
+import CustomSelect from '@/shared/ui/CustomSelect';
 import styles from './CreateTagForm.module.scss';
 
 const CATEGORIES = [
@@ -15,6 +19,20 @@ const CuratorCreateTagForm = ({ onCreate, onCancel, isLoading }) => {
   const [category, setCategory] = useState('TECH');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onCancel?.();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onCancel]);
+
+  useEffect(() => {
+    document.documentElement.classList.add('is-lock');
+    return () => document.documentElement.classList.remove('is-lock');
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -26,14 +44,13 @@ const CuratorCreateTagForm = ({ onCreate, onCancel, isLoading }) => {
   };
 
   return (
-      <div className={styles.overlay}>
-        <div className={styles.formContainer}>
-          <h3>Создать тег (куратор)</h3>
+      <div className={styles.overlay} onMouseDown={onCancel}>
+        <div className={styles.formContainer} onMouseDown={(e) => e.stopPropagation()}>
+          <h3>Создать тег</h3>
           <form onSubmit={handleSubmit}>
             <div className={styles.field}>
-              <label>Название тега *</label>
-              <input
-                  type="text"
+              <Label>Название тега <span className="required-star">*</span></Label>
+              <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="например, JavaScript"
@@ -41,17 +58,17 @@ const CuratorCreateTagForm = ({ onCreate, onCancel, isLoading }) => {
               />
             </div>
             <div className={styles.field}>
-              <label>Категория</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={isLoading}>
-                {CATEGORIES.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                ))}
-              </select>
+              <CustomSelect
+                  label="Категория"
+                  value={category}
+                  onChange={setCategory}
+                  options={CATEGORIES}
+              />
             </div>
             {error && <div className={styles.error}>{error}</div>}
             <div className={styles.actions}>
-              <button type="button" onClick={onCancel} disabled={isLoading}>Отмена</button>
-              <button type="submit" disabled={isLoading}>Создать</button>
+              <Button type="button" className="button--outline" onClick={onCancel} disabled={isLoading}>Отмена</Button>
+              <Button type="submit" className="button--primary" disabled={isLoading}>Создать</Button>
             </div>
           </form>
         </div>

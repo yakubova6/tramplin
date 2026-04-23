@@ -550,6 +550,7 @@ function ProfileEdit() {
                 setStudyProgramActiveIndex(-1)
                 setLocationCityActiveIndex(-1)
                 setLocationAddressActiveIndex(-1)
+                setIsLocationModalOpen(false)
             }
         }
 
@@ -561,6 +562,11 @@ function ProfileEdit() {
             document.removeEventListener('keydown', handleEsc)
         }
     }, [])
+
+    useEffect(() => {
+        document.documentElement.classList.toggle('is-lock', isLocationModalOpen)
+        return () => document.documentElement.classList.remove('is-lock')
+    }, [isLocationModalOpen])
 
     if (isLoading || isProfileLoading) {
         return (
@@ -1283,12 +1289,14 @@ function ProfileEdit() {
                                             label="Социальные сети"
                                             rows={socialRows}
                                             setRows={setSocialRows}
+                                            compact
                                         />
 
                                         <LinksEditor
                                             label="Контакты для связи"
                                             rows={publicContactRows}
                                             setRows={setPublicContactRows}
+                                            compact
                                         />
                                     </>
                                 ) : (
@@ -1367,7 +1375,7 @@ function ProfileEdit() {
                                         </div>
 
                                         <LinksEditor label="Портфолио" rows={portfolioRows} setRows={setPortfolioRows} />
-                                        <LinksEditor label="Контакты" rows={contactRows} setRows={setContactRows} />
+                                        <LinksEditor label="Контакты" rows={contactRows} setRows={setContactRows} compact />
 
                                         <div className="profile-edit-form__grid-2">
                                             <CustomSelect
@@ -1425,8 +1433,8 @@ function ProfileEdit() {
             </Card>
 
             {isLocationModalOpen && (
-                <div className="modal-overlay">
-                    <div className="modal">
+                <div className="modal-overlay" onClick={() => setIsLocationModalOpen(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Добавить локацию компании</h3>
 
                         <div className="modal__field">

@@ -1,23 +1,29 @@
 .badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
   text-align: center;
+  border: 1px solid transparent;
 }
 
 .pending {
-  background-color: #fff3e0;
-  color: #e67e22;
+  background-color: #fff8e7;
+  border-color: #f3d39f;
+  color: #b96b00;
 }
 
 .approved {
-  background-color: #e0f7e8;
-  color: #2e7d32;
+  background-color: #ecfcf4;
+  border-color: #b7ecd1;
+  color: #0f8f5c;
 }
 
 .rejected {
-  background-color: #ffe6e5;
-  color: #c62828;
+  background-color: #fff1f4;
+  border-color: #f4c3cf;
+  color: #c83853;
 }

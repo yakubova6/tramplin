@@ -41,7 +41,7 @@ function EmployerOpportunityForm({
             <div className="employer-create-form__header">
                 <h2>{opportunityMode === 'edit' ? 'Редактирование публикации' : 'Новая публикация'}</h2>
                 {opportunityMode === 'edit' && (
-                    <Button className="button--ghost" onClick={onResetOpportunityForm}>
+                    <Button className="button--outline employer-create-form__cancel-edit" onClick={onResetOpportunityForm}>
                         Отменить редактирование
                     </Button>
                 )}
@@ -72,7 +72,7 @@ function EmployerOpportunityForm({
                     onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="Например, Junior Java Developer"
                 />
-                {errors.title && <p className="field-error">{errors.title}</p>}
+                <p className={`field-error ${errors.title ? '' : 'is-placeholder'}`}>{errors.title || '\u00A0'}</p>
             </div>
 
             <div className="employer-create-form__grid-2">
@@ -164,7 +164,7 @@ function EmployerOpportunityForm({
                     onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, shortDescription: e.target.value }))}
                     placeholder="Кратко: формат, аудитория, ключевая польза"
                 />
-                {errors.shortDescription && <p className="field-error">{errors.shortDescription}</p>}
+                <p className={`field-error ${errors.shortDescription ? '' : 'is-placeholder'}`}>{errors.shortDescription || '\u00A0'}</p>
             </div>
 
             <div className="employer-create-form__field">
@@ -188,18 +188,24 @@ function EmployerOpportunityForm({
             </div>
 
             <div className="employer-create-form__grid-3">
-                <CustomSelect
-                    label="Уровень"
-                    value={opportunityForm.grade}
-                    onChange={(val) => onChangeOpportunityForm((prev) => ({ ...prev, grade: val }))}
-                    options={EXPERIENCE_LEVELS}
-                />
-                <CustomSelect
-                    label="Занятость"
-                    value={opportunityForm.employmentType}
-                    onChange={(val) => onChangeOpportunityForm((prev) => ({ ...prev, employmentType: val }))}
-                    options={EMPLOYMENT_TYPES}
-                />
+                <div className="employer-create-form__field">
+                    <CustomSelect
+                        label="Уровень"
+                        value={opportunityForm.grade}
+                        onChange={(val) => onChangeOpportunityForm((prev) => ({ ...prev, grade: val }))}
+                        options={EXPERIENCE_LEVELS}
+                    />
+                    <p className="field-error is-placeholder">{'\u00A0'}</p>
+                </div>
+                <div className="employer-create-form__field">
+                    <CustomSelect
+                        label="Занятость"
+                        value={opportunityForm.employmentType}
+                        onChange={(val) => onChangeOpportunityForm((prev) => ({ ...prev, employmentType: val }))}
+                        options={EMPLOYMENT_TYPES}
+                    />
+                    <p className="field-error is-placeholder">{'\u00A0'}</p>
+                </div>
                 {opportunityForm.type === 'EVENT' ? (
                     <div className="employer-create-form__field">
                         <Label>Дата мероприятия <span className="required-star">*</span></Label>
@@ -208,7 +214,7 @@ function EmployerOpportunityForm({
                             value={opportunityForm.eventDate}
                             onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, eventDate: e.target.value }))}
                         />
-                        {errors.eventDate && <p className="field-error">{errors.eventDate}</p>}
+                        <p className={`field-error ${errors.eventDate ? '' : 'is-placeholder'}`}>{errors.eventDate || '\u00A0'}</p>
                     </div>
                 ) : (
                     <div className="employer-create-form__field">
@@ -218,7 +224,7 @@ function EmployerOpportunityForm({
                             value={opportunityForm.expiresAt}
                             onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
                         />
-                        {errors.expiresAt && <p className="field-error">{errors.expiresAt}</p>}
+                        <p className={`field-error ${errors.expiresAt ? '' : 'is-placeholder'}`}>{errors.expiresAt || '\u00A0'}</p>
                     </div>
                 )}
             </div>

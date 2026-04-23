@@ -860,6 +860,12 @@ $section-title-size: 19px;
   font-size: 12px;
   color: #e85d75;
   margin-top: 2px;
+  min-height: 18px;
+  line-height: 1.35;
+}
+
+.field-error.is-placeholder {
+  visibility: hidden;
 }
 
 .field-hint {
@@ -867,6 +873,7 @@ $section-title-size: 19px;
   color: $gray-600;
   font-size: 13px;
   line-height: 1.5;
+  min-height: 18px;
 }
 
 .employer-opportunities h2,
@@ -891,7 +898,19 @@ $section-title-size: 19px;
   align-items: center;
 
   .custom-select {
-    min-width: 140px;
+    min-width: 240px;
+  }
+
+  .input,
+  .custom-select__wrapper,
+  .custom-select__button {
+    min-height: $control-height;
+    height: $control-height;
+    box-sizing: border-box;
+  }
+
+  .input {
+    min-width: 280px;
   }
 }
 
@@ -1814,6 +1833,77 @@ $section-title-size: 19px;
   }
 }
 
+.employer-create-form__cancel-edit {
+  min-height: $control-height !important;
+  white-space: nowrap;
+}
+
+.employer-profile__location-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  .button {
+    width: 100%;
+  }
+
+  .button:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.links-list {
+  display: grid;
+  gap: 8px;
+}
+
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid $gray-200;
+  border-radius: 12px;
+  background: #fff;
+  color: $gray-700;
+  line-height: 1.45;
+  word-break: break-word;
+
+  a {
+    color: $primary-dark;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  span:empty {
+    display: none;
+  }
+}
+
+.employer-profile__contacts-block .links-editor,
+.employer-create-form .links-editor {
+  gap: 10px;
+
+  .links-editor__row {
+    align-items: stretch;
+  }
+
+  .links-editor__remove {
+    min-height: $control-height;
+    height: $control-height;
+    border-radius: 12px;
+  }
+
+  .links-editor__add {
+    min-height: 40px;
+    border-radius: 12px;
+  }
+}
+
 .media-gallery {
   margin-top: 12px;
 
@@ -2190,6 +2280,16 @@ $section-title-size: 19px;
     &:hover {
       background: rgba(0, 0, 0, 0.8);
       transform: scale(1.05);
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .employer-profile__location-actions {
+    grid-template-columns: 1fr;
+
+    .button:first-child {
+      grid-column: auto;
     }
   }
 }

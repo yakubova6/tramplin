@@ -69,13 +69,13 @@ $transition: all 0.2s ease;
   height: 100px;
   border-radius: 50%;
   background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
-  color: white !important;
-  font-size: 40px;
-  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: $shadow-md;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .profile-card__info {
@@ -395,8 +395,8 @@ $transition: all 0.2s ease;
   font-weight: 500;
 
   &.status-active {
-    background: $primary-light;
-    color: $primary;
+    background: #e8f8ef;
+    color: #137c4d;
   }
 
   &.status-passive {
@@ -1694,20 +1694,29 @@ $transition: all 0.2s ease;
 .profile-card__avatar-wrap {
   position: relative;
   width: fit-content;
+  height: fit-content;
+  flex-shrink: 0;
 
-  &:not(.is-editing) {
-    cursor: default;
+  .profile-card__avatar-edit-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #0f172a;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
   }
 
-  &.is-editing {
-    cursor: pointer;
-  }
-
-  &.is-editing:hover .profile-card__avatar-overlay,
-  &.is-editing:focus-within .profile-card__avatar-overlay {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
+  .profile-card__camera-svg {
+    width: 18px;
+    height: 18px;
+    display: block;
   }
 }
 
@@ -1726,55 +1735,34 @@ $transition: all 0.2s ease;
   pointer-events: none;
 }
 
-.profile-card__camera-icon {
-  position: relative;
-  width: 16px;
-  height: 11px;
-  border: 2px solid #fff;
-  border-radius: 3px;
-  display: inline-block;
-  box-sizing: border-box;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -5px;
-    left: 2px;
-    width: 6px;
-    height: 4px;
-    background: #fff;
-    border-radius: 2px 2px 0 0;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 1px;
-    left: 4px;
-    width: 4px;
-    height: 4px;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    box-sizing: border-box;
-  }
+.profile-card__camera-svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .profile-card__avatar-overlay {
   position: absolute;
-  left: 50%;
-  top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(8px);
+  left: calc(100% - 15px);
+  top: calc(100% + 9px);
   min-width: 220px;
   padding: 10px;
   border-radius: 16px;
   background: rgba(15, 23, 42, 0.96);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.25);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
   z-index: 20;
+}
+.profile-card__avatar-wrap.is-editing:hover .profile-card__avatar-overlay,
+.profile-card__avatar-wrap.is-editing:focus-within .profile-card__avatar-overlay {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .profile-card__avatar-action {
@@ -1788,6 +1776,7 @@ $transition: all 0.2s ease;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease;
 
   &:hover {
     background: rgba(255, 255, 255, 0.14);
@@ -1800,8 +1789,8 @@ $transition: all 0.2s ease;
 
 @media (max-width: 768px) {
   .profile-card__avatar-overlay {
-    left: 0;
-    transform: translateX(0) translateY(8px);
+    left: -35px;
+    top: calc(100% + 9px);
     min-width: 200px;
   }
 
