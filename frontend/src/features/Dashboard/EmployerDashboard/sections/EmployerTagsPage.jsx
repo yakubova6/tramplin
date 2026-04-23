@@ -79,35 +79,39 @@ const EmployerTagsPage = () => {
 
       {error && <div className={styles.error}>{error}</div>}
 
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Название</th>
-            <th>Категория</th>
-            <th>Статус</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tags.length === 0 ? (
-            <tr><td colSpan="4" className={styles.empty}>Нет тегов</td></tr>
-          ) : (
-            tags.map(tag => (
-              <tr key={tag.id}>
-                <td>{tag.name}</td>
-                <td>{getTagCategoryLabel(tag.category)}</td>
-                <td><TagStatusBadge status={tag.moderationStatus} /></td>
-                <td>
-                  <button className={styles.detailBtn} onClick={() => openDetails(tag)}>Открыть карточку</button>
-                  {tag.moderationStatus === 'PENDING' && (
-                    <button className={styles.cancelBtn} onClick={() => handleCancel(tag.id)}>Отменить</button>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Категория</th>
+              <th>Статус</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tags.length === 0 ? (
+              <tr><td colSpan="4" className={styles.empty}>Нет тегов</td></tr>
+            ) : (
+              tags.map(tag => (
+                <tr key={tag.id}>
+                  <td data-label="Название">{tag.name}</td>
+                  <td data-label="Категория">{getTagCategoryLabel(tag.category)}</td>
+                  <td data-label="Статус"><TagStatusBadge status={tag.moderationStatus} /></td>
+                  <td data-label="Действия">
+                    <div className={styles.actions}>
+                      <button className={styles.detailBtn} onClick={() => openDetails(tag)}>Открыть карточку</button>
+                      {tag.moderationStatus === 'PENDING' && (
+                        <button className={styles.cancelBtn} onClick={() => handleCancel(tag.id)}>Отменить</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {selectedTag && (
         <TagModerationDetails tag={selectedTag} onClose={() => setSelectedTag(null)} />

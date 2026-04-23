@@ -269,6 +269,8 @@ function EmployerDashboard() {
     const locationCitySearchRef = useRef(null)
     const addressSearchRef = useRef(null)
     const logoInputRef = useRef(null)
+    const dashboardTabsRef = useRef(null)
+    const dashboardTabButtonRefs = useRef({})
 
     const verificationState = String(profile.verificationStatus || 'NOT_STARTED').toUpperCase()
     const moderationState = String(profile.moderationStatus || 'DRAFT').toUpperCase()
@@ -297,6 +299,29 @@ function EmployerDashboard() {
             String(status || '').toUpperCase()
         )
     }, [])
+
+    useEffect(() => {
+        const tabsContainer = dashboardTabsRef.current
+        const activeTabButton = dashboardTabButtonRefs.current[activeTab]
+
+        if (!tabsContainer || !activeTabButton) return
+
+        const isCompactLayout =
+            window.matchMedia('(max-width: 900px)').matches ||
+            window.matchMedia('(hover: none), (pointer: coarse)').matches
+
+        if (!isCompactLayout) return
+
+        const frame = window.requestAnimationFrame(() => {
+            activeTabButton.scrollIntoView({
+                behavior: 'smooth',
+                inline: 'center',
+                block: 'nearest',
+            })
+        })
+
+        return () => window.cancelAnimationFrame(frame)
+    }, [activeTab])
 
     const linksToRows = (items = []) =>
         items.length > 0
@@ -2077,8 +2102,11 @@ function EmployerDashboard() {
                 </div>
             )}
 
-            <div className="dashboard-tabs">
+            <div className="dashboard-tabs employer-dashboard__tabs" ref={dashboardTabsRef}>
                 <button
+                    ref={(node) => {
+                        dashboardTabButtonRefs.current.opportunities = node
+                    }}
                     className={`dashboard-tabs__btn ${activeTab === 'opportunities' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('opportunities')}
                 >
@@ -2086,6 +2114,9 @@ function EmployerDashboard() {
                 </button>
 
                 <button
+                    ref={(node) => {
+                        dashboardTabButtonRefs.current.create = node
+                    }}
                     className={`dashboard-tabs__btn ${activeTab === 'create' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('create')}
                     disabled={!isVerified}
@@ -2094,6 +2125,9 @@ function EmployerDashboard() {
                 </button>
 
                 <button
+                    ref={(node) => {
+                        dashboardTabButtonRefs.current.applicants = node
+                    }}
                     className={`dashboard-tabs__btn ${activeTab === 'applicants' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('applicants')}
                 >
@@ -2101,6 +2135,9 @@ function EmployerDashboard() {
                 </button>
 
                 <button
+                    ref={(node) => {
+                        dashboardTabButtonRefs.current.profile = node
+                    }}
                     className={`dashboard-tabs__btn ${activeTab === 'profile' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('profile')}
                 >
@@ -2108,6 +2145,9 @@ function EmployerDashboard() {
                 </button>
 
                 <button
+                    ref={(node) => {
+                        dashboardTabButtonRefs.current.tags = node
+                    }}
                     className={`dashboard-tabs__btn ${activeTab === 'tags' ? 'is-active' : ''}`}
                     onClick={() => setActiveTab('tags')}
                 >

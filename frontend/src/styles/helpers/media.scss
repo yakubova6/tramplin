@@ -51,7 +51,7 @@ $mobile-s: 480px;
   }
 }
 
-@mixin hover($hasActiveEffectOnMobile: true) {
+@mixin hover($hasActiveEffectOnMobile: false) {
   @media (any-hover: hover) {
     &:hover {
       @content;

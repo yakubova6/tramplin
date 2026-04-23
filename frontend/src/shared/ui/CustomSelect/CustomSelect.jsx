@@ -21,6 +21,9 @@ function CustomSelect({
     const menuRef = useRef(null)
 
     const selected = options.find((o) => o.value === value)
+    const isInModalContext = Boolean(
+        buttonRef.current?.closest('.modal, .modal-overlay, .seeker-dashboard-modal, .employer-verification-modal, [role="dialog"]')
+    )
 
     useEffect(() => {
         const onDocClick = (e) => {
@@ -80,7 +83,7 @@ function CustomSelect({
     const menu = isOpen && menuPosition && createPortal(
         <div
             ref={menuRef}
-            className="custom-select__menu custom-select__menu--portal"
+            className={`custom-select__menu custom-select__menu--portal ${isInModalContext ? 'custom-select__menu--modal' : ''}`.trim()}
             role="listbox"
             style={{
                 position: 'fixed',

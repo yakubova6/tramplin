@@ -125,9 +125,13 @@
 }
 
 .custom-select__menu--portal {
-  z-index: 100000;
+  z-index: 90;
   max-height: 320px;
   overflow-y: auto;
+}
+
+.custom-select__menu--modal {
+  z-index: 1300;
 }
 
 .select-disabled {

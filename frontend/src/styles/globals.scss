@@ -12,6 +12,16 @@ html {
   }
 }
 
+@supports selector(html:has(.modal-overlay)) {
+  html:has(.modal-overlay) {
+    overflow: hidden;
+  }
+
+  html:has(.modal-overlay) body {
+    overflow: hidden;
+  }
+}
+
 body {
   @include fluid-text(16, 14);
 
@@ -210,5 +220,14 @@ input {
 @keyframes app-loading-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (any-hover: none), (hover: none), (pointer: coarse) {
+  *:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    filter: none !important;
   }
 }

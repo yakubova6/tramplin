@@ -67,6 +67,12 @@
   background: #fff;
 }
 
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 16px;
+}
+
 .table th,
 .table td {
   padding: 12px 14px;
@@ -101,6 +107,12 @@
   font-size: 13px;
   font-weight: 600;
   transition: all 0.2s ease;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .detailBtn {
@@ -171,5 +183,58 @@
 
   .filtersField {
     max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .table {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .table tr {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .table td {
+    border: none;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .table td[data-label='Действия']::before {
+    margin-bottom: 2px;
+  }
+
+  .detailBtn,
+  .cancelBtn,
+  .btnApprove,
+  .btnReject {
+    margin-right: 0;
   }
 }

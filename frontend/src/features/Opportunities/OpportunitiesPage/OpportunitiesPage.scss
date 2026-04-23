@@ -824,7 +824,7 @@
 // Стили для кастомного селекта - высокий z-index
 .custom-select {
   position: relative;
-  z-index: 300;
+  z-index: 20;
 
   &__wrapper {
     position: relative;
@@ -873,7 +873,7 @@
 
   &__menu {
     position: absolute;
-    z-index: 99999;
+    z-index: 90;
     left: 0;
     right: 0;
     top: calc(100% + 6px);

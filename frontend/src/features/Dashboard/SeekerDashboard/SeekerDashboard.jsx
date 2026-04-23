@@ -124,6 +124,14 @@ const CONTACT_PRESET_BY_ID = CONTACT_LINK_PRESETS.reduce((acc, preset) => {
     return acc
 }, {})
 
+const SOCIAL_LINK_PRESETS = CONTACT_LINK_PRESETS.filter((preset) =>
+    ['telegram', 'linkedin', 'github', 'website'].includes(preset.id)
+)
+
+const CONTACT_METHOD_PRESETS = CONTACT_LINK_PRESETS.filter((preset) =>
+    ['telegram', 'email', 'phone', 'whatsapp', 'website'].includes(preset.id)
+)
+
 function formatFileSize(sizeBytes) {
     if (!sizeBytes) return '0 Б'
     if (sizeBytes < 1024) return `${sizeBytes} Б`
@@ -1995,18 +2003,40 @@ function SeekerDashboard() {
                                     {isEditingContacts ? (
                                         <div className="info-block__edit">
                                             <div className="contact-editor">
-                                                <div className="contact-editor__presets">
-                                                    {CONTACT_LINK_PRESETS.map((preset) => (
-                                                        <button
-                                                            key={preset.id}
-                                                            type="button"
-                                                            className="contact-editor__preset"
-                                                            onClick={() => addContactRow(preset.id)}
-                                                        >
-                                                            <span className="contact-editor__preset-badge">{preset.shortLabel}</span>
-                                                            <span>{preset.label}</span>
-                                                        </button>
-                                                    ))}
+                                                <div className="contact-editor__preset-groups">
+                                                    <div className="contact-editor__preset-group">
+                                                        <p className="contact-editor__preset-label">Социальные сети</p>
+                                                        <div className="contact-editor__presets">
+                                                            {SOCIAL_LINK_PRESETS.map((preset) => (
+                                                                <button
+                                                                    key={preset.id}
+                                                                    type="button"
+                                                                    className="contact-editor__preset"
+                                                                    onClick={() => addContactRow(preset.id)}
+                                                                >
+                                                                    <span className="contact-editor__preset-badge">{preset.shortLabel}</span>
+                                                                    <span>{preset.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="contact-editor__preset-group">
+                                                        <p className="contact-editor__preset-label">Контакты для связи</p>
+                                                        <div className="contact-editor__presets">
+                                                            {CONTACT_METHOD_PRESETS.map((preset) => (
+                                                                <button
+                                                                    key={preset.id}
+                                                                    type="button"
+                                                                    className="contact-editor__preset"
+                                                                    onClick={() => addContactRow(preset.id)}
+                                                                >
+                                                                    <span className="contact-editor__preset-badge">{preset.shortLabel}</span>
+                                                                    <span>{preset.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="contact-editor__list">

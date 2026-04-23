@@ -116,6 +116,14 @@ const CONTACT_PRESET_BY_ID = CONTACT_LINK_PRESETS.reduce((acc, preset) => {
     return acc
 }, {})
 
+const SOCIAL_LINK_PRESETS = CONTACT_LINK_PRESETS.filter((preset) =>
+    ['telegram', 'linkedin', 'github', 'website'].includes(preset.id)
+)
+
+const CONTACT_METHOD_PRESETS = CONTACT_LINK_PRESETS.filter((preset) =>
+    ['telegram', 'email', 'phone', 'whatsapp', 'website'].includes(preset.id)
+)
+
 function mapLinksToRows(items = [], valueKey = 'url') {
     if (!Array.isArray(items) || items.length === 0) {
         return [createLinkRow()]
@@ -168,6 +176,26 @@ function detectContactPreset(link = {}) {
     }
 
     return CONTACT_PRESET_BY_ID.website
+}
+
+function splitApplicantContactRowsByType(items = []) {
+    const rows = mapLinksToRows(items, 'value')
+    const social = []
+    const contacts = []
+
+    rows.forEach((row) => {
+        const preset = detectContactPreset(row)
+        if (['telegram', 'linkedin', 'github', 'website'].includes(preset.id)) {
+            social.push(row)
+            return
+        }
+        contacts.push(row)
+    })
+
+    return {
+        socialRows: social,
+        contactRows: contacts,
+    }
 }
 
 function buildEmployerLocationLabel(location) {
@@ -418,7 +446,10 @@ function ProfileEdit() {
                         setAbout(profile.about || '')
                         setResumeText(profile.resumeText || '')
                         setPortfolioRows(mapLinksToRows(profile.portfolioLinks, 'url'))
-                        setContactRows(mapLinksToRows(profile.contactLinks, 'value'))
+                        const { socialRows: applicantSocialRows, contactRows: applicantContactRows } =
+                            splitApplicantContactRowsByType(profile.contactLinks)
+                        setSocialRows(applicantSocialRows)
+                        setContactRows(applicantContactRows)
                         setProfileVisibility(profile.profileVisibility || 'PUBLIC')
                         setResumeVisibility(profile.resumeVisibility || 'AUTHENTICATED')
                         setApplicationsVisibility(profile.applicationsVisibility || 'PRIVATE')
@@ -514,23 +545,53 @@ function ProfileEdit() {
         setRows((prev) => [...prev, createContactLinkRow(presetId)])
     }
 
-    const renderContactEditor = (label, rows, setRows) => (
-        <div className="profile-contact-editor">
+    const renderContactEditor = (
+        label,
+        rows,
+        setRows,
+        presets = CONTACT_LINK_PRESETS,
+        editorClassName = '',
+        presetGroups = null,
+    ) => (
+        <div className={`profile-contact-editor ${editorClassName}`.trim()}>
             <Label>{label}</Label>
 
-            <div className="profile-contact-editor__presets">
-                {CONTACT_LINK_PRESETS.map((preset) => (
-                    <button
-                        key={preset.id}
-                        type="button"
-                        className="profile-contact-editor__preset"
-                        onClick={() => addContactRowsState(setRows, preset.id)}
-                    >
-                        <span className="profile-contact-editor__preset-badge">{preset.shortLabel}</span>
-                        <span>{preset.label}</span>
-                    </button>
-                ))}
-            </div>
+            {Array.isArray(presetGroups) && presetGroups.length > 0 ? (
+                <div className="profile-contact-editor__preset-groups">
+                    {presetGroups.map((group) => (
+                        <div key={group.id} className="profile-contact-editor__preset-group">
+                            <p className="profile-contact-editor__preset-label">{group.label}</p>
+                            <div className="profile-contact-editor__presets">
+                                {group.presets.map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        type="button"
+                                        className="profile-contact-editor__preset"
+                                        onClick={() => addContactRowsState(setRows, preset.id)}
+                                    >
+                                        <span className="profile-contact-editor__preset-badge">{preset.shortLabel}</span>
+                                        <span>{preset.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="profile-contact-editor__presets">
+                    {presets.map((preset) => (
+                        <button
+                            key={preset.id}
+                            type="button"
+                            className="profile-contact-editor__preset"
+                            onClick={() => addContactRowsState(setRows, preset.id)}
+                        >
+                            <span className="profile-contact-editor__preset-badge">{preset.shortLabel}</span>
+                            <span>{preset.label}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
 
             <div className="profile-contact-editor__list">
                 {rows.length === 0 && (
@@ -1106,7 +1167,7 @@ function ProfileEdit() {
                     about: about.trim() || null,
                     resumeText: resumeText.trim() || null,
                     portfolioLinks: cleanLinksToArray(portfolioRows),
-                    contactLinks: cleanLinksToArray(contactRows),
+                    contactLinks: cleanLinksToArray([...socialRows, ...contactRows]),
                     profileVisibility,
                     resumeVisibility,
                     applicationsVisibility,
@@ -1262,7 +1323,7 @@ function ProfileEdit() {
                                     <div className="profile-edit-form__actions-inline">
                                         <Button
                                             type="button"
-                                            className="button--outline"
+                                            className="button--outline profile-edit__add-location-btn"
                                             onClick={openCreateLocationModal}
                                         >
                                             {employerLocations.length > 0
@@ -1461,14 +1522,19 @@ function ProfileEdit() {
                                             />
                                         </div>
 
-                                        <LinksEditor
-                                            label="Социальные сети"
-                                            rows={socialRows}
-                                            setRows={setSocialRows}
-                                            compact
-                                        />
+                                        {renderContactEditor(
+                                            'Социальные сети',
+                                            socialRows,
+                                            setSocialRows,
+                                            SOCIAL_LINK_PRESETS,
+                                        )}
 
-                                        {renderContactEditor('Контакты для связи', publicContactRows, setPublicContactRows)}
+                                        {renderContactEditor(
+                                            'Контакты для связи',
+                                            publicContactRows,
+                                            setPublicContactRows,
+                                            CONTACT_METHOD_PRESETS,
+                                        )}
                                     </>
                                 ) : (
                                     <>
@@ -1546,7 +1612,19 @@ function ProfileEdit() {
                                         </div>
 
                                         <LinksEditor label="Портфолио" rows={portfolioRows} setRows={setPortfolioRows} />
-                                        {renderContactEditor('Контакты', contactRows, setContactRows)}
+                                        {renderContactEditor(
+                                            'Социальные сети',
+                                            socialRows,
+                                            setSocialRows,
+                                            SOCIAL_LINK_PRESETS,
+                                        )}
+
+                                        {renderContactEditor(
+                                            'Контакты для связи',
+                                            contactRows,
+                                            setContactRows,
+                                            CONTACT_METHOD_PRESETS,
+                                        )}
 
                                         <div className="profile-edit-form__grid-2">
                                             <CustomSelect
@@ -1608,7 +1686,7 @@ function ProfileEdit() {
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Добавить локацию компании</h3>
 
-                        <div className="modal__field">
+                        <div className="modal__field modal__field--location-title">
                             <Label>Название локации <span className="required-star">*</span></Label>
                             <Input
                                 value={locationForm.title}
@@ -1682,7 +1760,7 @@ function ProfileEdit() {
                             />
                         </div>
 
-                        <div className="modal__field">
+                        <div className="modal__field modal__field--address-extra">
                             <Label>Дополнительный адрес</Label>
                             <Input
                                 value={locationForm.addressLine2}

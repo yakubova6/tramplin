@@ -2490,6 +2490,23 @@ $transition: all 0.2s ease;
   gap: 16px;
 }
 
+.contact-editor__preset-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.contact-editor__preset-group {
+  display: grid;
+  gap: 8px;
+}
+
+.contact-editor__preset-label {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .contact-editor__presets {
   display: flex;
   flex-wrap: wrap;
