@@ -100,3 +100,10 @@
     background: var(--color-primary-soft);
   }
 }
+
+@media (hover: none), (pointer: coarse) {
+  .links-editor__remove:hover,
+  .links-editor__add:hover {
+    transform: none;
+  }
+}

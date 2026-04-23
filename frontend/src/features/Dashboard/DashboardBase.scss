@@ -66,3 +66,9 @@
     cursor: not-allowed;
   }
 }
+
+@media (hover: none), (pointer: coarse) {
+  .dashboard-tabs__btn:hover {
+    transform: none;
+  }
+}

@@ -59,6 +59,63 @@ const COMPANY_SIZE_OPTIONS = [
     { value: 'ENTERPRISE', label: 'Корпорация (1000+)' },
 ]
 
+const CONTACT_LINK_PRESETS = [
+    {
+        id: 'telegram',
+        label: 'Telegram',
+        shortLabel: 'TG',
+        placeholder: '@username или https://t.me/username',
+        hint: 'Можно вставить никнейм или полную ссылку',
+    },
+    {
+        id: 'email',
+        label: 'Email',
+        shortLabel: 'Email',
+        placeholder: 'name@example.com',
+        hint: 'Лучше указывать основную почту',
+    },
+    {
+        id: 'phone',
+        label: 'Телефон',
+        shortLabel: 'Tel',
+        placeholder: '+7 999 123-45-67',
+        hint: 'Удобнее, если номер начинается с кода страны',
+    },
+    {
+        id: 'whatsapp',
+        label: 'WhatsApp',
+        shortLabel: 'WA',
+        placeholder: '+7 999 123-45-67 или https://wa.me/79991234567',
+        hint: 'Можно вставить номер или готовую ссылку',
+    },
+    {
+        id: 'linkedin',
+        label: 'LinkedIn',
+        shortLabel: 'in',
+        placeholder: 'https://linkedin.com/in/username',
+        hint: 'Подходит для делового контакта',
+    },
+    {
+        id: 'github',
+        label: 'GitHub',
+        shortLabel: 'GH',
+        placeholder: 'https://github.com/username',
+        hint: 'Удобно для технического профиля',
+    },
+    {
+        id: 'website',
+        label: 'Сайт',
+        shortLabel: 'Web',
+        placeholder: 'https://your-site.com',
+        hint: 'Личный сайт, портфолио или публичная страница',
+    },
+]
+
+const CONTACT_PRESET_BY_ID = CONTACT_LINK_PRESETS.reduce((acc, preset) => {
+    acc[preset.id] = preset
+    return acc
+}, {})
+
 function mapLinksToRows(items = [], valueKey = 'url') {
     if (!Array.isArray(items) || items.length === 0) {
         return [createLinkRow()]
@@ -70,6 +127,47 @@ function mapLinksToRows(items = [], valueKey = 'url') {
             item?.[valueKey] || item?.url || item?.value || ''
         )
     )
+}
+
+function createContactLinkRow(presetId = 'website', value = '') {
+    const preset = CONTACT_PRESET_BY_ID[presetId] || CONTACT_PRESET_BY_ID.website
+
+    return {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        title: preset.label,
+        url: value,
+    }
+}
+
+function detectContactPreset(link = {}) {
+    const rawLabel = String(link?.title || link?.label || '').trim().toLowerCase()
+    const rawUrl = String(link?.url || link?.value || '').trim().toLowerCase()
+
+    if (rawLabel.includes('telegram') || rawUrl.includes('t.me/') || rawUrl.startsWith('@')) {
+        return CONTACT_PRESET_BY_ID.telegram
+    }
+
+    if (rawLabel.includes('email') || rawUrl.includes('@') || rawUrl.startsWith('mailto:')) {
+        return CONTACT_PRESET_BY_ID.email
+    }
+
+    if (rawLabel.includes('whatsapp') || rawUrl.includes('wa.me/') || rawUrl.includes('whatsapp')) {
+        return CONTACT_PRESET_BY_ID.whatsapp
+    }
+
+    if (rawLabel.includes('phone') || rawLabel.includes('тел') || rawUrl.startsWith('tel:')) {
+        return CONTACT_PRESET_BY_ID.phone
+    }
+
+    if (rawLabel.includes('linkedin') || rawUrl.includes('linkedin.com/')) {
+        return CONTACT_PRESET_BY_ID.linkedin
+    }
+
+    if (rawLabel.includes('github') || rawUrl.includes('github.com/')) {
+        return CONTACT_PRESET_BY_ID.github
+    }
+
+    return CONTACT_PRESET_BY_ID.website
 }
 
 function buildEmployerLocationLabel(location) {
@@ -402,6 +500,84 @@ function ProfileEdit() {
                 (location) => String(location.id) === String(selectedLocationId)
             ) || null,
         [employerLocations, selectedLocationId]
+    )
+
+    const updateContactRowsState = (setRows, id, patch) => {
+        setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+    }
+
+    const removeContactRowsState = (setRows, id) => {
+        setRows((prev) => prev.filter((row) => row.id !== id))
+    }
+
+    const addContactRowsState = (setRows, presetId = 'website') => {
+        setRows((prev) => [...prev, createContactLinkRow(presetId)])
+    }
+
+    const renderContactEditor = (label, rows, setRows) => (
+        <div className="profile-contact-editor">
+            <Label>{label}</Label>
+
+            <div className="profile-contact-editor__presets">
+                {CONTACT_LINK_PRESETS.map((preset) => (
+                    <button
+                        key={preset.id}
+                        type="button"
+                        className="profile-contact-editor__preset"
+                        onClick={() => addContactRowsState(setRows, preset.id)}
+                    >
+                        <span className="profile-contact-editor__preset-badge">{preset.shortLabel}</span>
+                        <span>{preset.label}</span>
+                    </button>
+                ))}
+            </div>
+
+            <div className="profile-contact-editor__list">
+                {rows.length === 0 && (
+                    <div className="profile-contact-editor__empty">
+                        Выберите тип контакта выше, чтобы добавить удобный способ связи
+                    </div>
+                )}
+
+                {rows.map((row) => {
+                    const preset = detectContactPreset(row)
+
+                    return (
+                        <div key={row.id} className="profile-contact-editor__card">
+                            <div className="profile-contact-editor__card-header">
+                                <div className="profile-contact-editor__card-title">
+                                    <span className="profile-contact-editor__card-badge">{preset.shortLabel}</span>
+                                    <div>
+                                        <strong>{row.title || preset.label}</strong>
+                                        <span>{preset.hint}</span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="profile-contact-editor__remove"
+                                    onClick={() => removeContactRowsState(setRows, row.id)}
+                                    aria-label="Удалить контакт"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <Input
+                                placeholder={preset.placeholder}
+                                value={row.url}
+                                onChange={(e) =>
+                                    updateContactRowsState(setRows, row.id, {
+                                        title: preset.label,
+                                        url: e.target.value,
+                                    })
+                                }
+                            />
+                        </div>
+                    )
+                })}
+            </div>
+        </div>
     )
 
     useEffect(() => {
@@ -1292,12 +1468,7 @@ function ProfileEdit() {
                                             compact
                                         />
 
-                                        <LinksEditor
-                                            label="Контакты для связи"
-                                            rows={publicContactRows}
-                                            setRows={setPublicContactRows}
-                                            compact
-                                        />
+                                        {renderContactEditor('Контакты для связи', publicContactRows, setPublicContactRows)}
                                     </>
                                 ) : (
                                     <>
@@ -1375,7 +1546,7 @@ function ProfileEdit() {
                                         </div>
 
                                         <LinksEditor label="Портфолио" rows={portfolioRows} setRows={setPortfolioRows} />
-                                        <LinksEditor label="Контакты" rows={contactRows} setRows={setContactRows} compact />
+                                        {renderContactEditor('Контакты', contactRows, setContactRows)}
 
                                         <div className="profile-edit-form__grid-2">
                                             <CustomSelect

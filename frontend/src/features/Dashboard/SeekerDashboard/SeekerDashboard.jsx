@@ -59,6 +59,71 @@ const CONTACTS_BASED_VISIBILITY_OPTIONS = [
     { value: 'PRIVATE', label: 'Только мне' },
 ]
 
+const DASHBOARD_TAB_ITEMS = [
+    { key: 'profile', label: 'Профиль' },
+    { key: 'applications', label: 'Отклики' },
+    { key: 'saved', label: 'Избранное' },
+    { key: 'contacts', label: 'Контакты' },
+    { key: 'recommendations', label: 'Рекомендации' },
+]
+
+const CONTACT_LINK_PRESETS = [
+    {
+        id: 'telegram',
+        label: 'Telegram',
+        shortLabel: 'TG',
+        placeholder: '@username или https://t.me/username',
+        hint: 'Можно вставить никнейм или полную ссылку',
+    },
+    {
+        id: 'email',
+        label: 'Email',
+        shortLabel: 'Email',
+        placeholder: 'name@example.com',
+        hint: 'Лучше указывать рабочую или основную почту',
+    },
+    {
+        id: 'phone',
+        label: 'Телефон',
+        shortLabel: 'Tel',
+        placeholder: '+7 999 123-45-67',
+        hint: 'Номер будет удобнее, если начать с кода страны',
+    },
+    {
+        id: 'whatsapp',
+        label: 'WhatsApp',
+        shortLabel: 'WA',
+        placeholder: '+7 999 123-45-67 или https://wa.me/79991234567',
+        hint: 'Можно вставить номер или готовую ссылку',
+    },
+    {
+        id: 'linkedin',
+        label: 'LinkedIn',
+        shortLabel: 'in',
+        placeholder: 'https://linkedin.com/in/username',
+        hint: 'Подходит для профессионального профиля',
+    },
+    {
+        id: 'github',
+        label: 'GitHub',
+        shortLabel: 'GH',
+        placeholder: 'https://github.com/username',
+        hint: 'Удобно для технического портфолио',
+    },
+    {
+        id: 'website',
+        label: 'Сайт',
+        shortLabel: 'Web',
+        placeholder: 'https://your-site.com',
+        hint: 'Личный сайт, Notion, Behance или другая публичная страница',
+    },
+]
+
+const CONTACT_PRESET_BY_ID = CONTACT_LINK_PRESETS.reduce((acc, preset) => {
+    acc[preset.id] = preset
+    return acc
+}, {})
+
 function formatFileSize(sizeBytes) {
     if (!sizeBytes) return '0 Б'
     if (sizeBytes < 1024) return `${sizeBytes} Б`
@@ -98,6 +163,72 @@ function mapApplicantProfileToState(profileData = {}, currentUser = null) {
     }
 }
 
+function createContactLinkRow(presetId = 'website') {
+    const preset = CONTACT_PRESET_BY_ID[presetId] || CONTACT_LINK_PRESETS[CONTACT_LINK_PRESETS.length - 1]
+
+    return {
+        id: Date.now() + Math.random(),
+        title: preset.label,
+        url: '',
+    }
+}
+
+function detectContactPreset(link = {}) {
+    const rawLabel = String(link?.title || link?.label || '').trim().toLowerCase()
+    const rawUrl = String(link?.url || link?.value || '').trim().toLowerCase()
+
+    if (rawLabel.includes('telegram') || rawUrl.includes('t.me/') || rawUrl.startsWith('@')) {
+        return CONTACT_PRESET_BY_ID.telegram
+    }
+
+    if (rawLabel.includes('email') || rawUrl.includes('@') || rawUrl.startsWith('mailto:')) {
+        return CONTACT_PRESET_BY_ID.email
+    }
+
+    if (rawLabel.includes('whatsapp') || rawUrl.includes('wa.me/') || rawUrl.includes('whatsapp')) {
+        return CONTACT_PRESET_BY_ID.whatsapp
+    }
+
+    if (rawLabel.includes('phone') || rawLabel.includes('тел') || rawUrl.startsWith('tel:')) {
+        return CONTACT_PRESET_BY_ID.phone
+    }
+
+    if (rawLabel.includes('linkedin') || rawUrl.includes('linkedin.com/')) {
+        return CONTACT_PRESET_BY_ID.linkedin
+    }
+
+    if (rawLabel.includes('github') || rawUrl.includes('github.com/')) {
+        return CONTACT_PRESET_BY_ID.github
+    }
+
+    return CONTACT_PRESET_BY_ID.website
+}
+
+function buildContactHref(rawValue, preset) {
+    const value = String(rawValue || '').trim()
+
+    if (!value) return '#'
+
+    if (/^(https?:\/\/|mailto:|tel:)/i.test(value)) {
+        return value
+    }
+
+    switch (preset?.id) {
+        case 'email':
+            return `mailto:${value}`
+        case 'phone':
+            return `tel:${value.replace(/[^\d+]/g, '')}`
+        case 'telegram':
+            return value.startsWith('@') ? `https://t.me/${value.slice(1)}` : `https://t.me/${value}`
+        case 'whatsapp': {
+            const phone = value.replace(/[^\d]/g, '')
+            return phone ? `https://wa.me/${phone}` : value
+        }
+        default:
+            return /^https?:\/\//i.test(value) ? value : `https://${value}`
+    }
+}
+
 function SeekerDashboard() {
     const [activeTab, setActiveTab] = useState('profile')
     const [contactsTab, setContactsTab] = useState('confirmed')
@@ -120,6 +251,8 @@ function SeekerDashboard() {
     const avatarInputRef = useRef(null)
     const resumeFileInputRef = useRef(null)
     const portfolioFileInputRef = useRef(null)
+    const dashboardTabsRef = useRef(null)
+    const dashboardTabButtonRefs = useRef({})
 
     const [isAvatarUploading, setIsAvatarUploading] = useState(false)
     const [isResumeFileUploading, setIsResumeFileUploading] = useState(false)
@@ -233,6 +366,18 @@ function SeekerDashboard() {
     const handleCancelContactsEdit = () => {
         setTempContactLinks(linksToArray(profile.contactLinks || []))
         setIsEditingContacts(false)
+    }
+
+    const updateContactRow = (id, patch) => {
+        setTempContactLinks((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+    }
+
+    const removeContactRow = (id) => {
+        setTempContactLinks((prev) => prev.filter((row) => row.id !== id))
+    }
+
+    const addContactRow = (presetId = 'website') => {
+        setTempContactLinks((prev) => [...prev, createContactLinkRow(presetId)])
     }
 
     const handleCitySearch = async (value) => {
@@ -477,6 +622,37 @@ function SeekerDashboard() {
             URL.revokeObjectURL(avatarPreviewUrl)
         }
     }, [avatarPreviewUrl])
+
+    const ensureDashboardTabVisible = useCallback((tabKey, behavior = 'smooth') => {
+        const container = dashboardTabsRef.current
+        const element = dashboardTabButtonRefs.current[tabKey]
+
+        if (!container || !element) return
+
+        const containerRect = container.getBoundingClientRect()
+        const elementRect = element.getBoundingClientRect()
+        const currentScroll = container.scrollLeft
+        const elementLeft = elementRect.left - containerRect.left + currentScroll
+        const elementRight = elementLeft + elementRect.width
+        const targetScroll =
+            elementLeft - (container.clientWidth - elementRect.width) / 2
+
+        const needsScrollLeft = elementLeft < currentScroll
+        const needsScrollRight = elementRight > currentScroll + container.clientWidth
+
+        if (!needsScrollLeft && !needsScrollRight) return
+
+        const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth)
+
+        container.scrollTo({
+            left: Math.min(Math.max(0, targetScroll), maxScroll),
+            behavior,
+        })
+    }, [])
+
+    useEffect(() => {
+        ensureDashboardTabVisible(activeTab, 'smooth')
+    }, [activeTab, ensureDashboardTabVisible])
 
     const validateProfile = () => {
         const newErrors = {}
@@ -1075,6 +1251,45 @@ function SeekerDashboard() {
         )
     }
 
+    const renderContactLinks = (links, title) => {
+        if (!links || links.length === 0) return null
+
+        return (
+            <div className="links-display links-display--contacts">
+                <h4>{title}</h4>
+                <div className="contact-links-grid">
+                    {links.map((item, idx) => {
+                        const preset = detectContactPreset(item)
+                        const rawValue = item?.url || item?.value || item
+
+                        if (!rawValue) return null
+
+                        const href = buildContactHref(rawValue, preset)
+                        const displayValue = String(rawValue)
+                            .replace(/^mailto:/i, '')
+                            .replace(/^tel:/i, '')
+
+                        return (
+                            <a
+                                key={idx}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="contact-link-card"
+                            >
+                                <span className="contact-link-card__badge">{preset.shortLabel}</span>
+                                <span className="contact-link-card__content">
+                                    <strong>{item?.label || item?.title || preset.label}</strong>
+                                    <span>{displayValue}</span>
+                                </span>
+                            </a>
+                        )
+                    })}
+                </div>
+            </div>
+        )
+    }
+
     const getContactStatusLabel = (status) => {
         switch (status) {
             case 'PENDING':
@@ -1211,22 +1426,26 @@ function SeekerDashboard() {
             title="Мой профиль"
             subtitle={getDisplayName() ? `Добро пожаловать, ${getDisplayName()}!` : 'Управляйте своей карьерой'}
         >
-            <div className="dashboard-tabs">
-                <button className={`dashboard-tabs__btn ${activeTab === 'profile' ? 'is-active' : ''}`} onClick={() => setActiveTab('profile')}>
-                    Профиль
-                </button>
-                <button className={`dashboard-tabs__btn ${activeTab === 'applications' ? 'is-active' : ''}`} onClick={() => setActiveTab('applications')}>
-                    Отклики
-                </button>
-                <button className={`dashboard-tabs__btn ${activeTab === 'saved' ? 'is-active' : ''}`} onClick={() => setActiveTab('saved')}>
-                    Избранное
-                </button>
-                <button className={`dashboard-tabs__btn ${activeTab === 'contacts' ? 'is-active' : ''}`} onClick={() => setActiveTab('contacts')}>
-                    Контакты
-                </button>
-                <button className={`dashboard-tabs__btn ${activeTab === 'recommendations' ? 'is-active' : ''}`} onClick={() => setActiveTab('recommendations')}>
-                    Рекомендации
-                </button>
+            <div className="dashboard-tabs-shell">
+                <div className="dashboard-tabs dashboard-tabs--main" ref={dashboardTabsRef}>
+                    {DASHBOARD_TAB_ITEMS.map((tab) => (
+                        <button
+                            key={tab.key}
+                            ref={(node) => {
+                                if (node) {
+                                    dashboardTabButtonRefs.current[tab.key] = node
+                                }
+                            }}
+                            className={`dashboard-tabs__btn ${activeTab === tab.key ? 'is-active' : ''}`}
+                            onClick={() => {
+                                setActiveTab(tab.key)
+                                ensureDashboardTabVisible(tab.key)
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="dashboard-panel">
@@ -1775,13 +1994,67 @@ function SeekerDashboard() {
                                     </div>
                                     {isEditingContacts ? (
                                         <div className="info-block__edit">
-                                            <LinksEditor
-                                                label=""
-                                                rows={tempContactLinks}
-                                                setRows={setTempContactLinks}
-                                                placeholderUrl="https://..."
-                                                compact
-                                            />
+                                            <div className="contact-editor">
+                                                <div className="contact-editor__presets">
+                                                    {CONTACT_LINK_PRESETS.map((preset) => (
+                                                        <button
+                                                            key={preset.id}
+                                                            type="button"
+                                                            className="contact-editor__preset"
+                                                            onClick={() => addContactRow(preset.id)}
+                                                        >
+                                                            <span className="contact-editor__preset-badge">{preset.shortLabel}</span>
+                                                            <span>{preset.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                <div className="contact-editor__list">
+                                                    {tempContactLinks.length === 0 && (
+                                                        <div className="contact-editor__empty">
+                                                            Выберите тип контакта выше, чтобы добавить удобный способ связи
+                                                        </div>
+                                                    )}
+
+                                                    {tempContactLinks.map((row) => {
+                                                        const preset = detectContactPreset(row)
+
+                                                        return (
+                                                            <div key={row.id} className="contact-editor__card">
+                                                                <div className="contact-editor__card-header">
+                                                                    <div className="contact-editor__card-title">
+                                                                        <span className="contact-editor__card-badge">{preset.shortLabel}</span>
+                                                                        <div>
+                                                                            <strong>{row.title || preset.label}</strong>
+                                                                            <span>{preset.hint}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="contact-editor__remove"
+                                                                        onClick={() => removeContactRow(row.id)}
+                                                                        aria-label="Удалить контакт"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
+
+                                                                <Input
+                                                                    placeholder={preset.placeholder}
+                                                                    value={row.url}
+                                                                    onChange={(e) =>
+                                                                        updateContactRow(row.id, {
+                                                                            title: preset.label,
+                                                                            url: e.target.value,
+                                                                        })
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
                                             <div className="info-block__actions">
                                                 <button className="btn-primary-small" onClick={handleSaveContacts} disabled={isLoading}>Сохранить</button>
                                                 <button className="btn-secondary-small" onClick={handleCancelContactsEdit}>Отменить</button>
@@ -1790,7 +2063,7 @@ function SeekerDashboard() {
                                     ) : (
                                         <div className="info-block__content">
                                             {profile.contactLinks && profile.contactLinks.length > 0
-                                                ? renderLinks(profile.contactLinks, 'Контакты для связи')
+                                                ? renderContactLinks(profile.contactLinks, 'Контакты для связи')
                                                 : <p className="info-block__empty">Добавьте контакты</p>}
                                         </div>
                                     )}
@@ -2010,7 +2283,7 @@ function SeekerDashboard() {
 
             {recommendationModal.isOpen && (
                 <div
-                    className="modal-overlay"
+                    className="modal-overlay seeker-dashboard-modal-overlay"
                     onClick={() =>
                         setRecommendationModal({
                             isOpen: false,
@@ -2020,7 +2293,7 @@ function SeekerDashboard() {
                         })
                     }
                 >
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal seeker-dashboard-modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Рекомендовать возможность</h3>
 
                         {!canSendRecommendation && (

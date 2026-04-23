@@ -83,6 +83,11 @@
     border-radius: 22px;
   }
 
+  .dashboard-layout__title {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
   .dashboard-layout__actions {
     width: 100%;
     justify-content: stretch;
@@ -90,5 +95,25 @@
 
   .dashboard-layout__action {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-layout__main {
+    padding-block: 20px 32px;
+  }
+
+  .dashboard-layout__header {
+    margin-bottom: 20px;
+    padding: 18px 16px;
+  }
+
+  .dashboard-layout__title {
+    font-size: 24px;
+  }
+
+  .dashboard-layout__subtitle {
+    font-size: 14px;
+    line-height: 1.5;
   }
 }

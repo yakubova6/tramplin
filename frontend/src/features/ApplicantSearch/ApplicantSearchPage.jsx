@@ -703,8 +703,9 @@ export default function ApplicantSearchPage() {
                                 type="button"
                                 onClick={() => handlePageChange(pageNumber - 1)}
                                 disabled={pageNumber <= 1}
+                                aria-label="Предыдущая страница"
                             >
-                                Назад
+                                <span aria-hidden="true">‹</span>
                             </Button>
 
                             <span className="applicant-search__pagination-status">
@@ -716,8 +717,9 @@ export default function ApplicantSearchPage() {
                                 type="button"
                                 onClick={() => handlePageChange(pageNumber + 1)}
                                 disabled={pageNumber >= totalPages}
+                                aria-label="Следующая страница"
                             >
-                                Вперёд
+                                <span aria-hidden="true">›</span>
                             </Button>
                         </div>
                     </>
