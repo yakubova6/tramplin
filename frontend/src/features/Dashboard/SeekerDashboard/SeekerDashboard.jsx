@@ -311,6 +311,7 @@ function SeekerDashboard() {
         selectedContactId: '',
         message: '',
     })
+    const recommendationOverlayMouseDownStartedOutsideRef = useRef(false)
 
     const [isCitySearchOpen, setIsCitySearchOpen] = useState(false)
     const [citySearchQuery, setCitySearchQuery] = useState('')
@@ -1014,6 +1015,27 @@ function SeekerDashboard() {
                 variant: 'destructive',
             })
         }
+    }
+
+    const closeRecommendationModal = useCallback(() => {
+        setRecommendationModal({
+            isOpen: false,
+            selectedOpportunityId: '',
+            selectedContactId: '',
+            message: '',
+        })
+    }, [])
+
+    const handleRecommendationOverlayMouseDown = (event) => {
+        recommendationOverlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleRecommendationOverlayMouseUp = (event) => {
+        const endedOutside = event.target === event.currentTarget
+        if (recommendationOverlayMouseDownStartedOutsideRef.current && endedOutside) {
+            closeRecommendationModal()
+        }
+        recommendationOverlayMouseDownStartedOutsideRef.current = false
     }
 
     const handleDeleteRecommendation = async (recommendationId) => {
@@ -2314,14 +2336,8 @@ function SeekerDashboard() {
             {recommendationModal.isOpen && (
                 <div
                     className="modal-overlay seeker-dashboard-modal-overlay"
-                    onClick={() =>
-                        setRecommendationModal({
-                            isOpen: false,
-                            selectedOpportunityId: '',
-                            selectedContactId: '',
-                            message: '',
-                        })
-                    }
+                    onMouseDown={handleRecommendationOverlayMouseDown}
+                    onMouseUp={handleRecommendationOverlayMouseUp}
                 >
                     <div className="modal seeker-dashboard-modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Рекомендовать возможность</h3>

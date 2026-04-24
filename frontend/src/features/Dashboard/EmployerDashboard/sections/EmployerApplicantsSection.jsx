@@ -6,6 +6,7 @@ import {
     APPLICATION_STATUSES,
     APPLICATION_SORT_OPTIONS,
 } from '../lib/employerDashboard.constants'
+import { getStatusLabelRu } from '@/shared/lib/utils/statusLabels'
 
 function EmployerApplicantsSection({
                                        responseFilters,
@@ -69,7 +70,7 @@ function EmployerApplicantsSection({
 
                             <div className="employer-applicants__actions">
                                 <span className={`status-badge status-${app.status?.toLowerCase?.() || 'default'}`}>
-                                    {APPLICATION_STATUSES.find((item) => item.value === app.status)?.label || app.status}
+                                    {APPLICATION_STATUSES.find((item) => item.value === app.status)?.label || getStatusLabelRu(app.status)}
                                 </span>
 
                                 <div className="employer-applicants__buttons">

@@ -1,4 +1,5 @@
 import { toQuery } from './http'
+import { translateStatusTokensInText } from '@/shared/lib/utils/statusLabels'
 
 const API_BASE = '/api/admin/curators'
 const CSRF_URL = '/api/auth/csrf'
@@ -6,7 +7,7 @@ const CSRF_URL = '/api/auth/csrf'
 let csrfState = null
 
 function createError(message, status = 0, code = null) {
-    const error = new Error(message)
+    const error = new Error(translateStatusTokensInText(message))
     error.status = status
     error.code = code
     return error

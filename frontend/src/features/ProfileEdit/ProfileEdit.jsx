@@ -214,8 +214,33 @@ function buildEmployerLocationLabel(location) {
     return address || title || cityName || `Локация #${location?.id}`
 }
 
+function formatCitySuggestionLabel(city) {
+    if (!city) return ''
+    const cityName = String(city?.name || '').trim()
+    const regionName = String(city?.regionName || '').trim()
+    if (!cityName) return ''
+    return regionName ? `${cityName}, ${regionName}` : cityName
+}
+
 function normalizeText(value) {
     return String(value || '').trim().toLowerCase()
+}
+
+function normalizeGeoSearchQuery(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim()
+}
+
+function dedupeAddressSuggestions(items = []) {
+    const seen = new Set()
+    return items.filter((item) => {
+        const key = String(item?.unrestrictedValue || item?.value || item?.addressLine || '')
+            .trim()
+            .toLowerCase()
+        if (!key) return true
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
 }
 
 function findMatchingLocation(locations, addressData) {
@@ -299,6 +324,13 @@ function ProfileEdit() {
 
     const locationCityRef = useRef(null)
     const locationAddressRef = useRef(null)
+    const locationModalOverlayMouseDownStartedOutsideRef = useRef(false)
+    const applicantCityRequestIdRef = useRef(0)
+    const locationCityRequestIdRef = useRef(0)
+    const locationAddressRequestIdRef = useRef(0)
+    const applicantCityCacheRef = useRef(new Map())
+    const locationCityCacheRef = useRef(new Map())
+    const locationAddressCacheRef = useRef(new Map())
 
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
@@ -500,21 +532,18 @@ function ProfileEdit() {
         [studyProgramQuery]
     )
 
-    const applicantCitySuggestionLabels = useMemo(
-        () => applicantCityOptions.map((city) => city.name),
+    const applicantCitySuggestions = useMemo(
+        () => applicantCityOptions,
         [applicantCityOptions]
     )
 
-    const locationCitySuggestionLabels = useMemo(
-        () => locationCityOptions.map((city) => city.name),
+    const locationCitySuggestions = useMemo(
+        () => locationCityOptions,
         [locationCityOptions]
     )
 
-    const locationAddressSuggestionLabels = useMemo(
-        () =>
-            locationAddressOptions.map(
-                (item) => item.value || item.unrestrictedValue || item.addressLine || ''
-            ),
+    const locationAddressSuggestions = useMemo(
+        () => locationAddressOptions,
         [locationAddressOptions]
     )
 
@@ -642,27 +671,38 @@ function ProfileEdit() {
     )
 
     useEffect(() => {
-        const normalizedQuery = cityQuery.trim()
+        const normalizedQuery = normalizeGeoSearchQuery(cityQuery)
 
         if (normalizedQuery.length < 2) {
+            applicantCityRequestIdRef.current += 1
             setApplicantCityOptions([])
             return
         }
 
+        const cacheKey = normalizedQuery.toLowerCase()
+        const cached = applicantCityCacheRef.current.get(cacheKey)
+        if (cached) {
+            setApplicantCityOptions(cached)
+            return
+        }
+
         let isCancelled = false
+        const requestId = ++applicantCityRequestIdRef.current
 
         const timer = setTimeout(async () => {
             try {
                 const cities = await searchGeoCities(normalizedQuery, 10)
-                if (!isCancelled) {
-                    setApplicantCityOptions(Array.isArray(cities) ? cities : [])
+                if (!isCancelled && requestId === applicantCityRequestIdRef.current) {
+                    const safeCities = Array.isArray(cities) ? cities : []
+                    applicantCityCacheRef.current.set(cacheKey, safeCities)
+                    setApplicantCityOptions(safeCities)
                 }
             } catch {
-                if (!isCancelled) {
+                if (!isCancelled && requestId === applicantCityRequestIdRef.current) {
                     setApplicantCityOptions([])
                 }
             }
-        }, 250)
+        }, 150)
 
         return () => {
             isCancelled = true
@@ -671,27 +711,38 @@ function ProfileEdit() {
     }, [cityQuery])
 
     useEffect(() => {
-        const normalizedQuery = locationForm.cityName.trim()
+        const normalizedQuery = normalizeGeoSearchQuery(locationForm.cityName)
 
-        if (!isLocationModalOpen || normalizedQuery.length < 2) {
+        if (!isLocationModalOpen || normalizedQuery.length < 1) {
+            locationCityRequestIdRef.current += 1
             setLocationCityOptions([])
             return
         }
 
+        const cacheKey = normalizedQuery.toLowerCase()
+        const cached = locationCityCacheRef.current.get(cacheKey)
+        if (cached) {
+            setLocationCityOptions(cached)
+            return
+        }
+
         let isCancelled = false
+        const requestId = ++locationCityRequestIdRef.current
 
         const timer = setTimeout(async () => {
             try {
                 const cities = await searchGeoCities(normalizedQuery, 10)
-                if (!isCancelled) {
-                    setLocationCityOptions(Array.isArray(cities) ? cities : [])
+                if (!isCancelled && requestId === locationCityRequestIdRef.current) {
+                    const safeCities = Array.isArray(cities) ? cities : []
+                    locationCityCacheRef.current.set(cacheKey, safeCities)
+                    setLocationCityOptions(safeCities)
                 }
             } catch {
-                if (!isCancelled) {
+                if (!isCancelled && requestId === locationCityRequestIdRef.current) {
                     setLocationCityOptions([])
                 }
             }
-        }, 250)
+        }, 70)
 
         return () => {
             isCancelled = true
@@ -700,31 +751,43 @@ function ProfileEdit() {
     }, [isLocationModalOpen, locationForm.cityName])
 
     useEffect(() => {
-        const normalizedQuery = locationForm.addressLine.trim()
+        const normalizedQuery = normalizeGeoSearchQuery(locationForm.addressLine)
+        const normalizedCityId = Number(locationForm.cityId) || null
 
-        if (!isLocationModalOpen || !locationForm.cityId || normalizedQuery.length < 3) {
+        if (!isLocationModalOpen || !normalizedCityId || normalizedQuery.length < 3) {
+            locationAddressRequestIdRef.current += 1
             setLocationAddressOptions([])
             return
         }
 
+        const cacheKey = `${normalizedCityId}:${normalizedQuery.toLowerCase()}`
+        const cached = locationAddressCacheRef.current.get(cacheKey)
+        if (cached) {
+            setLocationAddressOptions(cached)
+            return
+        }
+
         let isCancelled = false
+        const requestId = ++locationAddressRequestIdRef.current
 
         const timer = setTimeout(async () => {
             try {
                 const suggestions = await suggestGeoAddress({
                     query: normalizedQuery,
-                    cityId: Number(locationForm.cityId),
+                    cityId: normalizedCityId,
                 })
 
-                if (!isCancelled) {
-                    setLocationAddressOptions(Array.isArray(suggestions) ? suggestions : [])
+                if (!isCancelled && requestId === locationAddressRequestIdRef.current) {
+                    const safeSuggestions = dedupeAddressSuggestions(Array.isArray(suggestions) ? suggestions : [])
+                    locationAddressCacheRef.current.set(cacheKey, safeSuggestions)
+                    setLocationAddressOptions(safeSuggestions)
                 }
             } catch {
-                if (!isCancelled) {
+                if (!isCancelled && requestId === locationAddressRequestIdRef.current) {
                     setLocationAddressOptions([])
                 }
             }
-        }, 300)
+        }, 100)
 
         return () => {
             isCancelled = true
@@ -931,12 +994,24 @@ function ProfileEdit() {
         return next
     }
 
-    const handleSelectApplicantCity = (selectedLabel) => {
-        const found = applicantCityOptions.find((city) => city.name === selectedLabel)
-        if (!found) return
+    const handleSelectApplicantCity = (selectedValue) => {
+        const selectedCity =
+            typeof selectedValue === 'object' && selectedValue?.id
+                ? selectedValue
+                : applicantCityOptions.find(
+                    (city) =>
+                        city.name === selectedValue ||
+                        formatCitySuggestionLabel(city) === String(selectedValue || '')
+                )
 
-        setCityId(String(found.id))
-        setCityQuery(found.name)
+        if (!selectedCity) return
+
+        setCityId(String(selectedCity.id))
+        setCityQuery(formatCitySuggestionLabel(selectedCity))
+        setErrors((prev) => ({
+            ...prev,
+            cityId: null,
+        }))
     }
 
     const handleSelectEmployerLocation = (locationIdValue) => {
@@ -951,22 +1026,49 @@ function ProfileEdit() {
         setIsLocationModalOpen(true)
     }
 
-    const handleSelectLocationCity = (selectedLabel) => {
-        const found = locationCityOptions.find((city) => city.name === selectedLabel)
-        if (!found) return
+    const handleLocationModalOverlayMouseDown = (event) => {
+        locationModalOverlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleLocationModalOverlayMouseUp = (event) => {
+        const endedOutside = event.target === event.currentTarget
+        if (locationModalOverlayMouseDownStartedOutsideRef.current && endedOutside) {
+            setIsLocationModalOpen(false)
+        }
+        locationModalOverlayMouseDownStartedOutsideRef.current = false
+    }
+
+    const handleSelectLocationCity = (selectedValue) => {
+        const selectedCity =
+            typeof selectedValue === 'object' && selectedValue?.id
+                ? selectedValue
+                : locationCityOptions.find(
+                    (city) =>
+                        city.name === selectedValue ||
+                        formatCitySuggestionLabel(city) === String(selectedValue || '')
+                )
+
+        if (!selectedCity) return
 
         setLocationForm((prev) => ({
             ...prev,
-            cityId: String(found.id),
-            cityName: found.name,
+            cityId: String(selectedCity.id),
+            cityName: formatCitySuggestionLabel(selectedCity),
+        }))
+        setLocationErrors((prev) => ({
+            ...prev,
+            cityId: null,
         }))
     }
 
-    const handleSelectLocationAddress = (selectedLabel) => {
-        const found = locationAddressOptions.find(
-            (item) =>
-                (item.value || item.unrestrictedValue || item.addressLine || '') === selectedLabel
-        )
+    const handleSelectLocationAddress = (selectedValue) => {
+        const found =
+            typeof selectedValue === 'object' && selectedValue?.unrestrictedValue
+                ? selectedValue
+                : locationAddressOptions.find(
+                    (item) =>
+                        (item.value || item.unrestrictedValue || item.addressLine || '') === selectedValue
+                )
 
         if (!found) return
 
@@ -981,6 +1083,10 @@ function ProfileEdit() {
             fiasId: found.fiasId || '',
             unrestrictedValue: found.unrestrictedValue || found.value || '',
             qcGeo: found.qcGeo ?? '',
+        }))
+        setLocationErrors((prev) => ({
+            ...prev,
+            addressLine: null,
         }))
     }
 
@@ -1448,7 +1554,7 @@ function ProfileEdit() {
                                                 setCityQuery(val)
                                                 setCityId('')
                                             }}
-                                            suggestions={applicantCitySuggestionLabels}
+                                            suggestions={applicantCitySuggestions}
                                             isOpen={isApplicantCityOpen}
                                             onOpenChange={setIsApplicantCityOpen}
                                             activeIndex={applicantCityActiveIndex}
@@ -1456,10 +1562,11 @@ function ProfileEdit() {
                                             inputRef={applicantCityRef}
                                             placeholder="Начните вводить город"
                                             error={errors.cityId}
-                                            onSelect={(selected) => {
-                                                const value = typeof selected === 'string' ? selected : selected?.name || ''
-                                                handleSelectApplicantCity(value)
-                                            }}
+                                            getSuggestionValue={formatCitySuggestionLabel}
+                                            getSuggestionKey={(item) =>
+                                                typeof item === 'string' ? item : `${item.id || item.name}-${item.regionName || ''}`
+                                            }
+                                            onSelect={handleSelectApplicantCity}
                                         />
                                     </div>
                                 </div>
@@ -1682,7 +1789,11 @@ function ProfileEdit() {
             </Card>
 
             {isLocationModalOpen && (
-                <div className="modal-overlay" onClick={() => setIsLocationModalOpen(false)}>
+                <div
+                    className="modal-overlay"
+                    onMouseDown={handleLocationModalOverlayMouseDown}
+                    onMouseUp={handleLocationModalOverlayMouseUp}
+                >
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <h3>Добавить локацию компании</h3>
 
@@ -1713,7 +1824,7 @@ function ProfileEdit() {
                                         cityName: val,
                                     }))
                                 }
-                                suggestions={locationCitySuggestionLabels}
+                                suggestions={locationCitySuggestions}
                                 isOpen={isLocationCityOpen}
                                 onOpenChange={setIsLocationCityOpen}
                                 activeIndex={locationCityActiveIndex}
@@ -1721,10 +1832,11 @@ function ProfileEdit() {
                                 inputRef={locationCityRef}
                                 placeholder="Начните вводить город"
                                 error={locationErrors.cityId}
-                                onSelect={(selected) => {
-                                    const value = typeof selected === 'string' ? selected : selected?.name || ''
-                                    handleSelectLocationCity(value)
-                                }}
+                                getSuggestionValue={formatCitySuggestionLabel}
+                                getSuggestionKey={(item) =>
+                                    typeof item === 'string' ? item : `${item.id || item.name}-${item.regionName || ''}`
+                                }
+                                onSelect={handleSelectLocationCity}
                             />
                         </div>
 
@@ -1745,7 +1857,7 @@ function ProfileEdit() {
                                         qcGeo: '',
                                     }))
                                 }
-                                suggestions={locationAddressSuggestionLabels}
+                                suggestions={locationAddressSuggestions}
                                 isOpen={isLocationAddressOpen}
                                 onOpenChange={setIsLocationAddressOpen}
                                 activeIndex={locationAddressActiveIndex}
@@ -1753,10 +1865,17 @@ function ProfileEdit() {
                                 inputRef={locationAddressRef}
                                 placeholder="Например: Москва, ул. Тверская, д. 1"
                                 error={locationErrors.addressLine}
-                                onSelect={(selected) => {
-                                    const value = typeof selected === 'string' ? selected : selected?.value || ''
-                                    handleSelectLocationAddress(value)
-                                }}
+                                getSuggestionValue={(item) =>
+                                    typeof item === 'string'
+                                        ? item
+                                        : item?.value || item?.unrestrictedValue || item?.addressLine || ''
+                                }
+                                getSuggestionKey={(item) =>
+                                    typeof item === 'string'
+                                        ? item
+                                        : `${item.unrestrictedValue || item.value || item.addressLine}-${item.fiasId || ''}`
+                                }
+                                onSelect={handleSelectLocationAddress}
                             />
                         </div>
 

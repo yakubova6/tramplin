@@ -10,9 +10,11 @@ import CuratorTagModerationDetails from '@/shared/ui/Tags/TagModerationDetails/C
 import CuratorCreateTagForm from '@/shared/ui/Tags/CreateTagForm/CuratorCreateTagForm';
 import CustomSelect from '@/shared/ui/CustomSelect';
 import { getTagCategoryLabel } from '@/shared/lib/utils/tagCategories';
+import { useToast } from '@/shared/hooks/use-toast';
 import styles from '@/features/Dashboard/EmployerDashboard/sections/EmployerTagsPage.module.scss';
 
 const CuratorTagsPage = () => {
+  const { toast } = useToast();
   const filterOptions = [
     { value: 'PENDING', label: 'На модерации' },
     { value: 'APPROVED', label: 'Одобренные' },
@@ -49,18 +51,33 @@ const CuratorTagsPage = () => {
     try {
       await approveModerationTag(id);
       await loadTags();
-    } catch {
-      alert('Ошибка при одобрении тега');
+      toast({
+        title: 'Тег одобрен',
+        description: 'Изменения успешно применены',
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: error?.message || 'Не удалось одобрить тег',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleReject = async (id) => {
-    if (!window.confirm('Отклонить заявку на тег?')) return;
     try {
       await rejectModerationTag(id);
       await loadTags();
-    } catch {
-      alert('Ошибка при отклонении тега');
+      toast({
+        title: 'Тег отклонён',
+        description: 'Заявка на тег отклонена',
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: error?.message || 'Не удалось отклонить тег',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -69,8 +86,16 @@ const CuratorTagsPage = () => {
       await createCuratorTag(tagData);
       setShowCreateForm(false);
       await loadTags();
-    } catch {
-      alert('Ошибка при создании тега');
+      toast({
+        title: 'Тег создан',
+        description: 'Новый тег успешно добавлен',
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: error?.message || 'Не удалось создать тег',
+        variant: 'destructive',
+      });
     }
   };
 

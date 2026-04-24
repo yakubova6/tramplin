@@ -17,8 +17,6 @@ function OpportunityStatusManager({ opportunity, onStatusChange, onReturnToDraft
     const [loading, setLoading] = useState(false)
 
     const handleCancelModeration = async () => {
-        if (!confirm('Отменить отправку на модерацию? Вы сможете продолжить редактирование.')) return
-
         setLoading(true)
         try {
             await cancelOpportunityModerationTask(opportunity.id)
@@ -41,8 +39,6 @@ function OpportunityStatusManager({ opportunity, onStatusChange, onReturnToDraft
     }
 
     const handleReturnToDraft = async () => {
-        if (!confirm('Вернуть публикацию на доработку?')) return
-
         setLoading(true)
         try {
             await onReturnToDraft?.(opportunity.id)

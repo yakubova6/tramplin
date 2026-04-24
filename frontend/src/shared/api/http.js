@@ -1,6 +1,8 @@
 
+import { translateStatusTokensInText } from '@/shared/lib/utils/statusLabels'
+
 function createHttpError(message, status = 0, extra = {}) {
-    const error = new Error(message)
+    const error = new Error(translateStatusTokensInText(message))
     error.status = status
     error.code = extra.code || null
     error.details = extra.details || {}
@@ -67,8 +69,6 @@ export async function httpJson(url, options = {}) {
     delete requestOptions.cacheKey
     delete requestOptions.dedupe
     delete requestOptions.force
-
-    console.log('[HTTP]', method, fullUrl)
 
     const canUseGetCache = method === 'GET' && cacheTtlMs > 0
     const canUseInFlightDedupe = method === 'GET' && dedupe

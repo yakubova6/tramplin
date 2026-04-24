@@ -290,9 +290,7 @@ export default function YandexOpportunityMap({
             }
         }
 
-        initMap().catch((error) =>
-            console.error('[YandexOpportunityMap] init error', error)
-        )
+        initMap().catch(() => {})
 
         return () => {
             isDisposed = true
@@ -325,6 +323,22 @@ export default function YandexOpportunityMap({
             resizeObserverRef.current = null
         }
     }, [isMapReady])
+
+    useEffect(() => {
+        const map = mapRef.current
+        if (!isMapReady || !map?.behaviors) return
+
+        const allTouchBehaviors = ['drag', 'multiTouch', 'scrollZoom', 'dblClickZoom']
+        const safeTouchBehaviors = ['drag', 'multiTouch']
+        const noisyTouchBehaviors = ['scrollZoom', 'dblClickZoom']
+
+        if (isTouchMode) {
+            map.behaviors.enable(safeTouchBehaviors)
+            map.behaviors.disable(noisyTouchBehaviors)
+        } else {
+            map.behaviors.enable(allTouchBehaviors)
+        }
+    }, [isMapReady, isTouchMode])
 
     useEffect(() => {
         const ymaps = ymapsRef.current
@@ -438,9 +452,7 @@ export default function YandexOpportunityMap({
                 if (!isTouchMode) {
                     placemark.balloon.open()
                 }
-            } catch (error) {
-                console.error('[YandexOpportunityMap] focus error', error)
-            }
+            } catch {}
         }
 
         if (focusRetryRef.current) clearTimeout(focusRetryRef.current)

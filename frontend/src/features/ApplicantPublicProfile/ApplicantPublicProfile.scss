@@ -368,6 +368,10 @@
     }
   }
 
+  &__multiline {
+    white-space: pre-wrap;
+  }
+
   &__contact-link {
     color: #159a90;
     text-decoration: none;

@@ -1,5 +1,6 @@
 import { clearSessionUser, setSessionUser } from '@/shared/lib/utils/sessionStore'
 import { clearSessionUserCache, getSessionUserFromApi } from './http'
+import { translateStatusTokensInText } from '@/shared/lib/utils/statusLabels'
 
 const API_BASE = '/api/auth'
 
@@ -10,7 +11,7 @@ const SESSION_ERROR_CODES = new Set([
 ])
 
 function createError(message, status = 0, code = null) {
-    const error = new Error(message)
+    const error = new Error(translateStatusTokensInText(message))
     error.status = status
     error.code = code
     return error

@@ -93,6 +93,7 @@ const MANUAL_TASK_DEFAULT = {
     priority: 'MEDIUM',
     comment: '',
 }
+const DETAIL_HISTORY_PAGE_SIZE = 20
 
 function toLocalDateTimeValue(value) {
     if (!value) return ''
@@ -396,6 +397,7 @@ function CuratorDashboard() {
     const [pagination, setPagination] = useState({ page: 0, size: 20 })
     const [entityAttachments, setEntityAttachments] = useState([])
     const [taskHistory, setTaskHistory] = useState([])
+    const [detailHistoryVisibleCount, setDetailHistoryVisibleCount] = useState(DETAIL_HISTORY_PAGE_SIZE)
     const [isHistoryLoading, setIsHistoryLoading] = useState(false)
     const [allHistory, setAllHistory] = useState([])
     const [historyTotalPages, setHistoryTotalPages] = useState(0)
@@ -406,6 +408,7 @@ function CuratorDashboard() {
     const [imagePreview, setImagePreview] = useState(null)
 
     const [filters, setFilters] = useState({
+        search: '',
         status: '',
         taskType: '',
         entityType: '',
@@ -416,6 +419,8 @@ function CuratorDashboard() {
         createdTo: '',
         sort: 'createdAt,desc',
     })
+    const [debouncedTaskSearch, setDebouncedTaskSearch] = useState('')
+    const [isTaskFiltersCollapsed, setIsTaskFiltersCollapsed] = useState(false)
 
     const [historyFilters, setHistoryFilters] = useState({
         page: 0,
@@ -468,9 +473,15 @@ function CuratorDashboard() {
     const loadTasks = useCallback(async () => {
         setIsLoading(true)
         try {
+            const normalizedServerSearch = String(debouncedTaskSearch || '').trim()
+            const isSearchMode = Boolean(normalizedServerSearch)
+            const requestPage = isSearchMode ? 0 : pagination.page
+            const requestSize = isSearchMode ? 100 : pagination.size
+
             const data = await getModerationTasks({
-                page: pagination.page,
-                size: pagination.size,
+                search: normalizedServerSearch || undefined,
+                page: requestPage,
+                size: requestSize,
                 status: filters.status || undefined,
                 taskType: filters.taskType || undefined,
                 entityType: filters.entityType || undefined,
@@ -492,7 +503,21 @@ function CuratorDashboard() {
         } finally {
             setIsLoading(false)
         }
-    }, [filters, pagination.page, pagination.size, toast])
+    }, [
+        debouncedTaskSearch,
+        filters.status,
+        filters.taskType,
+        filters.entityType,
+        filters.priority,
+        filters.assigneeUserId,
+        filters.mine,
+        filters.createdFrom,
+        filters.createdTo,
+        filters.sort,
+        pagination.page,
+        pagination.size,
+        toast,
+    ])
 
     const loadTaskDetail = useCallback(async (taskId) => {
         setIsLoading(true)
@@ -615,6 +640,14 @@ function CuratorDashboard() {
         }, 350)
         return () => window.clearTimeout(timeoutId)
     }, [historyFilters.search])
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedTaskSearch(filters.search || '')
+        }, 250)
+
+        return () => window.clearTimeout(timer)
+    }, [filters.search])
 
     useEffect(() => {
         loadTasks()
@@ -1066,6 +1099,7 @@ function CuratorDashboard() {
 
     const resetFilters = () => {
         setFilters({
+            search: '',
             status: '',
             taskType: '',
             entityType: '',
@@ -1081,6 +1115,31 @@ function CuratorDashboard() {
 
     const isAdmin = currentUser?.role === 'ADMIN'
     const currentUserId = getCurrentUserId(currentUser)
+    const normalizedTaskSearch = String(filters.search || '').trim().toLowerCase()
+    const isTaskSearchActive = normalizedTaskSearch.length > 0
+
+    const visibleTasks = useMemo(() => {
+        const items = Array.isArray(tasks.items) ? tasks.items : []
+        if (!normalizedTaskSearch) return items
+
+        return items.filter((task) => {
+            const haystack = [
+                task?.id,
+                task?.entityId,
+                task?.snapshotSummary,
+                task?.comment,
+                task?.assignee?.displayName,
+                task?.assignee?.email,
+                task?.status,
+                task?.taskType,
+                task?.entityType,
+            ]
+                .map((value) => String(value || '').toLowerCase())
+                .join(' ')
+
+            return haystack.includes(normalizedTaskSearch)
+        })
+    }, [normalizedTaskSearch, tasks.items])
 
     const modalOverlayMouseDownRef = useRef(false)
     const modalOverlayMouseUpRef = useRef(false)
@@ -1124,14 +1183,41 @@ function CuratorDashboard() {
         setIsDetailOpen(false)
     }, [])
 
+    const selectedTaskAssigneeId = Number(
+        selectedTask?.assignee?.id ??
+        selectedTask?.assignee?.userId ??
+        selectedTask?.assigneeUserId ??
+        0
+    ) || null
+    const isTaskTakenByCurrentUser = Boolean(
+        currentUserId &&
+        selectedTaskAssigneeId &&
+        Number(currentUserId) === Number(selectedTaskAssigneeId)
+    )
+    const canModerateAfterTake = isTaskTakenByCurrentUser
+
     const canTakeTaskFromDetail = hasTaskAction(selectedTask, 'ASSIGN')
-    const canApproveTask = hasTaskAction(selectedTask, 'APPROVE')
-    const canRejectTask = hasTaskAction(selectedTask, 'REJECT')
-    const canRequestChanges = hasTaskAction(selectedTask, 'REQUEST_CHANGES')
+    const canApproveTask = canModerateAfterTake && hasTaskAction(selectedTask, 'APPROVE')
+    const canRejectTask = canModerateAfterTake && hasTaskAction(selectedTask, 'REJECT')
+    const canRequestChanges = canModerateAfterTake && hasTaskAction(selectedTask, 'REQUEST_CHANGES')
     const canCommentTask = hasTaskAction(selectedTask, 'COMMENT') || Boolean(selectedTask)
     const canCancelTask = hasTaskAction(selectedTask, 'CANCEL')
     const canUploadAttachments = Boolean(selectedTask)
-    const canEditEntity = canApproveTask && selectedTask?.assignee?.id === currentUserId
+    const canEditEntity = canApproveTask && selectedTaskAssigneeId === Number(currentUserId)
+    const sortedTaskHistory = useMemo(() => {
+        const history = Array.isArray(taskHistory) ? [...taskHistory] : []
+        history.sort((a, b) => {
+            const dateA = new Date(a?.createdAt || 0).getTime()
+            const dateB = new Date(b?.createdAt || 0).getTime()
+            return dateB - dateA
+        })
+        return history
+    }, [taskHistory])
+    const visibleTaskHistory = useMemo(
+        () => sortedTaskHistory.slice(0, detailHistoryVisibleCount),
+        [detailHistoryVisibleCount, sortedTaskHistory]
+    )
+    const hasMoreTaskHistory = sortedTaskHistory.length > visibleTaskHistory.length
     const detailActionsCount = [
         canTakeTaskFromDetail,
         canApproveTask,
@@ -1145,6 +1231,10 @@ function CuratorDashboard() {
         'modal-footer--detail-actions',
         detailActionsCount === 3 && canCancelTask ? 'modal-footer--detail-actions-has-cancel-row' : '',
     ].filter(Boolean).join(' ')
+
+    useEffect(() => {
+        setDetailHistoryVisibleCount(DETAIL_HISTORY_PAGE_SIZE)
+    }, [selectedTask?.id])
     const statsCards = [
         {
             key: 'open',
@@ -1195,77 +1285,116 @@ function CuratorDashboard() {
                 {activeTab === 'tasks' && (
                     <>
                         <div className="moderation-filters moderation-filters--extended">
-                            <div className="moderation-filters__section moderation-filters__section--main">
-                                <div className="moderation-filter-input">
-                                    <Label>Статус</Label>
-                                    <CustomSelect value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={TASK_STATUSES} placeholder="Все статусы" />
+                            <div className="moderation-filters__header">
+                                <div className="moderation-filters__title">
+                                    <strong>Фильтры задач</strong>
+                                    <span>
+                                        {isTaskSearchActive
+                                            ? `Поиск: «${filters.search.trim()}»`
+                                            : 'Гибкая фильтрация и быстрый поиск по задачам'}
+                                    </span>
                                 </div>
-
-                                <div className="moderation-filter-input">
-                                    <Label>Тип задачи</Label>
-                                    <CustomSelect value={filters.taskType} onChange={(value) => setFilters((prev) => ({ ...prev, taskType: value }))} options={TASK_TYPES} placeholder="Все типы задач" />
-                                </div>
-
-                                <div className="moderation-filter-input">
-                                    <Label>Тип сущности</Label>
-                                    <CustomSelect value={filters.entityType} onChange={(value) => setFilters((prev) => ({ ...prev, entityType: value }))} options={ENTITY_TYPES} placeholder="Все типы сущностей" />
-                                </div>
-
-                                <div className="moderation-filter-input">
-                                    <Label>Приоритет</Label>
-                                    <CustomSelect value={filters.priority} onChange={(value) => setFilters((prev) => ({ ...prev, priority: value }))} options={PRIORITIES} placeholder="Все приоритеты" />
-                                </div>
-
-                                <div className="moderation-filter-input">
-                                    <Label>ID назначенного куратора</Label>
-                                    <Input value={filters.assigneeUserId} onChange={(e) => setFilters((prev) => ({ ...prev, assigneeUserId: e.target.value }))} placeholder="Например, 12" />
-                                </div>
-
-                                <div className="moderation-filter-input">
-                                    <Label>Сортировка</Label>
-                                    <CustomSelect value={filters.sort} onChange={(value) => setFilters((prev) => ({ ...prev, sort: value }))} options={SORT_OPTIONS} placeholder="Выберите сортировку" />
+                                <div className="moderation-filters__header-actions">
+                                    <button
+                                        type="button"
+                                        className="moderation-filters__toggle"
+                                        onClick={() => setIsTaskFiltersCollapsed((prev) => !prev)}
+                                    >
+                                        {isTaskFiltersCollapsed ? 'Показать фильтры' : 'Скрыть фильтры'}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="moderation-filters__section moderation-filters__section--dates">
-                                <div className="moderation-filter-input">
-                                    <Label>Создано от</Label>
-                                    <Input type="datetime-local" value={filters.createdFrom}
-                                           onChange={(e) => setFilters((prev) => ({
-                                               ...prev,
-                                               createdFrom: e.target.value
-                                           }))}/>
-                                </div>
+                            {!isTaskFiltersCollapsed && (
+                                <>
+                                    <div className="moderation-filters__section moderation-filters__section--main">
+                                        <div className="moderation-filter-input moderation-filter-input--wide">
+                                            <Label>Поиск задачи</Label>
+                                            <Input
+                                                value={filters.search}
+                                                onChange={(e) => {
+                                                    setFilters((prev) => ({
+                                                        ...prev,
+                                                        search: e.target.value,
+                                                    }))
+                                                    setPagination((prev) => ({ ...prev, page: 0 }))
+                                                }}
+                                                placeholder="ID задачи, ID сущности, комментарий, модератор"
+                                            />
+                                        </div>
 
-                                <div className="moderation-filter-input">
-                                    <Label>Создано до</Label>
-                                    <Input type="datetime-local" value={filters.createdTo}
-                                           onChange={(e) => setFilters((prev) => ({
-                                               ...prev,
-                                               createdTo: e.target.value
-                                           }))}/>
-                                </div>
+                                        <div className="moderation-filter-input">
+                                            <Label>Статус</Label>
+                                            <CustomSelect value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))} options={TASK_STATUSES} placeholder="Все статусы" />
+                                        </div>
 
-                                <div className="moderation-filter-input">
-                                    <Label>Быстрый фильтр</Label>
-                                    <CustomSelect
-                                        value={filters.mine ? 'mine' : 'all'}
-                                        onChange={(value) => setFilters((prev) => ({...prev, mine: value === 'mine'}))}
-                                        options={[
-                                            {value: 'all', label: 'Все задачи'},
-                                            {value: 'mine', label: 'Только мои задачи'}
-                                        ]}
-                                    />
-                                </div>
-                            </div>
+                                        <div className="moderation-filter-input">
+                                            <Label>Тип задачи</Label>
+                                            <CustomSelect value={filters.taskType} onChange={(value) => setFilters((prev) => ({ ...prev, taskType: value }))} options={TASK_TYPES} placeholder="Все типы задач" />
+                                        </div>
 
-                            <div className="filter-actions filter-actions--filters">
-                                <Button className="button--ghost" onClick={resetFilters}>Сбросить</Button>
-                                <Button className="button--ghost" onClick={() => {
-                                    dismissActiveOverlayUi();
-                                    setIsManualTaskModalOpen(true)
-                                }}>Создать задачу</Button>
-                            </div>
+                                        <div className="moderation-filter-input">
+                                            <Label>Тип сущности</Label>
+                                            <CustomSelect value={filters.entityType} onChange={(value) => setFilters((prev) => ({ ...prev, entityType: value }))} options={ENTITY_TYPES} placeholder="Все типы сущностей" />
+                                        </div>
+
+                                        <div className="moderation-filter-input">
+                                            <Label>Приоритет</Label>
+                                            <CustomSelect value={filters.priority} onChange={(value) => setFilters((prev) => ({ ...prev, priority: value }))} options={PRIORITIES} placeholder="Все приоритеты" />
+                                        </div>
+
+                                        <div className="moderation-filter-input">
+                                            <Label>ID назначенного куратора</Label>
+                                            <Input value={filters.assigneeUserId} onChange={(e) => setFilters((prev) => ({ ...prev, assigneeUserId: e.target.value }))} placeholder="Например, 12" />
+                                        </div>
+
+                                        <div className="moderation-filter-input">
+                                            <Label>Сортировка</Label>
+                                            <CustomSelect value={filters.sort} onChange={(value) => setFilters((prev) => ({ ...prev, sort: value }))} options={SORT_OPTIONS} placeholder="Выберите сортировку" />
+                                        </div>
+                                    </div>
+
+                                    <div className="moderation-filters__section moderation-filters__section--dates">
+                                        <div className="moderation-filter-input">
+                                            <Label>Создано от</Label>
+                                            <Input type="datetime-local" value={filters.createdFrom}
+                                                   onChange={(e) => setFilters((prev) => ({
+                                                       ...prev,
+                                                       createdFrom: e.target.value
+                                                   }))}/>
+                                        </div>
+
+                                        <div className="moderation-filter-input">
+                                            <Label>Создано до</Label>
+                                            <Input type="datetime-local" value={filters.createdTo}
+                                                   onChange={(e) => setFilters((prev) => ({
+                                                       ...prev,
+                                                       createdTo: e.target.value
+                                                   }))}/>
+                                        </div>
+
+                                        <div className="moderation-filter-input">
+                                            <Label>Быстрый фильтр</Label>
+                                            <CustomSelect
+                                                value={filters.mine ? 'mine' : 'all'}
+                                                onChange={(value) => setFilters((prev) => ({...prev, mine: value === 'mine'}))}
+                                                options={[
+                                                    {value: 'all', label: 'Все задачи'},
+                                                    {value: 'mine', label: 'Только мои задачи'}
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="filter-actions filter-actions--filters">
+                                        <Button className="button--ghost" onClick={resetFilters}>Сбросить</Button>
+                                        <Button className="button--ghost" onClick={() => {
+                                            dismissActiveOverlayUi();
+                                            setIsManualTaskModalOpen(true)
+                                        }}>Создать задачу</Button>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="moderation-tasks">
@@ -1274,14 +1403,14 @@ function CuratorDashboard() {
                                     <div className="spinner"></div>
                                     <p>Загрузка задач...</p>
                                 </div>
-                            ) : tasks.items?.length === 0 ? (
+                            ) : visibleTasks.length === 0 ? (
                                 <div className="empty-state">
                                     <p>Нет задач для модерации</p>
-                                    <span>Все задачи обработаны</span>
+                                    <span>{isTaskSearchActive ? 'Попробуйте уточнить запрос или сбросить фильтры' : 'Все задачи обработаны'}</span>
                                 </div>
                             ) : (
                                 <div className="tasks-list">
-                                    {tasks.items.map((task) => (
+                                    {visibleTasks.map((task) => (
                                         <div key={task.id} className={`task-card ${getPriorityClass(task.priority)} ${getStatusClass(task.status)}`}>
                                             <div className="task-card__header">
                                                 <div className="task-card__info">
@@ -1314,7 +1443,7 @@ function CuratorDashboard() {
                             )}
                         </div>
 
-                        {tasks.totalPages > 1 && (
+                        {!isTaskSearchActive && tasks.totalPages > 1 && (
                             <div className="pagination">
                                 <button disabled={pagination.page === 0} onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}>← Назад</button>
                                 <span>{pagination.page + 1} / {tasks.totalPages}</span>
@@ -1563,15 +1692,16 @@ function CuratorDashboard() {
                                     <details className="moderation-accordion">
                                         <summary className="moderation-accordion__summary">
                                             <span>История действий</span>
-                                            <span className="moderation-accordion__meta">{taskHistory.length}</span>
+                                            <span className="moderation-accordion__meta">{sortedTaskHistory.length}</span>
                                         </summary>
                                         <div className="moderation-accordion__body">
                                             <div className="task-detail-history">
-                                                {!taskHistory.length ? (
+                                                {!sortedTaskHistory.length ? (
                                                     <div className="moderation-empty-state">История по этой задаче пока пуста.</div>
                                                 ) : (
+                                                    <>
                                                     <div className="history-timeline">
-                                                        {taskHistory.map((item) => (
+                                                        {visibleTaskHistory.map((item) => (
                                                             <div key={item.id} className="timeline-item timeline-item--compact">
                                                                 <div className="timeline-dot"></div>
                                                                 <div className="timeline-content">
@@ -1595,6 +1725,19 @@ function CuratorDashboard() {
                                                             </div>
                                                         ))}
                                                     </div>
+                                                    {hasMoreTaskHistory && (
+                                                        <div className="task-detail-history__actions">
+                                                            <Button
+                                                                className="button--ghost"
+                                                                onClick={() =>
+                                                                    setDetailHistoryVisibleCount((prev) => prev + DETAIL_HISTORY_PAGE_SIZE)
+                                                                }
+                                                            >
+                                                                Показать еще {Math.min(DETAIL_HISTORY_PAGE_SIZE, sortedTaskHistory.length - visibleTaskHistory.length)}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                    </>
                                                 )}
                                             </div>
                                         </div>

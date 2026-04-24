@@ -14,8 +14,7 @@ const METHOD_META = {
     TIN: {
         title: 'ИНН',
         badge: 'Надежно',
-        description:
-            'Используется ИНН из реквизитов компании. Удобно, если реквизиты уже заполнены и не требуется вручную добавлять данные.',
+        description: 'Укажите юридическое название и ИНН компании. Эти данные сохранятся в реквизитах при отправке заявки.',
     },
     PROFESSIONAL_LINKS: {
         title: 'Профессиональные ссылки',
@@ -86,7 +85,7 @@ function EmployerVerificationModal({
                                        onSubmit,
                                        onClose,
                                        userEmail = '',
-                                       companyInn = '',
+                                       companyLegalName = '',
                                        currentVerification = null,
                                        verificationModerationTask = null,
                                        verificationAttachments = [],
@@ -99,7 +98,7 @@ function EmployerVerificationModal({
                                        onDeleteAttachment,
                                        isDeletingAttachment = false,
                                    }) {
-    const overlayMouseDownStartedOutsideRef = useRef(false)
+    const overlayPressStartedOutsideRef = useRef(false)
     const attachmentInputRef = useRef(null)
 
     useEffect(() => {
@@ -120,18 +119,28 @@ function EmployerVerificationModal({
         }
     }, [isOpen, onClose])
 
-    const verificationStatus = String(
+    const rawVerificationStatus = String(
         currentVerification?.status ||
         currentVerification?.verificationStatus ||
         profileVerificationStatus ||
         'NOT_STARTED'
     ).toUpperCase()
 
+    const verificationId = currentVerification?.id ?? null
+    const hasVerificationId = Boolean(verificationId)
+    const hasModerationTask = Boolean(
+        verificationModerationTask?.exists || verificationModerationTask?.taskId
+    )
+    const shouldFallbackToNotStarted =
+        !hasVerificationId && !hasModerationTask && rawVerificationStatus !== 'APPROVED'
+
+    const verificationStatus = shouldFallbackToNotStarted
+        ? 'NOT_STARTED'
+        : rawVerificationStatus
+
     const verificationStatusMeta =
         VERIFICATION_STATUS_META[verificationStatus] || VERIFICATION_STATUS_META.NOT_STARTED
 
-    const verificationId = currentVerification?.id ?? null
-    const hasVerificationId = Boolean(verificationId)
     const employerUserId = currentVerification?.employerUserId ?? null
 
     const persistedMethod = String(
@@ -165,10 +174,6 @@ function EmployerVerificationModal({
     const canUploadAttachments =
         hasVerificationId &&
         ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW'].includes(verificationStatus)
-
-    const hasModerationTask = Boolean(
-        verificationModerationTask?.exists || verificationModerationTask?.taskId
-    )
 
     const moderationTaskLabel = hasModerationTask ? 'Создана' : 'Не создана'
 
@@ -208,20 +213,6 @@ function EmployerVerificationModal({
             ...prev,
             [field]: value,
         }))
-    }
-
-    const handleOverlayMouseDown = (event) => {
-        overlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
-    }
-
-    const handleOverlayMouseUp = (event) => {
-        const endedOutside = event.target === event.currentTarget
-
-        if (overlayMouseDownStartedOutsideRef.current && endedOutside) {
-            onClose()
-        }
-
-        overlayMouseDownStartedOutsideRef.current = false
     }
 
     const handleAddLinkRow = () => {
@@ -284,21 +275,17 @@ function EmployerVerificationModal({
     const handleOpenAttachment = (file) => {
         const fileData = file?.file || file
         const fileId = fileData?.fileId || file?.fileId
-        const verificationId = file?.entityId // entityId = 42 (ID верификации)
+        const verificationId = file?.entityId
         const ownerUserId = fileData?.ownerUserId
-
-        console.log('File data:', { fileId, verificationId, ownerUserId })
 
         if (verificationId && fileId) {
             const downloadUrl = `/api/employer/verifications/${verificationId}/attachments/${fileId}`
-            console.log('Attempting to open via verification endpoint:', downloadUrl)
             window.open(downloadUrl, '_blank', 'noopener,noreferrer')
             return
         }
 
         if (ownerUserId && fileId) {
             const downloadUrl = `/api/profile/employer/${ownerUserId}/files/${fileId}`
-            console.log('Attempting to open via profile endpoint:', downloadUrl)
             window.open(downloadUrl, '_blank', 'noopener,noreferrer')
             return
         }
@@ -311,6 +298,18 @@ function EmployerVerificationModal({
         if (fileId && onDeleteAttachment) {
             onDeleteAttachment(fileId, file)
         }
+    }
+
+    const handleOverlayMouseDown = (event) => {
+        overlayPressStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleOverlayClick = (event) => {
+        const clickedOutside = event.target === event.currentTarget
+        if (overlayPressStartedOutsideRef.current && clickedOutside) {
+            onClose()
+        }
+        overlayPressStartedOutsideRef.current = false
     }
 
     const getAttachmentKey = (file, index) => {
@@ -339,7 +338,7 @@ function EmployerVerificationModal({
         <div
             className="employer-verification-modal"
             onMouseDown={handleOverlayMouseDown}
-            onMouseUp={handleOverlayMouseUp}
+            onClick={handleOverlayClick}
         >
             <div
                 className="employer-verification-modal__dialog"
@@ -491,19 +490,27 @@ function EmployerVerificationModal({
 
                             {currentMethod === 'TIN' && (
                                 <div className="employer-verification-modal__section">
+                                    <label className="label">Юридическое название</label>
+                                    <input
+                                        className="input"
+                                        type="text"
+                                        value={verificationData?.legalName || ''}
+                                        placeholder={companyLegalName || 'ООО Трамплин'}
+                                        onChange={(event) =>
+                                            updateField('legalName', event.target.value)
+                                        }
+                                    />
+
                                     <label className="label">ИНН</label>
                                     <input
-                                        className="input input--disabled"
+                                        className="input"
                                         type="text"
-                                        value={companyInn || verificationData?.inn || ''}
-                                        placeholder="ИНН берется из реквизитов компании"
-                                        readOnly
-                                        disabled
+                                        value={verificationData?.inn || ''}
+                                        placeholder="Введите ИНН компании"
+                                        onChange={(event) =>
+                                            updateField('inn', event.target.value.replace(/[^\d]/g, ''))
+                                        }
                                     />
-                                    <div className="employer-verification-modal__helper">
-                                        Для верификации по ИНН используется значение из реквизитов
-                                        компании. Изменить его можно в разделе с реквизитами.
-                                    </div>
                                 </div>
                             )}
 

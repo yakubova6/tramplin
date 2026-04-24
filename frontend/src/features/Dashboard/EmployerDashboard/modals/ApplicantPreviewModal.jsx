@@ -1,14 +1,33 @@
+import { useRef } from 'react'
 import Button from '@/shared/ui/Button'
 import Label from '@/shared/ui/Label'
 function ApplicantPreviewModal({
                                    isOpen,
                                    selectedApplicant,
-                                   onClose,
+                               onClose,
                                }) {
+    const overlayMouseDownStartedOutsideRef = useRef(false)
+
     if (!isOpen || !selectedApplicant) return null
 
+    const handleOverlayMouseDown = (event) => {
+        overlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleOverlayMouseUp = (event) => {
+        const endedOutside = event.target === event.currentTarget
+        if (overlayMouseDownStartedOutsideRef.current && endedOutside) {
+            onClose()
+        }
+        overlayMouseDownStartedOutsideRef.current = false
+    }
+
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div
+            className="modal-overlay"
+            onMouseDown={handleOverlayMouseDown}
+            onMouseUp={handleOverlayMouseUp}
+        >
             <div className="modal" onClick={(e) => e.stopPropagation()}>
                 <h3>Профиль кандидата</h3>
 

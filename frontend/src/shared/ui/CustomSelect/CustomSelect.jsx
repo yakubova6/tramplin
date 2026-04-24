@@ -50,12 +50,13 @@ function CustomSelect({
         }
 
         updatePosition()
+        const closeOnScroll = () => setIsOpen(false)
         window.addEventListener('resize', updatePosition)
-        window.addEventListener('scroll', updatePosition, true)
+        window.addEventListener('scroll', closeOnScroll, true)
 
         return () => {
             window.removeEventListener('resize', updatePosition)
-            window.removeEventListener('scroll', updatePosition, true)
+            window.removeEventListener('scroll', closeOnScroll, true)
         }
     }, [isOpen])
 

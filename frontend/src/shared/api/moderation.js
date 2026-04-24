@@ -1,10 +1,11 @@
 import { httpJson, toQuery, getRequiredCurrentUserPayload } from './http.js'
 import { apiRequest } from './profile.js'
+import { translateStatusTokensInText } from '@/shared/lib/utils/statusLabels'
 
 const API_BASE = '/api/moderation'
 
 function createApiError(message, status = 0, extra = {}) {
-    const error = new Error(message)
+    const error = new Error(translateStatusTokensInText(message))
     error.status = status
     error.code = extra.code || null
     error.details = extra.details || {}
@@ -79,7 +80,7 @@ async function httpForm(url, formData, options = {}) {
             || (typeof data === 'string' && data)
             || 'Ошибка запроса'
 
-        const error = new Error(message)
+        const error = new Error(translateStatusTokensInText(message))
         error.status = response.status
         throw error
     }
@@ -141,6 +142,7 @@ export const SORT_OPTIONS = [
 
 export async function getModerationTasks(params = {}) {
     const query = toQuery({
+        search: params.search,
         status: params.status,
         taskType: params.taskType,
         entityType: params.entityType,

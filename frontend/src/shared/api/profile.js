@@ -34,9 +34,10 @@ import {
     getRequiredCurrentUserPayload,
     clearSessionUserCache,
 } from './http'
+import { translateStatusTokensInText } from '@/shared/lib/utils/statusLabels'
 
 function createApiError(message, status = 0, extra = {}) {
-    const error = new Error(message)
+    const error = new Error(translateStatusTokensInText(message))
     error.status = status
     error.code = extra.code || null
     error.details = extra.details || {}
@@ -49,6 +50,12 @@ let applicantProfileCacheAt = 0
 let applicantProfileInFlight = null
 let applicantProfileCacheUserId = null
 const APPLICANT_PROFILE_CACHE_TTL_MS = 30_000
+const GEO_CITY_SEARCH_CACHE_TTL_MS = 2 * 60_000
+const GEO_ADDRESS_SUGGEST_CACHE_TTL_MS = 60_000
+const geoCitySearchCache = new Map()
+const geoCitySearchInFlight = new Map()
+const geoAddressSuggestCache = new Map()
+const geoAddressSuggestInFlight = new Map()
 
 function clearApplicantProfileCache() {
     applicantProfileCache = null
@@ -125,7 +132,7 @@ export async function apiRequest(url, options = {}) {
         }
 
         const error = new Error(
-            errorPayload?.message || `HTTP error ${response.status}`
+            translateStatusTokensInText(errorPayload?.message || `HTTP error ${response.status}`)
         )
         error.status = response.status
         error.code = errorPayload?.code || null
@@ -143,8 +150,6 @@ export async function apiRequest(url, options = {}) {
 }
 
 async function multipartRequest(endpoint, formData, options = {}) {
-    console.log(`[API] ${options.method || 'POST'} ${endpoint}`)
-
     let response
     try {
         response = await fetch(endpoint, {
@@ -824,15 +829,40 @@ function buildOpportunityPayload(opportunity) {
 
 export async function searchGeoCities(search, limit = 20) {
     const normalizedSearch = String(search || '').trim()
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 50)
     if (!normalizedSearch) return []
+
+    const cacheKey = `${normalizedSearch.toLowerCase()}|${normalizedLimit}`
+    const cached = geoCitySearchCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.items
+    }
+
+    const inFlight = geoCitySearchInFlight.get(cacheKey)
+    if (inFlight) {
+        return inFlight
+    }
 
     const params = new URLSearchParams({
         search: normalizedSearch,
-        limit: String(limit),
+        limit: String(normalizedLimit),
     })
 
-    const data = await apiRequest(`${GEO_API_BASE}/cities?${params.toString()}`)
-    return Array.isArray(data) ? data.map(normalizeGeoCity) : []
+    const requestPromise = apiRequest(`${GEO_API_BASE}/cities?${params.toString()}`)
+        .then((data) => {
+            const items = Array.isArray(data) ? data.map(normalizeGeoCity) : []
+            geoCitySearchCache.set(cacheKey, {
+                items,
+                expiresAt: Date.now() + GEO_CITY_SEARCH_CACHE_TTL_MS,
+            })
+            return items
+        })
+        .finally(() => {
+            geoCitySearchInFlight.delete(cacheKey)
+        })
+
+    geoCitySearchInFlight.set(cacheKey, requestPromise)
+    return requestPromise
 }
 
 export async function searchCities(query) {
@@ -849,12 +879,35 @@ export async function suggestGeoAddress(payload) {
 
     if (!body.query) return []
 
-    const data = await apiRequest(`${GEO_API_BASE}/address/suggest`, {
-        method: 'POST',
-        body: JSON.stringify(body),
+    const cacheKey = `${String(body.cityId || '')}|${body.query.toLowerCase()}`
+    const cached = geoAddressSuggestCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.items
+    }
+
+    const inFlight = geoAddressSuggestInFlight.get(cacheKey)
+    if (inFlight) {
+        return inFlight
+    }
+
+    const requestPromise = apiRequest(`${GEO_API_BASE}/address/suggest`, {
+            method: 'POST',
+            body: JSON.stringify(body),
+        })
+        .then((data) => {
+            const items = Array.isArray(data) ? data.map(normalizeAddressSuggestion) : []
+            geoAddressSuggestCache.set(cacheKey, {
+                items,
+                expiresAt: Date.now() + GEO_ADDRESS_SUGGEST_CACHE_TTL_MS,
+            })
+            return items
+        })
+        .finally(() => {
+            geoAddressSuggestInFlight.delete(cacheKey)
     })
 
-    return Array.isArray(data) ? data.map(normalizeAddressSuggestion) : []
+    geoAddressSuggestInFlight.set(cacheKey, requestPromise)
+    return requestPromise
 }
 
 export async function resolveGeoAddress(unrestrictedValue) {
@@ -1279,7 +1332,11 @@ export async function getEmployerOpportunities(params = {}) {
             search: params.search,
         })
 
-        return page || { items: [], total: 0, limit: 50, offset: 0 }
+        const safePage = page || { items: [], total: 0, limit: 50, offset: 0 }
+        return {
+            ...safePage,
+            items: Array.isArray(safePage.items) ? safePage.items.map(normalizeOpportunity) : [],
+        }
     } catch (error) {
         if ([500, 503].includes(error?.status)) {
             return { items: [], total: 0, limit: 50, offset: 0 }
@@ -1424,10 +1481,9 @@ export async function openVerificationAttachment(attachment) {
     if (ownerUserId && fileId) {
         const url = `${API_BASE}/profile/employer/${ownerUserId}/files/${fileId}`
         window.open(url, '_blank', 'noopener,noreferrer')
-    } else {
-        console.error('No URL found for attachment:', attachment)
-        throw new Error('Невозможно открыть файл: отсутствует URL')
     }
+
+    throw new Error('Невозможно открыть файл: отсутствует URL')
 }
 
 export async function deleteVerificationAttachment(fileId) {

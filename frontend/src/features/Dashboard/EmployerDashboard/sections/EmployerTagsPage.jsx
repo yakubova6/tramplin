@@ -5,9 +5,11 @@ import TagModerationDetails from '@/shared/ui/Tags/TagModerationDetails/TagModer
 import CreateTagForm from '@/shared/ui/Tags/CreateTagForm/CreateTagForm.jsx';
 import CustomSelect from '@/shared/ui/CustomSelect';
 import { getTagCategoryLabel } from '@/shared/lib/utils/tagCategories';
+import { useToast } from '@/shared/hooks/use-toast';
 import styles from './EmployerTagsPage.module.scss';
 
 const EmployerTagsPage = () => {
+  const { toast } = useToast();
   const filterOptions = [
     { value: 'ALL', label: 'Все' },
     { value: 'PENDING', label: 'На модерации' },
@@ -44,8 +46,16 @@ const EmployerTagsPage = () => {
     try {
       await cancelEmployerTagModeration(tagId);
       await loadTags();
-    } catch {
-      alert('Ошибка при отмене заявки');
+      toast({
+        title: 'Заявка отменена',
+        description: 'Заявка на модерацию тега успешно отменена',
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: error?.message || 'Не удалось отменить заявку на модерацию',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -54,8 +64,16 @@ const EmployerTagsPage = () => {
       await createEmployerTag(tagData);
       setShowCreateForm(false);
       await loadTags();
-    } catch {
-      alert('Ошибка при создании тега');
+      toast({
+        title: 'Тег отправлен',
+        description: 'Новый тег отправлен на модерацию',
+      });
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: error?.message || 'Не удалось создать тег',
+        variant: 'destructive',
+      });
     }
   };
 

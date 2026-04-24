@@ -1039,7 +1039,7 @@ export default function ApplicantPublicProfile() {
                         {profileVisible && profile.about && (
                             <section className="applicant-public-profile__section-card">
                                 <h2>О соискателе</h2>
-                                <p>{profile.about}</p>
+                                <p className="applicant-public-profile__multiline">{profile.about}</p>
                             </section>
                         )}
 
@@ -1049,7 +1049,7 @@ export default function ApplicantPublicProfile() {
                             {resumeVisible ? (
                                 <>
                                     {profile.resumeText ? (
-                                        <p>{profile.resumeText}</p>
+                                        <p className="applicant-public-profile__multiline">{profile.resumeText}</p>
                                     ) : (
                                         <p className="text-muted">Текст резюме не заполнен</p>
                                     )}

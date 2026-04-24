@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import Input from '@/shared/ui/Input'
 import Label from '@/shared/ui/Label'
 import Button from '@/shared/ui/Button'
@@ -21,12 +22,34 @@ function EmployerLocationModal({
                                    onLocationCitySearch,
                                    onSelectLocationCity,
                                    onAddressSuggest,
-                                   onSelectAddressSuggestion,
+                               onSelectAddressSuggestion,
                                }) {
+    const overlayMouseDownStartedOutsideRef = useRef(false)
+
     if (!isOpen) return null
 
+    const handleOverlayMouseDown = (event) => {
+        overlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleOverlayMouseUp = (event) => {
+        const endedOutside = event.target === event.currentTarget
+        if (
+            overlayMouseDownStartedOutsideRef.current &&
+            endedOutside &&
+            !isLocationSaving
+        ) {
+            onClose()
+        }
+        overlayMouseDownStartedOutsideRef.current = false
+    }
+
     return (
-        <div className="modal-overlay" onClick={() => !isLocationSaving && onClose()}>
+        <div
+            className="modal-overlay"
+            onMouseDown={handleOverlayMouseDown}
+            onMouseUp={handleOverlayMouseUp}
+        >
             <div className="modal" onClick={(e) => e.stopPropagation()}>
                 <h3>{locationMode === 'edit' ? 'Редактирование локации' : 'Новая локация компании'}</h3>
                 <p className="field-hint">
@@ -66,7 +89,7 @@ function EmployerLocationModal({
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => onSelectLocationCity(city)}
                                     >
-                                        {city.name}
+                                        {city.regionName ? `${city.name}, ${city.regionName}` : city.name}
                                     </button>
                                 ))}
                             </div>

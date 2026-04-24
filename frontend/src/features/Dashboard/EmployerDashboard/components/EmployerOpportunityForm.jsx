@@ -31,7 +31,10 @@ function EmployerOpportunityForm({
                                      mediaOpportunityId,
                                      onMediaUpdate,
                                  }) {
-    const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(opportunityForm.workFormat)
+    const normalizedOpportunityType = String(opportunityForm.type || '').trim().toUpperCase()
+    const normalizedWorkFormat = String(opportunityForm.workFormat || '').trim().toUpperCase()
+    const isEventType = normalizedOpportunityType === 'EVENT'
+    const isLocationEditingDisabled = normalizedWorkFormat === 'REMOTE'
     const isVerificationPending = verificationState === 'PENDING'
     const isVerificationRejected = verificationState === 'REJECTED'
     const isVerificationApproved = verificationState === 'APPROVED'
@@ -79,7 +82,13 @@ function EmployerOpportunityForm({
                 <CustomSelect
                     label="Тип"
                     value={opportunityForm.type}
-                    onChange={(val) => onChangeOpportunityForm((prev) => ({ ...prev, type: val }))}
+                    onChange={(val) =>
+                        onChangeOpportunityForm((prev) => ({
+                            ...prev,
+                            type: val,
+                            eventDate: String(val || '').trim().toUpperCase() === 'EVENT' ? prev.eventDate : '',
+                        }))
+                    }
                     options={OPPORTUNITY_TYPES}
                 />
                 <CustomSelect
@@ -87,14 +96,14 @@ function EmployerOpportunityForm({
                     value={opportunityForm.workFormat}
                     onChange={(val) =>
                         onChangeOpportunityForm((prev) => {
-                            const isOfficeBased = ['OFFICE', 'HYBRID'].includes(val)
+                            const isRemote = String(val || '').trim().toUpperCase() === 'REMOTE'
 
                             return {
                                 ...prev,
                                 workFormat: val,
-                                locationId: isOfficeBased ? prev.locationId : null,
-                                cityId: isOfficeBased ? prev.cityId : null,
-                                cityName: isOfficeBased ? prev.cityName : '',
+                                locationId: isRemote ? null : prev.locationId,
+                                cityId: isRemote ? null : prev.cityId,
+                                cityName: isRemote ? '' : prev.cityName,
                             }
                         })
                     }
@@ -103,12 +112,12 @@ function EmployerOpportunityForm({
             </div>
 
             <div className="employer-create-form__grid-2">
-                <div className={!isOfficeBasedWorkFormat ? 'select-disabled' : ''}>
+                <div className={isLocationEditingDisabled ? 'select-disabled' : ''}>
                     <CustomSelect
                         label="Офис"
                         value={opportunityForm.locationId ? String(opportunityForm.locationId) : ''}
                         onChange={(val) => {
-                            if (!isOfficeBasedWorkFormat) return
+                            if (isLocationEditingDisabled) return
 
                             const selectedLocation =
                                 employerLocations.find((item) => String(item.id) === String(val)) || null
@@ -123,7 +132,7 @@ function EmployerOpportunityForm({
                         options={[
                             {
                                 value: '',
-                                label: !isOfficeBasedWorkFormat
+                                label: isLocationEditingDisabled
                                     ? 'Для удаленного формата офис не требуется'
                                     : employerLocations.length
                                         ? 'Выберите офис'
@@ -145,12 +154,12 @@ function EmployerOpportunityForm({
                     <Label>Город</Label>
                     <Input
                         value={
-                            isOfficeBasedWorkFormat
-                                ? (opportunityForm.cityName || '—')
+                            !isLocationEditingDisabled
+                                ? (opportunityForm.cityName || '')
                                 : 'Для удаленного формата город не требуется'
                         }
                         readOnly
-                        className={!isOfficeBasedWorkFormat ? 'input--disabled' : ''}
+                        className={isLocationEditingDisabled ? 'input--disabled' : ''}
                         placeholder="Будет подставлен из офиса"
                     />
                 </div>
@@ -206,12 +215,13 @@ function EmployerOpportunityForm({
                     />
                     <p className="field-error is-placeholder">{'\u00A0'}</p>
                 </div>
-                {opportunityForm.type === 'EVENT' ? (
+                {isEventType ? (
                     <div className="employer-create-form__field">
                         <Label>Дата мероприятия <span className="required-star">*</span></Label>
                         <Input
                             type="date"
                             value={opportunityForm.eventDate}
+                            min={new Date().toISOString().slice(0, 10)}
                             onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, eventDate: e.target.value }))}
                         />
                         <p className={`field-error ${errors.eventDate ? '' : 'is-placeholder'}`}>{errors.eventDate || '\u00A0'}</p>
@@ -222,6 +232,7 @@ function EmployerOpportunityForm({
                         <Input
                             type="date"
                             value={opportunityForm.expiresAt}
+                            min={new Date().toISOString().slice(0, 10)}
                             onChange={(e) => onChangeOpportunityForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
                         />
                         <p className={`field-error ${errors.expiresAt ? '' : 'is-placeholder'}`}>{errors.expiresAt || '\u00A0'}</p>

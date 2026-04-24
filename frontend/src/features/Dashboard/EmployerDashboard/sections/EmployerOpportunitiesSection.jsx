@@ -3,7 +3,7 @@ import CustomSelect from '@/shared/ui/CustomSelect'
 import OpportunityStatusManager from '../components/OpportunityStatusManager'
 
 import { OPPORTUNITY_LABELS } from '@/shared/api/opportunities'
-import { formatDate, statusBucket } from '../lib/employerDashboard.helpers'
+import { formatDate } from '../lib/employerDashboard.helpers'
 
 import linkIcon from '@/assets/icons/link.svg'
 
@@ -15,7 +15,8 @@ function EmployerOpportunitiesSection({
                                           setOpportunityFilterStatus,
                                           filteredOpportunities,
                                           expandedOpportunityId,
-                                          setExpandedOpportunityId,
+                                          onToggleOpportunityDetails,
+                                          opportunityDetailsById,
                                           onStartEditOpportunity,
                                           onUpdateOpportunityStatus,
                                           onDeleteOpportunity,
@@ -35,9 +36,9 @@ function EmployerOpportunitiesSection({
 
     const getOpportunityOfficeLabel = (opp) => {
         const location = getOpportunityLocation(opp)
-        if (!location) return '—'
+        if (!location) return ''
 
-        return location.title || location.addressLine || '—'
+        return location.title || location.addressLine || ''
     }
 
     const getOpportunityCityLabel = (opp) => {
@@ -48,7 +49,7 @@ function EmployerOpportunitiesSection({
         if (opp.cityName) return opp.cityName
         if (opp.city?.name) return opp.city.name
 
-        return '—'
+        return ''
     }
 
     return (
@@ -70,6 +71,7 @@ function EmployerOpportunitiesSection({
                             { value: 'planned', label: 'Запланированные' },
                             { value: 'draft', label: 'Черновики' },
                             { value: 'closed', label: 'Закрытые' },
+                            { value: 'archived', label: 'Архив' },
                         ]}
                     />
                 </div>
@@ -81,7 +83,22 @@ function EmployerOpportunitiesSection({
                 </p>
             ) : (
                 <div className="employer-opportunities__list">
-                    {filteredOpportunities.map((opp) => (
+                    {filteredOpportunities.map((opp) => {
+                        const detailedOpportunity = opportunityDetailsById?.[opp.id] || opp
+                        const normalizedStatus = String(opp.status || '').toUpperCase()
+                        const canClose = ['PUBLISHED', 'PLANNED'].includes(normalizedStatus)
+                        const canReturnToDraft = ['PUBLISHED', 'REJECTED', 'CLOSED', 'PLANNED'].includes(normalizedStatus)
+                        const canRestoreFromArchive = normalizedStatus === 'ARCHIVED'
+                        const canArchive = normalizedStatus !== 'ARCHIVED'
+                        const requirementsText = String(detailedOpportunity.requirements || '').trim()
+                        const descriptionText = String(
+                            detailedOpportunity.fullDescription || detailedOpportunity.shortDescription || ''
+                        ).trim()
+                        const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(detailedOpportunity.workFormat)
+                        const cityLabel = getOpportunityCityLabel(detailedOpportunity)
+                        const officeLabel = getOpportunityOfficeLabel(detailedOpportunity)
+
+                        return (
                         <div key={`${opp.id}-${opp.status}`} className="employer-opportunities__item">
                             <div className="employer-opportunities__info">
                                 <h3>{opp.title}</h3>
@@ -112,9 +129,7 @@ function EmployerOpportunitiesSection({
                                 <div className="employer-opportunities__actions">
                                     <button
                                         className="employer-opportunities__view"
-                                        onClick={() =>
-                                            setExpandedOpportunityId((prev) => (prev === opp.id ? null : opp.id))
-                                        }
+                                        onClick={() => onToggleOpportunityDetails?.(opp.id)}
                                     >
                                         {expandedOpportunityId === opp.id ? 'Скрыть' : 'Подробнее'}
                                     </button>
@@ -126,7 +141,7 @@ function EmployerOpportunitiesSection({
                                         Редактировать
                                     </button>
 
-                                    {statusBucket(opp.status) !== 'closed' && (
+                                    {canClose && (
                                         <button
                                             className="employer-opportunities__view"
                                             onClick={() => onUpdateOpportunityStatus(opp.id, 'close', 'Публикация закрыта')}
@@ -135,7 +150,7 @@ function EmployerOpportunitiesSection({
                                         </button>
                                     )}
 
-                                    {opp.status !== 'DRAFT' && (
+                                    {canReturnToDraft && (
                                         <button
                                             className="employer-opportunities__view"
                                             onClick={() => onUpdateOpportunityStatus(opp.id, 'draft', 'Публикация возвращена в черновик')}
@@ -144,32 +159,58 @@ function EmployerOpportunitiesSection({
                                         </button>
                                     )}
 
-                                    <button
-                                        className="employer-opportunities__delete"
-                                        onClick={() => onDeleteOpportunity(opp.id, opp.title)}
-                                    >
-                                        Архив
-                                    </button>
+                                    {canRestoreFromArchive && (
+                                        <button
+                                            className="employer-opportunities__view"
+                                            onClick={() => onUpdateOpportunityStatus(opp.id, 'draft', 'Публикация восстановлена из архива в черновик')}
+                                        >
+                                            Из архива в черновик
+                                        </button>
+                                    )}
+
+                                    {canArchive && (
+                                        <button
+                                            className="employer-opportunities__delete"
+                                            onClick={() => onDeleteOpportunity(opp.id, opp.title)}
+                                        >
+                                            В архив
+                                        </button>
+                                    )}
                                 </div>
 
                                 {expandedOpportunityId === opp.id && (
                                     <div className="employer-opportunities__details">
                                         <h4>Подробности</h4>
-                                        <p><strong>Требования:</strong> {opp.requirements || '—'}</p>
+                                        {requirementsText && (
+                                            <p><strong>Требования:</strong> {requirementsText}</p>
+                                        )}
+                                        {descriptionText && (
+                                            <p><strong>Описание:</strong> {descriptionText}</p>
+                                        )}
                                         <p>
-                                            <strong>Уровень:</strong> {OPPORTUNITY_LABELS.grade[opp.grade] || opp.grade || '—'}
+                                            <strong>Уровень:</strong> {OPPORTUNITY_LABELS.grade[detailedOpportunity.grade] || detailedOpportunity.grade || '—'}
                                         </p>
                                         <p>
-                                            <strong>Занятость:</strong> {OPPORTUNITY_LABELS.employmentType[opp.employmentType] || opp.employmentType || '—'}
+                                            <strong>Занятость:</strong> {OPPORTUNITY_LABELS.employmentType[detailedOpportunity.employmentType] || detailedOpportunity.employmentType || '—'}
                                         </p>
-                                        <p><strong>Город:</strong> {getOpportunityCityLabel(opp)}</p>
-                                        <p><strong>Офис:</strong> {getOpportunityOfficeLabel(opp)}</p>
-                                        <p><strong>Дата мероприятия:</strong> {formatDate(opp.eventDate)}</p>
-                                        <p><strong>Срок действия:</strong> {formatDate(opp.expiresAt)}</p>
+                                        {isOfficeBasedWorkFormat && cityLabel && (
+                                            <p><strong>Город:</strong> {cityLabel}</p>
+                                        )}
+                                        {isOfficeBasedWorkFormat && officeLabel && (
+                                            <p><strong>Офис:</strong> {officeLabel}</p>
+                                        )}
+                                        {detailedOpportunity.type === 'EVENT' && (
+                                            <p>
+                                                <strong>Дата мероприятия:</strong> {formatDate(detailedOpportunity.eventDate)}
+                                            </p>
+                                        )}
+                                        {detailedOpportunity.type !== 'EVENT' && detailedOpportunity.expiresAt && (
+                                            <p><strong>Срок действия:</strong> {formatDate(detailedOpportunity.expiresAt)}</p>
+                                        )}
 
-                                        {opp.resourceLinks?.length > 0 && (
+                                        {detailedOpportunity.resourceLinks?.length > 0 && (
                                             <div className="links-list">
-                                                {opp.resourceLinks.map((item, index) => (
+                                                {detailedOpportunity.resourceLinks.map((item, index) => (
                                                     <a
                                                         key={`${item.url}-${index}`}
                                                         href={item.url}
@@ -184,11 +225,13 @@ function EmployerOpportunitiesSection({
                                             </div>
                                         )}
 
-                                        {opp.media && opp.media.length > 0 && (
+                                        {detailedOpportunity.media && detailedOpportunity.media.length > 0 && (
                                             <div className="media-preview">
-                                                <strong>Медиафайлы:</strong>
+                                                <div className="media-preview__title">
+                                                    <strong>Медиафайлы:</strong>
+                                                </div>
                                                 <div className="media-preview__list">
-                                                    {opp.media.slice(0, 3).map((item) => (
+                                                    {detailedOpportunity.media.slice(0, 3).map((item) => (
                                                         <div key={item.attachmentId} className="media-preview__item">
                                                             {item.mediaType?.startsWith('image/') ? (
                                                                 <img src={item.downloadUrl} alt={item.originalFileName} />
@@ -197,8 +240,8 @@ function EmployerOpportunitiesSection({
                                                             )}
                                                         </div>
                                                     ))}
-                                                    {opp.media.length > 3 && (
-                                                        <span>+ ещё {opp.media.length - 3}</span>
+                                                    {detailedOpportunity.media.length > 3 && (
+                                                        <span>+ ещё {detailedOpportunity.media.length - 3}</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -207,7 +250,7 @@ function EmployerOpportunitiesSection({
                                 )}
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
         </div>

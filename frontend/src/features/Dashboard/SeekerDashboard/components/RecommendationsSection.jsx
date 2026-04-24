@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '@/shared/hooks/use-toast'
 import { updateRecommendationStatus } from '@/shared/api/interaction'
+import { getStatusLabelRu } from '@/shared/lib/utils/statusLabels'
 import './RecommendationsSection.scss'
 
 const STATUS_LABELS = {
@@ -62,7 +63,7 @@ function canMoveToStatus(currentStatus, nextStatus) {
 function RecommendationStatusBadge({ status }) {
     return (
         <span className={`recommendation-status ${STATUS_CLASS_NAMES[status] || ''}`}>
-            {STATUS_LABELS[status] || status}
+            {STATUS_LABELS[status] || getStatusLabelRu(status)}
         </span>
     )
 }

@@ -18,6 +18,7 @@ import {
 } from '../lib/employerDashboard.helpers'
 
 import EmployerLocationsSection from './EmployerLocationsSection'
+import { getStatusLabelRu } from '@/shared/lib/utils/statusLabels'
 
 const CONTACT_LINK_PRESETS = [
     {
@@ -459,7 +460,7 @@ function EmployerProfileSection({
                                         {verificationState === 'REJECTED' && 'Отклонена'}
                                         {verificationState === 'REVOKED' && 'Отозвана'}
                                         {verificationState === 'NOT_STARTED' && 'Не начата'}
-                                        {!['APPROVED', 'PENDING', 'REJECTED', 'REVOKED', 'NOT_STARTED'].includes(verificationState) && verificationState}
+                                        {!['APPROVED', 'PENDING', 'REJECTED', 'REVOKED', 'NOT_STARTED'].includes(verificationState) && getStatusLabelRu(verificationState)}
                                     </span>
                                 </div>
                             </div>
@@ -527,7 +528,7 @@ function EmployerProfileSection({
 
                         <div className="employer-profile__field employer-profile__field--wide">
                             <Label>Описание</Label>
-                            <div className="field-value">{displayedProfile.description || '—'}</div>
+                            <div className="field-value field-value--multiline">{displayedProfile.description || '—'}</div>
                         </div>
 
                         <div className="employer-profile__field">
@@ -578,7 +579,7 @@ function EmployerProfileSection({
                                 {verificationState === 'REJECTED' && 'Отклонён'}
                                 {verificationState === 'REVOKED' && 'Отозвана'}
                                 {verificationState === 'NOT_STARTED' && 'Не начата'}
-                                {!['APPROVED', 'PENDING', 'REJECTED', 'REVOKED', 'NOT_STARTED'].includes(verificationState) && verificationState}
+                                {!['APPROVED', 'PENDING', 'REJECTED', 'REVOKED', 'NOT_STARTED'].includes(verificationState) && getStatusLabelRu(verificationState)}
                             </div>
                         </div>
 
@@ -647,9 +648,13 @@ function EmployerProfileSection({
                         <Button
                             className="button--primary"
                             onClick={onHandleSaveCompanyData}
-                            disabled={isLoading || isVerificationFlowLocked}
+                            disabled={isLoading}
                         >
-                            {isLoading ? 'Сохранение...' : 'Сохранить и продолжить верификацию'}
+                            {isLoading
+                                ? 'Сохранение...'
+                                : isVerificationFlowLocked
+                                    ? 'Продолжить верификацию'
+                                    : 'Сохранить и продолжить верификацию'}
                         </Button>
                         <Button className="button--ghost" onClick={() => setIsEditingCompanyData(false)}>
                             Отменить

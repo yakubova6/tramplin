@@ -119,8 +119,6 @@ export async function listEmployerOpportunities(params = {}) {
             cacheTtlMs: 7_000,
         })
     } catch (error) {
-        console.warn('[opportunities] full employer opportunities query failed, retrying minimal query:', error)
-
         const fallbackQuery = toQuery({ currentUserId })
 
         return httpJson(`${API_BASE}/employer/opportunities?${fallbackQuery}`, {

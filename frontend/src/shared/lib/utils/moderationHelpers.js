@@ -1,3 +1,5 @@
+import { getStatusLabelRu } from '@/shared/lib/utils/statusLabels'
+
 export function formatDate(dateString) {
     if (!dateString) return '—'
     const date = new Date(dateString)
@@ -37,7 +39,7 @@ export function getStatusLabel(status) {
         NEEDS_REVISION: 'Нужны правки',
         CANCELLED: 'Отменено',
     }
-    return labels[status] || status || '—'
+    return labels[status] || getStatusLabelRu(status)
 }
 
 export function getStatusClass(status) {
@@ -88,7 +90,7 @@ export function getActionLabel(action) {
         COMMENTED: 'Комментарий',
         UPDATED: 'Обновлено',
     }
-    return labels[action] || action || '—'
+    return labels[action] || getStatusLabelRu(action)
 }
 
 export function deepClone(value) {

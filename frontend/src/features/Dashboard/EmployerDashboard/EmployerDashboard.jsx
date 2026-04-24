@@ -61,8 +61,34 @@ import {
 } from './lib/employerDashboard.helpers'
 
 const DISMISSED_ALERTS_STORAGE_KEY = 'employer_dashboard_dismissed_alerts'
+const SEEN_APPROVED_PROFILE_ALERTS_STORAGE_KEY = 'employer_dashboard_seen_profile_approved_alerts'
 
 const ACTIVE_VERIFICATION_STATUSES = ['PENDING', 'IN_PROGRESS', 'UNDER_REVIEW']
+const GEO_CITY_DEBOUNCE_MS = 60
+const GEO_ADDRESS_DEBOUNCE_MS = 90
+
+const normalizeGeoSearchQuery = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const formatGeoCityLabel = (city) => {
+    const cityName = String(city?.name || '').trim()
+    const regionName = String(city?.regionName || '').trim()
+
+    if (!cityName) return ''
+    return regionName ? `${cityName}, ${regionName}` : cityName
+}
+
+const dedupeAddressSuggestions = (items = []) => {
+    const seen = new Set()
+    return items.filter((item) => {
+        const key = String(item?.unrestrictedValue || item?.value || item?.addressLine || '')
+            .trim()
+            .toLowerCase()
+        if (!key) return true
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
 
 const areProfilePayloadsEqual = (a = {}, b = {}) => {
     return JSON.stringify({
@@ -140,6 +166,7 @@ function EmployerDashboard() {
     const [isModerationFeedbackLoading, setIsModerationFeedbackLoading] = useState(false)
     const [activeModerationTask, setActiveModerationTask] = useState(null)
     const [isActiveModerationTaskLoading, setIsActiveModerationTaskLoading] = useState(false)
+    const [latestProfileApprovalAt, setLatestProfileApprovalAt] = useState(null)
 
     const [dismissedDashboardAlerts, setDismissedDashboardAlerts] = useState(() => {
         try {
@@ -173,6 +200,7 @@ function EmployerDashboard() {
     const [showVerificationModal, setShowVerificationModal] = useState(false)
     const [verificationData, setVerificationData] = useState({
         verificationMethod: 'TIN',
+        legalName: '',
         corporateEmail: '',
         inn: '',
         submittedComment: '',
@@ -260,19 +288,31 @@ function EmployerDashboard() {
     const [isDeletingAttachment, setIsDeletingAttachment] = useState(false)
 
     const [opportunityMedia, setOpportunityMedia] = useState([])
+    const [opportunityDetailsById, setOpportunityDetailsById] = useState({})
 
-    // Храним предыдущий статус модерации для отслеживания изменений
     const prevModerationStateRef = useRef('DRAFT')
-    // Храним timestamp последнего показа уведомления об одобрении
-    const lastModerationApprovedAlertShownRef = useRef(null)
 
     const locationCitySearchRef = useRef(null)
     const addressSearchRef = useRef(null)
     const logoInputRef = useRef(null)
     const dashboardTabsRef = useRef(null)
     const dashboardTabButtonRefs = useRef({})
+    const locationCitySearchDebounceRef = useRef(null)
+    const addressSearchDebounceRef = useRef(null)
+    const locationCitySearchRequestIdRef = useRef(0)
+    const addressSearchRequestIdRef = useRef(0)
+    const locationCitySuggestionsCacheRef = useRef(new Map())
+    const addressSuggestionsCacheRef = useRef(new Map())
 
     const verificationState = String(profile.verificationStatus || 'NOT_STARTED').toUpperCase()
+    const hasActiveVerificationRequest = Boolean(
+        currentVerification?.id || verificationModerationTask?.taskId || verificationModerationTask?.exists
+    )
+    const verificationStateForUi =
+        !hasActiveVerificationRequest &&
+        [...ACTIVE_VERIFICATION_STATUSES, 'REJECTED', 'REVOKED'].includes(verificationState)
+            ? 'NOT_STARTED'
+            : verificationState
     const moderationState = String(profile.moderationStatus || 'DRAFT').toUpperCase()
     const isVerified = verificationState === 'APPROVED'
     const moderationMeta = getEmployerModerationStatusMeta(moderationState)
@@ -514,6 +554,12 @@ function EmployerDashboard() {
                     (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
                 )
                 : []
+            const latestApprovedEvent = sortedHistory.find((item) =>
+                String(item?.action || '').toUpperCase() === 'APPROVED' ||
+                String(item?.status || '').toUpperCase() === 'APPROVED' ||
+                String(item?.toStatus || '').toUpperCase() === 'APPROVED' ||
+                String(item?.payload?.toStatus || '').toUpperCase() === 'APPROVED'
+            ) || null
 
             const latestRevisionEvent =
                 sortedHistory.find((item) => item?.action === 'REQUESTED_CHANGES') ||
@@ -530,15 +576,18 @@ function EmployerDashboard() {
             }
 
             setModerationFeedback(extractModerationFeedback(sortedHistory, taskDetail))
+            setLatestProfileApprovalAt(latestApprovedEvent?.createdAt || null)
             return sortedHistory
         } catch (error) {
             // 403 - просто игнорируем, это не критично для работы
             if (error?.status === 403) {
                 setModerationFeedback(null)
+                setLatestProfileApprovalAt(null)
                 return []
             }
 
             setModerationFeedback(null)
+            setLatestProfileApprovalAt(null)
             return []
         } finally {
             setIsModerationFeedbackLoading(false)
@@ -714,10 +763,11 @@ function EmployerDashboard() {
         inn: profile.inn?.trim() || '',
     })
 
-    const openVerificationModalWithTinDefault = (companyInn = profile.inn || '') => {
+    const openVerificationModalWithTinDefault = (companyInn = profile.inn || '', companyLegalName = profile.legalName || '') => {
         setVerificationData((prev) => ({
             ...prev,
             verificationMethod: prev?.verificationMethod || 'TIN',
+            legalName: String(companyLegalName || '').trim(),
             inn: companyInn,
         }))
 
@@ -755,6 +805,10 @@ function EmployerDashboard() {
     }
 
     const resetLocationForm = useCallback(() => {
+        window.clearTimeout(locationCitySearchDebounceRef.current)
+        window.clearTimeout(addressSearchDebounceRef.current)
+        locationCitySearchRequestIdRef.current += 1
+        addressSearchRequestIdRef.current += 1
         setLocationMode('create')
         setEditingLocationId(null)
         setLocationForm(createEmptyLocationForm())
@@ -809,13 +863,16 @@ function EmployerDashboard() {
 
     const validateOpportunityForm = () => {
         const nextErrors = {}
+        const normalizedOpportunityType = String(opportunityForm.type || '').trim().toUpperCase()
+        const normalizedWorkFormat = String(opportunityForm.workFormat || '').trim().toUpperCase()
+        const isEventType = normalizedOpportunityType === 'EVENT'
 
         if (!opportunityForm.title.trim()) nextErrors.title = 'Укажите название'
         if (!opportunityForm.shortDescription.trim()) nextErrors.shortDescription = 'Укажите краткое описание'
-        if (opportunityForm.type === 'EVENT' && !opportunityForm.eventDate) nextErrors.eventDate = 'Укажите дату мероприятия'
-        if (opportunityForm.type !== 'EVENT' && !opportunityForm.expiresAt) nextErrors.expiresAt = 'Укажите срок действия'
+        if (isEventType && !opportunityForm.eventDate) nextErrors.eventDate = 'Укажите дату мероприятия'
+        if (!isEventType && !opportunityForm.expiresAt) nextErrors.expiresAt = 'Укажите срок действия'
 
-        const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(opportunityForm.workFormat)
+        const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(normalizedWorkFormat)
         if (isOfficeBasedWorkFormat && !opportunityForm.locationId) {
             nextErrors.locationId = 'Для офисного или гибридного формата выберите офис'
         }
@@ -838,7 +895,8 @@ function EmployerDashboard() {
         }
     }
 
-    const handleLocationCitySearch = async (value) => {
+    const handleLocationCitySearch = (value) => {
+        const normalizedQuery = normalizeGeoSearchQuery(value)
         setLocationCitySearchQuery(value)
         setLocationForm((prev) => ({
             ...prev,
@@ -846,58 +904,127 @@ function EmployerDashboard() {
             cityName: value,
         }))
 
-        if (value.trim().length < 2) {
+        if (normalizedQuery.length < 1) {
+            window.clearTimeout(locationCitySearchDebounceRef.current)
+            locationCitySearchRequestIdRef.current += 1
             setLocationCitySuggestions([])
             setIsLocationCitySearchOpen(false)
             return
         }
 
-        try {
-            const cities = await searchGeoCities(value, 20)
-            setLocationCitySuggestions(cities || [])
-            setIsLocationCitySearchOpen(true)
-        } catch {
-            setLocationCitySuggestions([])
-            setIsLocationCitySearchOpen(false)
+        setIsLocationCitySearchOpen(true)
+        const localSuggestions = (locationCitySuggestions || []).filter((item) =>
+            formatGeoCityLabel(item).toLowerCase().includes(normalizedQuery.toLowerCase())
+        )
+        if (localSuggestions.length > 0) {
+            setLocationCitySuggestions(localSuggestions)
         }
+        const cacheKey = normalizedQuery.toLowerCase()
+        const cached = locationCitySuggestionsCacheRef.current.get(cacheKey)
+        if (cached) {
+            setLocationCitySuggestions(cached)
+            return
+        }
+
+        window.clearTimeout(locationCitySearchDebounceRef.current)
+        const requestId = ++locationCitySearchRequestIdRef.current
+
+        locationCitySearchDebounceRef.current = window.setTimeout(async () => {
+            try {
+                const cities = await searchGeoCities(normalizedQuery, 20)
+                if (requestId !== locationCitySearchRequestIdRef.current) return
+
+                const safeCities = Array.isArray(cities) ? cities : []
+                locationCitySuggestionsCacheRef.current.set(cacheKey, safeCities)
+                setLocationCitySuggestions(safeCities)
+                setIsLocationCitySearchOpen(safeCities.length > 0)
+            } catch {
+                if (requestId !== locationCitySearchRequestIdRef.current) return
+                setLocationCitySuggestions([])
+                setIsLocationCitySearchOpen(false)
+            }
+        }, GEO_CITY_DEBOUNCE_MS)
     }
 
     const handleSelectLocationCity = (city) => {
+        const cityLabel = formatGeoCityLabel(city)
+        window.clearTimeout(locationCitySearchDebounceRef.current)
+        window.clearTimeout(addressSearchDebounceRef.current)
+        locationCitySearchRequestIdRef.current += 1
+        addressSearchRequestIdRef.current += 1
+
         setLocationForm((prev) => ({
             ...prev,
             cityId: city.id,
-            cityName: city.name,
+            cityName: city.name || cityLabel,
         }))
-        setLocationCitySearchQuery(city.name || '')
+        setLocationCitySearchQuery(cityLabel || city.name || '')
         setIsLocationCitySearchOpen(false)
         setAddressSuggestions([])
         setAddressSearchQuery('')
     }
 
-    const handleAddressSuggest = async (value) => {
+    const handleAddressSuggest = (value) => {
+        const normalizedQuery = normalizeGeoSearchQuery(value)
+        const cityId = Number(locationForm.cityId) || null
+
         setAddressSearchQuery(value)
         setLocationForm((prev) => ({
             ...prev,
             addressLine: value,
+            postalCode: '',
+            latitude: '',
+            longitude: '',
+            fiasId: '',
+            unrestrictedValue: '',
+            qcGeo: '',
         }))
 
-        if (value.trim().length < 3 || !locationForm.cityId) {
+        if (normalizedQuery.length < 3 || !cityId) {
+            window.clearTimeout(addressSearchDebounceRef.current)
+            addressSearchRequestIdRef.current += 1
             setAddressSuggestions([])
             setIsAddressSearchOpen(false)
             return
         }
 
-        try {
-            const items = await suggestGeoAddress({
-                query: value,
-                cityId: locationForm.cityId,
-            })
-            setAddressSuggestions(items || [])
-            setIsAddressSearchOpen(true)
-        } catch {
-            setAddressSuggestions([])
-            setIsAddressSearchOpen(false)
+        setIsAddressSearchOpen(true)
+        const localSuggestions = (addressSuggestions || []).filter((item) =>
+            String(item?.value || item?.addressLine || item?.unrestrictedValue || '')
+                .toLowerCase()
+                .includes(normalizedQuery.toLowerCase())
+        )
+        if (localSuggestions.length > 0) {
+            setAddressSuggestions(localSuggestions)
         }
+        const cacheKey = `${cityId}:${normalizedQuery.toLowerCase()}`
+        const cached = addressSuggestionsCacheRef.current.get(cacheKey)
+        if (cached) {
+            setAddressSuggestions(cached)
+            return
+        }
+
+        window.clearTimeout(addressSearchDebounceRef.current)
+        const requestId = ++addressSearchRequestIdRef.current
+
+        addressSearchDebounceRef.current = window.setTimeout(async () => {
+            try {
+                const items = await suggestGeoAddress({
+                    query: normalizedQuery,
+                    cityId,
+                })
+                if (requestId !== addressSearchRequestIdRef.current) return
+
+                const safeItems = dedupeAddressSuggestions(Array.isArray(items) ? items : [])
+                addressSuggestionsCacheRef.current.set(cacheKey, safeItems)
+                setAddressSuggestions(safeItems)
+                setIsAddressSearchOpen(safeItems.length > 0)
+            } catch {
+                if (requestId !== addressSearchRequestIdRef.current) return
+                setAddressSuggestions([])
+                setIsAddressSearchOpen(false)
+            }
+        }, GEO_ADDRESS_DEBOUNCE_MS)
     }
 
     const handleSelectAddressSuggestion = (suggestion) => {
@@ -915,7 +1042,10 @@ function EmployerDashboard() {
         }))
 
         if (suggestion.cityName) {
-            setLocationCitySearchQuery(suggestion.cityName)
+            const cityLabel = suggestion.regionName
+                ? `${suggestion.cityName}, ${suggestion.regionName}`
+                : suggestion.cityName
+            setLocationCitySearchQuery(cityLabel)
         }
 
         setAddressSearchQuery(suggestion.value || suggestion.addressLine || '')
@@ -931,6 +1061,10 @@ function EmployerDashboard() {
 
     const handleOpenEditLocation = (location) => {
         const normalized = normalizeLocationState(location)
+        window.clearTimeout(locationCitySearchDebounceRef.current)
+        window.clearTimeout(addressSearchDebounceRef.current)
+        locationCitySearchRequestIdRef.current += 1
+        addressSearchRequestIdRef.current += 1
         setLocationMode('edit')
         setEditingLocationId(normalized.id)
         setLocationForm(normalized)
@@ -1117,6 +1251,8 @@ function EmployerDashboard() {
 
     const handleSubmitVerification = async () => {
         const method = String(verificationData?.verificationMethod || 'TIN').toUpperCase()
+        const normalizedTinLegalName = String(verificationData?.legalName || profile?.legalName || '').trim()
+        const normalizedTinInn = String(verificationData?.inn || profile?.inn || '').trim()
 
         const currentStatus = String(
             currentVerification?.status ||
@@ -1158,13 +1294,19 @@ function EmployerDashboard() {
         }
 
         if (method === 'TIN') {
-            const normalizedInn = String(profile?.inn || verificationData?.inn || '').trim()
-
-            if (!normalizedInn || !/^\d{10}(\d{2})?$/.test(normalizedInn)) {
+            if (!normalizedTinLegalName) {
                 toast({
                     title: 'Ошибка',
-                    description:
-                        'Чтобы пройти верификацию по ИНН, сначала заполните корректный ИНН в разделе «Реквизиты компании»',
+                    description: 'Укажите юридическое название компании',
+                    variant: 'destructive',
+                })
+                return
+            }
+
+            if (!normalizedTinInn || !/^\d{10}(\d{2})?$/.test(normalizedTinInn)) {
+                toast({
+                    title: 'Ошибка',
+                    description: 'Укажите корректный ИНН компании',
                     variant: 'destructive',
                 })
                 return
@@ -1187,6 +1329,58 @@ function EmployerDashboard() {
         setIsVerificationSubmitting(true)
 
         try {
+            const profilePayload = buildEmployerProfilePayload()
+            const payloadCityId = Number(profilePayload?.cityId) || null
+            const payloadLocationId = Number(profilePayload?.locationId) || null
+            const fallbackCityId = Number(selectedEmployerLocation?.cityId) || null
+            const fallbackLocationId = Number(selectedEmployerLocation?.id) || null
+            const resolvedCityId = payloadCityId || fallbackCityId
+            const resolvedLocationId = payloadLocationId || fallbackLocationId
+
+            if (!resolvedCityId) {
+                toast({
+                    title: 'Укажите город работодателя',
+                    description: 'Перед отправкой заявки выберите город в профиле работодателя.',
+                    variant: 'destructive',
+                })
+                setActiveTab('profile')
+                return
+            }
+
+            if (
+                resolvedCityId !== Number(profile?.cityId || 0) ||
+                (resolvedLocationId && resolvedLocationId !== Number(profile?.locationId || 0))
+            ) {
+                await updateEmployerProfile({
+                    ...profilePayload,
+                    cityId: resolvedCityId,
+                    locationId: resolvedLocationId || null,
+                })
+            }
+
+            if (method === 'TIN') {
+                const shouldUpdateCompanyData =
+                    normalizedTinLegalName !== String(profile?.legalName || '').trim() ||
+                    normalizedTinInn !== String(profile?.inn || '').trim()
+
+                if (shouldUpdateCompanyData) {
+                    await updateEmployerCompanyData({
+                        legalName: normalizedTinLegalName,
+                        inn: normalizedTinInn,
+                    })
+
+                    setProfile((prev) => ({
+                        ...prev,
+                        legalName: normalizedTinLegalName,
+                        inn: normalizedTinInn,
+                    }))
+                    setInitialCompanySnapshot({
+                        legalName: normalizedTinLegalName,
+                        inn: normalizedTinInn,
+                    })
+                }
+            }
+
             const payload = {
                 verificationMethod: method,
                 professionalLinks:
@@ -1208,7 +1402,7 @@ function EmployerDashboard() {
                 createdVerification,
                 user.userId,
                 method,
-                profile?.inn || verificationData?.inn || ''
+                normalizedTinInn || verificationData?.inn || profile?.inn || ''
             )
 
             if (!normalizedVerification?.id) {
@@ -1438,6 +1632,13 @@ function EmployerDashboard() {
     }, [])
 
     useEffect(() => {
+        return () => {
+            window.clearTimeout(locationCitySearchDebounceRef.current)
+            window.clearTimeout(addressSearchDebounceRef.current)
+        }
+    }, [])
+
+    useEffect(() => {
         if (isEditingProfile) return
 
         setSocialRows(linksToRows(profile.socialLinks || []))
@@ -1453,9 +1654,10 @@ function EmployerDashboard() {
     useEffect(() => {
         setVerificationData((prev) => ({
             ...prev,
+            legalName: profile.legalName || '',
             inn: profile.inn || '',
         }))
-    }, [profile.inn])
+    }, [profile.inn, profile.legalName])
 
     useEffect(() => {
         if (
@@ -1474,9 +1676,7 @@ function EmployerDashboard() {
     useEffect(() => {
         try {
             localStorage.setItem(DISMISSED_ALERTS_STORAGE_KEY, JSON.stringify(dismissedDashboardAlerts))
-        } catch (e) {
-            console.error('Failed to save dismissed alerts', e)
-        }
+        } catch {}
     }, [dismissedDashboardAlerts])
 
     useEffect(() => {
@@ -1484,21 +1684,36 @@ function EmployerDashboard() {
         const currentStatus = moderationState
 
         if (prevStatus !== 'APPROVED' && currentStatus === 'APPROVED') {
-            const alertKey = `moderation-approved-${Date.now()}`
+            const approvalMarker = String(
+                latestProfileApprovalAt ||
+                activeModerationTask?.updatedAt ||
+                activeModerationTask?.createdAt ||
+                profile?.updatedAt ||
+                publicProfile?.updatedAt ||
+                `${currentStatus}:${user?.userId || 'anonymous'}`
+            )
+            const storageKey = `${SEEN_APPROVED_PROFILE_ALERTS_STORAGE_KEY}_${user?.userId || 'anonymous'}`
 
-            if (lastModerationApprovedAlertShownRef.current !== alertKey) {
-                lastModerationApprovedAlertShownRef.current = alertKey
+            let seenMarker = ''
+            try {
+                seenMarker = localStorage.getItem(storageKey) || ''
+            } catch {}
 
+            if (seenMarker !== approvalMarker) {
                 toast({
                     title: 'Публичный профиль одобрен',
                     description: 'Публичная версия профиля доступна пользователям платформы.',
                     variant: 'default',
                 })
+
+                try {
+                    localStorage.setItem(storageKey, approvalMarker)
+                } catch {}
             }
         }
 
         prevModerationStateRef.current = currentStatus
-    }, [moderationState, toast])
+    }, [activeModerationTask?.createdAt, activeModerationTask?.updatedAt, latestProfileApprovalAt, moderationState, profile?.updatedAt, publicProfile?.updatedAt, toast, user?.userId])
 
     const filteredOpportunities = useMemo(() => {
         return opportunities.filter((opp) => {
@@ -1506,8 +1721,12 @@ function EmployerDashboard() {
                 opp.title?.toLowerCase().includes(opportunitySearchTerm.toLowerCase()) ||
                 opp.shortDescription?.toLowerCase().includes(opportunitySearchTerm.toLowerCase())
 
+            const bucket = statusBucket(opp.status)
             const matchesStatus =
-                opportunityFilterStatus === 'all' || statusBucket(opp.status) === opportunityFilterStatus
+                opportunityFilterStatus === 'all' ||
+                (opportunityFilterStatus === 'archived'
+                    ? bucket === 'archived'
+                    : bucket === opportunityFilterStatus)
 
             return matchesSearch && matchesStatus
         })
@@ -1516,14 +1735,28 @@ function EmployerDashboard() {
     const dashboardAlerts = useMemo(() => {
         const alerts = []
 
-        const hasVerificationPending = ACTIVE_VERIFICATION_STATUSES.includes(verificationState)
-        const hasVerificationRejected = verificationState === 'REJECTED'
-        const hasVerificationRevoked = verificationState === 'REVOKED'
+        const effectiveVerificationState = verificationStateForUi
+        const hasVerificationRejected = effectiveVerificationState === 'REJECTED'
+        const hasVerificationRevoked = effectiveVerificationState === 'REVOKED'
+        const isCompanyDataIncomplete =
+            !String(profile.legalName || '').trim() || !String(profile.inn || '').trim()
         const hasModerationPending = isProfileAlreadyOnModeration(moderationState)
         const hasModerationRevision = moderationState === 'REQUESTED_CHANGES' || moderationState === 'REJECTED'
 
         if (!isVerified) {
-            if (verificationState === 'NOT_STARTED') {
+            if (isCompanyDataIncomplete) {
+                alerts.push({
+                    key: 'verification-company-data-missing',
+                    variant: 'revision',
+                    closable: false,
+                    title: 'Для верификации нужно заполнить реквизиты',
+                    text: 'Заполните юридическое название и ИНН компании, затем отправьте заявку на верификацию.',
+                    buttonText: 'Пройти верификацию',
+                    onClick: () => setShowVerificationModal(true),
+                })
+            }
+
+            if (effectiveVerificationState === 'NOT_STARTED' && !isCompanyDataIncomplete) {
                 alerts.push({
                     key: 'verification-not-started',
                     variant: 'draft',
@@ -1531,18 +1764,6 @@ function EmployerDashboard() {
                     title: 'Компания ещё не верифицирована',
                     text: 'Пройдите верификацию компании, чтобы публиковать вакансии и мероприятия.',
                     buttonText: 'Пройти верификацию',
-                    onClick: () => setShowVerificationModal(true),
-                })
-            }
-
-            if (hasVerificationPending) {
-                alerts.push({
-                    key: 'verification-pending',
-                    variant: 'pending',
-                    closable: true,
-                    title: 'Верификация компании на проверке',
-                    text: 'Заявка уже создана. Вы можете открыть её снова, посмотреть статус и прикреплённые файлы.',
-                    buttonText: 'Продолжить верификацию',
                     onClick: () => setShowVerificationModal(true),
                 })
             }
@@ -1574,7 +1795,7 @@ function EmployerDashboard() {
             }
         }
 
-        const shouldShowModerationAlerts = isVerified || verificationState === 'NOT_STARTED'
+        const shouldShowModerationAlerts = isVerified || effectiveVerificationState === 'NOT_STARTED'
 
         if (shouldShowModerationAlerts) {
             if (hasModerationPending) {
@@ -1614,12 +1835,20 @@ function EmployerDashboard() {
         isVerified,
         moderationFeedback?.summary,
         moderationState,
+        profile.inn,
+        profile.legalName,
         verificationModerationTask?.comment,
+        verificationModerationTask?.exists,
+        verificationModerationTask?.taskId,
         verificationState,
+        verificationStateForUi,
+        currentVerification?.id,
     ])
 
     const visibleDashboardAlerts = useMemo(() => {
-        return dashboardAlerts.filter((alert) => !dismissedDashboardAlerts.includes(alert.key))
+        return dashboardAlerts.filter((alert) =>
+            alert.closable ? !dismissedDashboardAlerts.includes(alert.key) : true
+        )
     }, [dashboardAlerts, dismissedDashboardAlerts])
 
     const handleDismissDashboardAlert = useCallback((alertKey) => {
@@ -1627,6 +1856,35 @@ function EmployerDashboard() {
             prev.includes(alertKey) ? prev : [...prev, alertKey]
         )
     }, [])
+
+    const handleToggleOpportunityDetails = useCallback(async (opportunityId) => {
+        if (!opportunityId) return
+
+        if (expandedOpportunityId === opportunityId) {
+            setExpandedOpportunityId(null)
+            return
+        }
+
+        setExpandedOpportunityId(opportunityId)
+
+        if (opportunityDetailsById[opportunityId]) return
+
+        try {
+            const details = await getEmployerOpportunityById(opportunityId)
+            if (!details) return
+
+            setOpportunityDetailsById((prev) => ({
+                ...prev,
+                [opportunityId]: details,
+            }))
+        } catch (error) {
+            toast({
+                title: 'Ошибка',
+                description: error?.message || 'Не удалось загрузить детали публикации',
+                variant: 'destructive',
+            })
+        }
+    }, [expandedOpportunityId, opportunityDetailsById, toast])
 
     const handleLogoUpload = async (event) => {
         const file = event.target.files?.[0]
@@ -1689,12 +1947,19 @@ function EmployerDashboard() {
         try {
             const profilePayload = buildEmployerProfilePayload()
             const hasPublicChanges = !areProfilePayloadsEqual(profilePayload, initialProfileSnapshot)
+            const isAutoModerationMode = Boolean(hasApprovedPublicVersion) || moderationState === 'APPROVED'
 
-            if (hasPublicChanges) {
-                await updateEmployerProfile(profilePayload)
+            if (!hasPublicChanges) {
+                toast({
+                    title: 'Данные не изменены',
+                    description: 'Публичный профиль уже содержит эти данные',
+                })
+                return
             }
 
-            if (!isProfileAlreadyOnModeration(profile.moderationStatus)) {
+            await updateEmployerProfile(profilePayload)
+
+            if (!isAutoModerationMode && !isProfileAlreadyOnModeration(profile.moderationStatus)) {
                 await submitEmployerProfileForModeration()
             }
 
@@ -1702,9 +1967,9 @@ function EmployerDashboard() {
 
             toast({
                 title: 'Профиль сохранён',
-                description: hasPublicChanges
-                    ? 'Изменения сохранены и отправлены на модерацию'
-                    : 'Профиль отправлен на модерацию',
+                description: isAutoModerationMode
+                    ? 'Изменения сохранены и автоматически отправлены на модерацию'
+                    : 'Изменения сохранены и отправлены на модерацию',
             })
 
             setIsEditingProfile(false)
@@ -1735,10 +2000,11 @@ function EmployerDashboard() {
         const isVerificationFlowLocked = ACTIVE_VERIFICATION_STATUSES.includes(normalizedVerificationState)
 
         if (isVerificationFlowLocked) {
+            setIsEditingCompanyData(false)
+            openVerificationModalWithTinDefault(String(profile.inn || '').trim())
             toast({
-                title: 'Верификация уже выполняется',
-                description: 'Дождитесь завершения текущей проверки компании, чтобы отправить новую заявку',
-                variant: 'destructive',
+                title: 'Открываем верификацию',
+                description: 'Заявка уже создана. Проверьте её статус и при необходимости прикрепите файлы.',
             })
             return
         }
@@ -1817,6 +2083,12 @@ function EmployerDashboard() {
 
             if (hasPublicChanges) {
                 await updateEmployerProfile(profilePayload)
+            } else {
+                toast({
+                    title: 'Данные не изменены',
+                    description: 'Сначала внесите изменения в публичный профиль перед повторной отправкой',
+                })
+                return
             }
 
             if (isProfileAlreadyOnModeration(profile.moderationStatus)) {
@@ -1835,12 +2107,30 @@ function EmployerDashboard() {
 
             toast({
                 title: 'Профиль отправлен',
-                description: 'Публичный профиль отправлен на модерацию',
+                description: ['NEEDS_REVISION', 'REQUESTED_CHANGES', 'REJECTED'].includes(moderationState)
+                    ? 'Публичный профиль отправлен на повторную модерацию'
+                    : 'Публичный профиль отправлен на модерацию',
             })
 
             setIsEditingProfile(false)
             setIsEditingCompanyData(false)
         } catch (error) {
+            const backendMessage = String(error?.message || '')
+            const isAutoModerationNotice = backendMessage.includes(
+                'После первого одобрения новые изменения профиля компании отправляются на модерацию автоматически при сохранении'
+            )
+
+            if (isAutoModerationNotice) {
+                await reloadEmployerProfile()
+                setIsEditingProfile(false)
+                setIsEditingCompanyData(false)
+                toast({
+                    title: 'Изменения отправлены',
+                    description: 'Новые изменения профиля отправляются на модерацию автоматически при сохранении.',
+                })
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось отправить профиль на модерацию',
@@ -1879,7 +2169,11 @@ function EmployerDashboard() {
             return
         }
 
-        if (opportunityForm.type !== 'EVENT' && opportunityForm.expiresAt) {
+        const normalizedOpportunityType = String(opportunityForm.type || '').trim().toUpperCase()
+        const normalizedWorkFormat = String(opportunityForm.workFormat || '').trim().toUpperCase()
+        const isEventType = normalizedOpportunityType === 'EVENT'
+
+        if (!isEventType && opportunityForm.expiresAt) {
             const selectedDate = new Date(`${opportunityForm.expiresAt}T23:59:59`)
             const now = new Date()
 
@@ -1899,7 +2193,7 @@ function EmployerDashboard() {
             const selectedLocation =
                 employerLocations.find((item) => Number(item.id) === Number(opportunityForm.locationId)) || null
 
-            const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(opportunityForm.workFormat)
+            const isOfficeBasedWorkFormat = ['OFFICE', 'HYBRID'].includes(normalizedWorkFormat)
 
             const payload = {
                 title: opportunityForm.title?.trim(),
@@ -1910,8 +2204,8 @@ function EmployerDashboard() {
                     '',
                 requirements: opportunityForm.requirements?.trim() || null,
                 companyName: profile.companyName.trim(),
-                type: opportunityForm.type || 'VACANCY',
-                workFormat: opportunityForm.workFormat || 'REMOTE',
+                type: normalizedOpportunityType || 'VACANCY',
+                workFormat: normalizedWorkFormat || 'REMOTE',
                 employmentType: opportunityForm.employmentType || 'FULL_TIME',
                 grade: opportunityForm.grade || 'JUNIOR',
                 salaryFrom:
@@ -1924,12 +2218,12 @@ function EmployerDashboard() {
                         : null,
                 salaryCurrency: (opportunityForm.salaryCurrency || 'RUB').trim().toUpperCase(),
                 expiresAt:
-                    opportunityForm.type === 'EVENT'
+                    isEventType
                         ? null
                         : new Date(`${opportunityForm.expiresAt}T23:59:59`).toISOString(),
                 eventDate:
-                    opportunityForm.type === 'EVENT'
-                        ? opportunityForm.eventDate || null
+                    isEventType
+                        ? (opportunityForm.eventDate || null)
                         : null,
                 cityId: isOfficeBasedWorkFormat ? selectedLocation?.cityId ?? null : null,
                 locationId: isOfficeBasedWorkFormat ? selectedLocation?.id ?? null : null,
@@ -1964,6 +2258,17 @@ function EmployerDashboard() {
             resetOpportunityForm()
             setActiveTab('opportunities')
         } catch (error) {
+            const backendMessage = String(error?.message || '')
+
+            if (backendMessage.includes('Только для EVENT можно передавать eventDate')) {
+                toast({
+                    title: 'Проверьте дату мероприятия',
+                    description: 'Дата мероприятия заполняется только для публикаций типа «Мероприятие».',
+                    variant: 'destructive',
+                })
+                return
+            }
+
             toast({
                 title: 'Ошибка',
                 description: error?.message || 'Не удалось сохранить публикацию',
@@ -2165,11 +2470,13 @@ function EmployerDashboard() {
                         setOpportunityFilterStatus={setOpportunityFilterStatus}
                         filteredOpportunities={filteredOpportunities}
                         expandedOpportunityId={expandedOpportunityId}
-                        setExpandedOpportunityId={setExpandedOpportunityId}
+                        onToggleOpportunityDetails={handleToggleOpportunityDetails}
+                        opportunityDetailsById={opportunityDetailsById}
                         employerLocations={employerLocations}
                         onRefreshOpportunities={async () => {
                             const refreshed = await getEmployerOpportunities()
                             setOpportunities(refreshed.items || [])
+                            setOpportunityDetailsById({})
                         }}
                         onStartEditOpportunity={async (opportunityId) => {
                             const opportunity = await getEmployerOpportunityById(opportunityId)
@@ -2189,8 +2496,8 @@ function EmployerDashboard() {
                                 title: opportunity.title || '',
                                 shortDescription: opportunity.shortDescription || '',
                                 fullDescription: opportunity.fullDescription || '',
-                                type: opportunity.type || 'VACANCY',
-                                workFormat: opportunity.workFormat || 'REMOTE',
+                                type: String(opportunity.type || 'VACANCY').trim().toUpperCase(),
+                                workFormat: String(opportunity.workFormat || 'REMOTE').trim().toUpperCase(),
                                 cityId: opportunity.cityId ?? opportunity.city?.id ?? null,
                                 cityName: opportunity.cityName || opportunity.city?.name || '',
                                 locationId: opportunity.locationId ?? opportunity.location?.id ?? null,
@@ -2217,12 +2524,14 @@ function EmployerDashboard() {
                             await updateOpportunityStatus(id, action)
                             const refreshed = await getEmployerOpportunities()
                             setOpportunities(refreshed.items || [])
+                            setOpportunityDetailsById({})
                             toast({ title: 'Статус обновлён', description: successText })
                         }}
                         onDeleteOpportunity={async (id, title) => {
                             await updateOpportunityStatus(id, 'archive')
                             const refreshed = await getEmployerOpportunities()
                             setOpportunities(refreshed.items || [])
+                            setOpportunityDetailsById({})
                             toast({
                                 title: 'Публикация архивирована',
                                 description: `«${title}» перемещена в архив`,
@@ -2234,7 +2543,7 @@ function EmployerDashboard() {
                 {activeTab === 'create' && (
                     <EmployerOpportunityForm
                         isVerified={isVerified}
-                        verificationState={verificationState}
+                        verificationState={verificationStateForUi}
                         isLoading={isLoading}
                         opportunityMode={opportunityMode}
                         opportunityForm={opportunityForm}
@@ -2302,7 +2611,7 @@ function EmployerDashboard() {
                         moderationState={moderationState}
                         moderationFeedback={moderationFeedback}
                         isModerationFeedbackLoading={isModerationFeedbackLoading}
-                        verificationState={verificationState}
+                        verificationState={verificationStateForUi}
                         logoInputRef={logoInputRef}
                         isLogoUploading={isLogoUploading}
                         onHandleLogoUpload={handleLogoUpload}
@@ -2332,7 +2641,7 @@ function EmployerDashboard() {
                 onSubmit={handleSubmitVerification}
                 onClose={() => setShowVerificationModal(false)}
                 userEmail={user?.email || ''}
-                companyInn={profile.inn || ''}
+                companyLegalName={profile.legalName || ''}
                 currentVerification={currentVerification}
                 verificationModerationTask={verificationModerationTask}
                 verificationAttachments={verificationAttachments}
@@ -2340,7 +2649,7 @@ function EmployerDashboard() {
                 isVerificationSubmitting={isVerificationSubmitting}
                 onUploadVerificationAttachment={handleUploadVerificationAttachment}
                 onCancelVerificationModerationTask={handleCancelVerificationModerationTask}
-                profileVerificationStatus={profile.verificationStatus || 'NOT_STARTED'}
+                profileVerificationStatus={verificationStateForUi}
                 onOpenAttachment={handleOpenVerificationAttachment}
                 onDeleteAttachment={handleDeleteVerificationAttachment}
                 isDeletingAttachment={isDeletingAttachment}

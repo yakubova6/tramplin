@@ -9,7 +9,8 @@ export function createLinkRow(title = '', url = '') {
 export function statusBucket(status) {
     if (status === 'DRAFT') return 'draft'
     if (status === 'PLANNED') return 'planned'
-    if (['CLOSED', 'ARCHIVED', 'REJECTED'].includes(status)) return 'closed'
+    if (status === 'ARCHIVED') return 'archived'
+    if (['CLOSED', 'REJECTED'].includes(status)) return 'closed'
     return 'active'
 }
 

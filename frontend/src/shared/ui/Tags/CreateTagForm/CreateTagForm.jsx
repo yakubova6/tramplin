@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Input from '@/shared/ui/Input';
 import Label from '@/shared/ui/Label';
 import Button from '@/shared/ui/Button';
@@ -18,6 +18,7 @@ const CreateTagForm = ({ onCreate, onCancel, isLoading }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('TECH');
   const [error, setError] = useState('');
+  const overlayMouseDownStartedOutsideRef = useRef(false);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -43,8 +44,24 @@ const CreateTagForm = ({ onCreate, onCancel, isLoading }) => {
     await onCreate({ name: name.trim(), category });
   };
 
+  const handleOverlayMouseDown = (event) => {
+    overlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget;
+  };
+
+  const handleOverlayMouseUp = (event) => {
+    const endedOutside = event.target === event.currentTarget;
+    if (overlayMouseDownStartedOutsideRef.current && endedOutside) {
+      onCancel?.();
+    }
+    overlayMouseDownStartedOutsideRef.current = false;
+  };
+
   return (
-      <div className={styles.overlay} onMouseDown={onCancel}>
+      <div
+        className={styles.overlay}
+        onMouseDown={handleOverlayMouseDown}
+        onMouseUp={handleOverlayMouseUp}
+      >
         <div className={styles.formContainer} onMouseDown={(e) => e.stopPropagation()}>
           <h3>Предложить новый тег</h3>
           <form onSubmit={handleSubmit}>

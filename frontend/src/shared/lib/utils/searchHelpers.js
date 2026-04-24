@@ -7,6 +7,41 @@ export function getStringValue(item) {
     return String(item)
 }
 
+function normalizeSearchText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[^a-zа-я0-9\s-]/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function calculateSearchScore(candidate, query, queryTokens) {
+    if (!candidate) return -1
+
+    let score = 0
+    const candidateTokens = candidate.split(' ').filter(Boolean)
+
+    if (candidate === query) score += 100
+    if (candidate.startsWith(query)) score += 60
+    if (candidate.includes(query)) score += 35
+
+    queryTokens.forEach((token) => {
+        if (!token) return
+
+        if (candidateTokens.some((candidateToken) => candidateToken.startsWith(token))) {
+            score += 18
+            return
+        }
+
+        if (candidate.includes(token)) {
+            score += 8
+        }
+    })
+
+    return score
+}
+
 /**
  * Улучшенный фильтр: сначала по началу строки, потом по вхождению подстроки
  * @param {Array} list - массив строк или объектов с полем name
@@ -15,28 +50,38 @@ export function getStringValue(item) {
  * @returns {Array} отфильтрованный массив
  */
 export function smartFilter(list, query, limit = 8) {
-    const q = String(query || '').toLowerCase().trim()
+    const q = normalizeSearchText(query)
     if (!q) return list.slice(0, limit)
 
-    const startsWith = []
-    const contains = []
+    const queryTokens = q.split(' ').filter(Boolean)
+    const ranked = []
     const seen = new Set()
 
-    list.forEach(item => {
-        const str = getStringValue(item).toLowerCase()
+    list.forEach((item, index) => {
+        const rawValue = getStringValue(item)
+        const normalizedValue = normalizeSearchText(rawValue)
+        if (!normalizedValue) return
 
-        if (str.includes(q)) {
-            const key = str
-            if (!seen.has(key)) {
-                seen.add(key)
-                if (str.startsWith(q)) {
-                    startsWith.push(item)
-                } else {
-                    contains.push(item)
-                }
-            }
+        const uniqueKey = normalizedValue
+        if (seen.has(uniqueKey)) return
+        seen.add(uniqueKey)
+
+        const score = calculateSearchScore(normalizedValue, q, queryTokens)
+        if (score > 0) {
+            ranked.push({
+                item,
+                score,
+                len: normalizedValue.length,
+                index,
+            })
         }
     })
 
-    return [...startsWith, ...contains].slice(0, limit)
+    ranked.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        if (a.len !== b.len) return a.len - b.len
+        return a.index - b.index
+    })
+
+    return ranked.slice(0, limit).map((entry) => entry.item)
 }

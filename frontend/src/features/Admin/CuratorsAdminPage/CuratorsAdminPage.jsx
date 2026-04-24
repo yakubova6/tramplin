@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import DashboardLayout from '../../Dashboard/DashboardLayout'
 import Button from '@/shared/ui/Button'
@@ -87,6 +87,7 @@ function CuratorsAdminPage() {
         reason: '',
     })
     const [isSavingAccess, setIsSavingAccess] = useState(false)
+    const detailOverlayMouseDownStartedOutsideRef = useRef(false)
 
     const debouncedSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
     const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -250,6 +251,18 @@ function CuratorsAdminPage() {
 
         setIsDetailOpen(false)
         setIsDetailLoading(false)
+    }
+
+    const handleDetailOverlayMouseDown = (event) => {
+        detailOverlayMouseDownStartedOutsideRef.current = event.target === event.currentTarget
+    }
+
+    const handleDetailOverlayMouseUp = (event) => {
+        const endedOutside = event.target === event.currentTarget
+        if (detailOverlayMouseDownStartedOutsideRef.current && endedOutside) {
+            handleCloseDetail()
+        }
+        detailOverlayMouseDownStartedOutsideRef.current = false
     }
 
     const handleAccessToggle = (nextActive) => {
@@ -431,7 +444,11 @@ function CuratorsAdminPage() {
                 </div>
 
                 {isDetailOpen && (
-                    <div className="modal-overlay" onClick={handleCloseDetail}>
+                    <div
+                        className="modal-overlay"
+                        onMouseDown={handleDetailOverlayMouseDown}
+                        onMouseUp={handleDetailOverlayMouseUp}
+                    >
                         <div
                             className="modal-content admin-curators-page__modal"
                             onClick={(event) => event.stopPropagation()}

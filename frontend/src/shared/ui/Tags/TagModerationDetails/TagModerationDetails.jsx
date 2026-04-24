@@ -2,6 +2,14 @@ import React, { useEffect } from 'react';
 import { getTagCategoryLabel } from '@/shared/lib/utils/tagCategories';
 import styles from './TagModerationDetails.module.scss';
 
+const TAG_STATUS_LABELS = {
+  PENDING: 'На модерации',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонен',
+};
+
+const getTagStatusLabel = (status) => TAG_STATUS_LABELS[String(status || '').toUpperCase()] || 'Не указан';
+
 const TagModerationDetails = ({ tag, onClose }) => {
   if (!tag) return null;
 
@@ -20,7 +28,10 @@ const TagModerationDetails = ({ tag, onClose }) => {
   }, []);
 
   return (
-      <div className={styles.overlay} onClick={onClose}>
+      <div
+        className={styles.overlay}
+        onClick={(event) => event.target === event.currentTarget && onClose?.()}
+      >
         <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
           <button className={styles.closeBtn} onClick={onClose}>×</button>
           <h3>Информация о теге</h3>
@@ -34,7 +45,7 @@ const TagModerationDetails = ({ tag, onClose }) => {
           </div>
           <div className={styles.field}>
             <span className={styles.label}>Статус:</span>
-            <span>{tag.moderationStatus}</span>
+            <span>{getTagStatusLabel(tag.moderationStatus)}</span>
           </div>
           {tag.moderationComment && (
               <div className={styles.field}>
