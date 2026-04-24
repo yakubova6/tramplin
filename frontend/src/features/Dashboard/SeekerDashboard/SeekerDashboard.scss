@@ -2542,7 +2542,8 @@ $transition: all 0.2s ease;
 }
 
 .contact-editor__preset-badge,
-.contact-link-card__badge {
+.contact-link-card__badge,
+.contact-editor__card-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2560,10 +2561,6 @@ $transition: all 0.2s ease;
   text-align: center;
   align-self: center;
   vertical-align: middle;
-}
-
-.contact-editor__card-badge {
-  @extend .contact-editor__preset-badge;
 }
 
 .contact-editor__list {

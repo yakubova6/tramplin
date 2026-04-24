@@ -102,6 +102,12 @@
 
       .salary-separator {
         color: #45666b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: stretch;
+        min-width: 14px;
+        line-height: 1;
       }
 
       .salary-currency {
@@ -997,6 +1003,9 @@
 
       .opportunities-page__map-controls-inner {
         width: 100%;
+        padding: 5px;
+        gap: 6px;
+        border-radius: 12px;
         justify-content: stretch;
         flex-direction: column;
         align-items: stretch;
@@ -1033,7 +1042,8 @@
       gap: 10px;
 
       .salary-filter__inputs {
-        justify-content: center;
+        justify-content: flex-start;
+        width: 100%;
       }
     }
 
@@ -1119,15 +1129,31 @@
       padding: 10px 12px;
 
       .salary-filter__inputs {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-        gap: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         width: 100%;
-      }
+        justify-content: flex-start;
 
-      .salary-input {
-        width: 100%;
-        min-width: 0;
+        .salary-input {
+          width: auto;
+          flex: 1;
+          min-width: 80px;
+          max-width: 120px;
+        }
+
+        .salary-separator {
+          justify-self: center;
+          padding: 0;
+          min-width: auto;
+          flex-shrink: 0;
+        }
+
+        .salary-currency {
+          justify-self: start;
+          margin-left: 4px;
+          flex-shrink: 0;
+        }
       }
     }
 
@@ -1157,6 +1183,12 @@
       top: 8px;
       left: 8px;
       right: 8px;
+
+      .opportunities-page__map-controls-inner {
+        padding: 4px;
+        gap: 5px;
+        border-radius: 10px;
+      }
 
       .opportunities-page__map-controls-badge,
       .opportunities-page__map-controls-btn {

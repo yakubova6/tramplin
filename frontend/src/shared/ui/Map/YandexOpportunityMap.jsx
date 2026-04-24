@@ -328,12 +328,15 @@ export default function YandexOpportunityMap({
         const map = mapRef.current
         if (!isMapReady || !map?.behaviors) return
 
-        const touchBehaviors = ['drag', 'multiTouch', 'scrollZoom', 'dblClickZoom']
+        const allTouchBehaviors = ['drag', 'multiTouch', 'scrollZoom', 'dblClickZoom']
+        const safeTouchBehaviors = ['drag', 'multiTouch']
+        const noisyTouchBehaviors = ['scrollZoom', 'dblClickZoom']
 
         if (isTouchMode) {
-            map.behaviors.disable(touchBehaviors)
+            map.behaviors.enable(safeTouchBehaviors)
+            map.behaviors.disable(noisyTouchBehaviors)
         } else {
-            map.behaviors.enable(touchBehaviors)
+            map.behaviors.enable(allTouchBehaviors)
         }
     }, [isMapReady, isTouchMode])
 
